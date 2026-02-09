@@ -45,6 +45,30 @@ type Registration = {
   created_at: string;
 };
 
+type SideEvent = {
+  id: number;
+  round_type: "pre" | "post";
+  title: string;
+  tee_time: string | null;
+  status: string;
+};
+
+type SideEventRegistration = {
+  id: number;
+  nickname: string;
+  status: string;
+  meal_selected: boolean | null;
+  lodging_selected: boolean | null;
+};
+
+type PrizeSupport = {
+  id: number;
+  supporter_name: string | null;
+  item_name: string;
+  note: string | null;
+  created_at: string;
+};
+
 export default function TournamentParticipantsPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
@@ -52,6 +76,9 @@ export default function TournamentParticipantsPage() {
   const { user } = useAuth();
   const [t, setT] = useState<Tournament | null>(null);
   const [rows, setRows] = useState<Registration[]>([]);
+  const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
+  const [sideEventRegs, setSideEventRegs] = useState<Map<number, SideEventRegistration[]>>(new Map());
+  const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
 
@@ -105,6 +132,51 @@ export default function TournamentParticipantsPage() {
     }));
 
     setRows(transformed as Registration[]);
+
+    // Load side events
+    const seRes = await supabase
+      .from("side_events")
+      .select("id,round_type,title,tee_time,status")
+      .eq("tournament_id", tournamentId)
+      .order("round_type,id", { ascending: true });
+
+    if (!seRes.error) {
+      setSideEvents((seRes.data ?? []) as SideEvent[]);
+
+      const seRegMap = new Map<number, SideEventRegistration[]>();
+      for (const se of (seRes.data ?? []) as SideEvent[]) {
+        const serRes = await supabase
+          .from("side_event_registrations")
+          .select("id,nickname,status,meal_selected,lodging_selected")
+          .eq("side_event_id", se.id)
+          .neq("status", "canceled")
+          .order("id", { ascending: true });
+
+        if (!serRes.error) {
+          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
+        }
+      }
+      setSideEventRegs(seRegMap);
+    }
+
+    // Load prize supports
+    const prizeRes = await supabase
+      .from("tournament_prize_supports")
+      .select("id,item_name,note,created_at,profiles(nickname)")
+      .eq("tournament_id", tournamentId)
+      .order("created_at", { ascending: true });
+
+    if (!prizeRes.error) {
+      const mapped = (prizeRes.data ?? []).map((row: any) => ({
+        id: row.id,
+        supporter_name: row.profiles?.nickname ?? null,
+        item_name: row.item_name,
+        note: row.note ?? null,
+        created_at: row.created_at,
+      }));
+      setPrizes(mapped as PrizeSupport[]);
+    }
+
     setLoading(false);
   };
 
@@ -229,9 +301,111 @@ export default function TournamentParticipantsPage() {
               </CardContent>
             </Card>
 
+            {sideEvents.length > 0 && (
+              <Card className="border-slate-200/70">
+                <CardHeader>
+                  <CardTitle>사전/사후 라운드 참가자 현황</CardTitle>
+                  <CardDescription>
+                    각 라운드별 신청 현황입니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {sideEvents.map((se) => {
+                    const regs = sideEventRegs.get(se.id) ?? [];
+                    return (
+                      <div key={se.id} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium text-slate-900">
+                            [{se.round_type === "pre" ? "사전" : "사후"}] {se.title}
+                          </h3>
+                          <Badge variant="outline">{regs.length}명</Badge>
+                        </div>
+                        {regs.length === 0 ? (
+                          <p className="text-sm text-slate-500">신청자가 없습니다.</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>닉네임</TableHead>
+                                  <TableHead>상태</TableHead>
+                                  <TableHead>식사</TableHead>
+                                  <TableHead>숙박</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {regs.map((r) => (
+                                  <TableRow key={r.id}>
+                                    <TableCell>{r.nickname}</TableCell>
+                                    <TableCell>
+                                      <Badge variant="secondary">{r.status}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-sm text-slate-600">
+                                      {r.meal_selected === null ? "미정" : r.meal_selected ? "참여" : "불참"}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-slate-600">
+                                      {r.lodging_selected === null ? "미정" : r.lodging_selected ? "참여" : "불참"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
+
+            {prizes.length > 0 && (
+              <Card className="border-slate-200/70">
+                <CardHeader>
+                  <CardTitle>경품 지원 현황</CardTitle>
+                  <CardDescription>
+                    참가자분들이 제공한 경품 목록입니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>지원자</TableHead>
+                          <TableHead>경품명</TableHead>
+                          <TableHead>비고</TableHead>
+                          <TableHead>등록일</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {prizes.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell>{p.supporter_name ?? "익명"}</TableCell>
+                            <TableCell>{p.item_name}</TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {p.note ?? "-"}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {new Date(p.created_at).toLocaleDateString("ko-KR")}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="flex gap-2">
+              {user && (
+                <Button asChild>
+                  <Link href={`/t/${tournamentId}`}>참가 정보 수정</Link>
+                </Button>
+              )}
               <Button asChild variant="outline">
-                <Link href={`/t/${tournamentId}`}>대회 상세</Link>
+                <Link href="/tournaments">대회 목록</Link>
               </Button>
             </div>
           </>

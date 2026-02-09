@@ -13,7 +13,6 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -39,7 +38,6 @@ export default function Header() {
       if (!session?.user) {
         setIsAdmin(false);
       }
-      setMobileOpen(false);
     });
 
     return () => {
@@ -51,15 +49,29 @@ export default function Header() {
     await supabase.auth.signOut();
     setUser(null);
     setIsAdmin(false);
-    setMobileOpen(false);
-    router.push("/");
+    router.push("/login");
   };
 
   if (loading) {
     return (
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-3">
-          <p className="text-sm text-slate-500">로딩중...</p>
+          <Link href="/login" className="flex items-center gap-2">
+            <span className="text-xl font-bold text-slate-900">⛳ Just Golf</span>
+          </Link>
+        </div>
+      </header>
+    );
+  }
+
+  // 로그인 페이지에서는 로고만 표시
+  if (pathname === "/login") {
+    return (
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-4">
+          <Link href="/login" className="flex items-center gap-2">
+            <span className="text-xl font-bold text-slate-900">⛳ Just Golf</span>
+          </Link>
         </div>
       </header>
     );
@@ -70,150 +82,42 @@ export default function Header() {
       <div className="mx-auto max-w-6xl px-4 py-4">
         <div className="flex items-center justify-between">
           {/* 로고/홈 */}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href={user ? "/start" : "/login"} className="flex items-center gap-2">
             <span className="text-xl font-bold text-slate-900">⛳ Just Golf</span>
           </Link>
 
-          {/* 네비게이션 (데스크탑) */}
-          <nav className="hidden items-center gap-6 md:flex">
-            {/* 공개 네비 */}
+          {/* 네비게이션 */}
+          <nav className="flex items-center gap-2">
             {user && (
-              <Link
-                href="/tournaments"
-                className={`text-sm font-medium transition-colors ${
-                  pathname === "/tournaments"
-                    ? "text-slate-900 font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                대회 목록
-              </Link>
-            )}
-
-            {user && !isAdmin && (
-              <Link
-                href="/start"
-                className={`text-sm font-medium transition-colors ${
-                  pathname === "/start"
-                    ? "text-slate-900 font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                시작
-              </Link>
-            )}
-
-            {/* 관리자 네비 */}
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className={`text-sm font-medium transition-colors ${
-                  pathname?.startsWith("/admin")
-                    ? "text-slate-900 font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                관리자
-              </Link>
-            )}
-
-            {/* 사용자 상태 및 로그인/로그아웃 */}
-            {user ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-slate-600">
-                  {isAdmin ? "👨‍💼" : "👤"}{" "}
-                  <span className="max-w-[200px] truncate font-medium text-slate-900">
-                    {user.email}
-                  </span>
-                </span>
+              <>
+                <Button asChild size="sm" variant="ghost">
+                  <Link href="/tournaments">대회 목록</Link>
+                </Button>
+                {!isAdmin && (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href="/start">시작</Link>
+                  </Button>
+                )}
+                {isAdmin && (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href="/admin">관리자</Link>
+                  </Button>
+                )}
                 <Button asChild size="sm" variant="ghost">
                   <Link href="/profile">내 프로필</Link>
                 </Button>
                 <Button onClick={handleLogout} size="sm" variant="outline">
                   로그아웃
                 </Button>
-              </div>
-            ) : (
+              </>
+            )}
+            {!user && (
               <Button asChild size="sm">
                 <Link href="/login">로그인</Link>
               </Button>
             )}
           </nav>
-
-          {/* 모바일 메뉴 버튼 */}
-          <div className="flex items-center gap-2 md:hidden">
-            {user ? (
-              <span className="max-w-[120px] truncate text-xs text-slate-600">
-                {user.email}
-              </span>
-            ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setMobileOpen((prev) => !prev)}
-              aria-expanded={mobileOpen}
-              aria-controls="mobile-menu"
-            >
-              메뉴
-            </Button>
-          </div>
         </div>
-
-        {/* 네비게이션 (모바일) */}
-        {mobileOpen && (
-          <div
-            id="mobile-menu"
-            className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:hidden"
-          >
-            <div className="flex flex-col gap-2">
-              {user && (
-                <Link
-                  href="/tournaments"
-                  className="text-sm font-medium text-slate-700"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  대회 목록
-                </Link>
-              )}
-              {user && !isAdmin && (
-                <Link
-                  href="/start"
-                  className="text-sm font-medium text-slate-700"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  시작
-                </Link>
-              )}
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="text-sm font-medium text-slate-700"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  관리자
-                </Link>
-              )}
-              {user ? (
-                <div className="flex flex-col gap-2 pt-2">
-                  <Button asChild size="sm" variant="ghost">
-                    <Link href="/profile" onClick={() => setMobileOpen(false)}>
-                      내 프로필
-                    </Link>
-                  </Button>
-                  <Button onClick={handleLogout} size="sm" variant="outline">
-                    로그아웃
-                  </Button>
-                </div>
-              ) : (
-                <Button asChild size="sm">
-                  <Link href="/login" onClick={() => setMobileOpen(false)}>
-                    로그인
-                  </Link>
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* 상태 바 (현재 페이지 설명) - 데스크톱만 표시 */}
         <div className="mt-3 hidden border-t border-slate-100 pt-2 text-xs text-slate-500 md:block">

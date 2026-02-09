@@ -182,7 +182,7 @@ export default function TournamentDetailPage() {
         const nick = (pRes.data?.nickname ?? "").toString();
         setProfileNickname(nick);
         setIsApproved(pRes.data?.is_approved ?? null);
-        if (!nickname.trim()) setNickname(nick);
+        // 프로필 닉네임을 사용 (registration의 nickname 무시)
       }
     } else {
       setProfileNickname("");
@@ -228,9 +228,7 @@ export default function TournamentDetailPage() {
       setRelation(preferredMain?.relation ?? "본인");
 
       if (preferredMain) {
-        if (preferredMain.nickname && preferredMain.nickname.trim()) {
-          setNickname(preferredMain.nickname);
-        }
+        // 본인 신청 정보 로드
         setMemo(preferredMain.memo ?? "");
         setSelectedMealId(preferredMain.meal_option_id ?? null);
 
@@ -397,12 +395,11 @@ export default function TournamentDetailPage() {
       setMsg("관리자 승인 대기 상태입니다. 승인 후 신청할 수 있어요.");
       return;
     }
-    const nick = nickname.trim() || profileNickname.trim();
+    const nick = profileNickname.trim();
     if (!nick) {
-      setMsg("닉네임을 입력해줘.");
+      setMsg("프로필 닉네임이 설정되지 않았습니다. 프로필 페이지에서 설정해주세요.");
       return;
     }
-    const rel = relation.trim() || "본인";
 
     let registrationId: number | undefined;
     const existingMain =
@@ -421,7 +418,7 @@ export default function TournamentDetailPage() {
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
-          relation: rel,
+          relation: "본인",
           status: nextStatus,
         })
         .eq("id", existingMain.id)
@@ -449,7 +446,7 @@ export default function TournamentDetailPage() {
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
-          relation: rel,
+          relation: "본인",
           status: mainStatus,
         })
         .select("id")
@@ -849,40 +846,29 @@ export default function TournamentDetailPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">닉네임</label>
+                    <label className="text-sm font-medium">닉네임 (프로필)</label>
                     <Input
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
+                      value={profileNickname || "닉네임 없음"}
+                      disabled
+                      className="bg-slate-50 cursor-not-allowed"
                     />
-                    {profileNickname && (
-                      <p className="text-xs text-slate-500">
-                        기본 닉네임: {profileNickname}
-                      </p>
-                    )}
+                    <p className="text-xs text-slate-500">
+                      닉네임 변경은 프로필 페이지에서 가능합니다.
+                    </p>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">관계</label>
-                      <Input
-                        value={relation}
-                        onChange={(e) => setRelation(e.target.value)}
-                        placeholder="예: 본인, 가족, 지인"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">참가 상태</label>
-                      <select
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        value={mainStatus}
-                        onChange={(e) =>
-                          setMainStatus(e.target.value as Registration["status"])
-                        }
-                      >
-                        <option value="applied">신청</option>
-                        <option value="undecided">미정</option>
-                      </select>
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">참가 상태</label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={mainStatus}
+                      onChange={(e) =>
+                        setMainStatus(e.target.value as Registration["status"])
+                      }
+                    >
+                      <option value="applied">신청</option>
+                      <option value="undecided">미정</option>
+                    </select>
                   </div>
 
                   <div className="space-y-2">
@@ -946,44 +932,38 @@ export default function TournamentDetailPage() {
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">이동수단</label>
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                      <Input
-                        value={transportation}
-                        onChange={(e) => setTransportation(e.target.value)}
-                        placeholder="예: 자차, 카풀, 대중교통"
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setTransportation("미정")}
-                        className="w-full md:w-auto"
-                      >
-                        미정
-                      </Button>
-                    </div>
+                    <Input
+                      value={transportation}
+                      onChange={(e) => setTransportation(e.target.value)}
+                      placeholder="예: 자차, 카풀, 대중교통 (선택사항)"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setTransportation("미정")}
+                      className="text-xs"
+                    >
+                      "미정"으로 입력
+                    </Button>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">출발지</label>
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                      <Input
-                        value={departureLocation}
-                        onChange={(e) => setDepartureLocation(e.target.value)}
-                        placeholder="예: 강남역"
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setDepartureLocation("미정")}
-                        className="w-full md:w-auto"
-                      >
-                        미정
-                      </Button>
-                    </div>
+                    <Input
+                      value={departureLocation}
+                      onChange={(e) => setDepartureLocation(e.target.value)}
+                      placeholder="예: 강남역 (선택사항)"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setDepartureLocation("미정")}
+                      className="text-xs"
+                    >
+                      "미정"으로 입력
+                    </Button>
                   </div>
 
                   <div className="space-y-2">
@@ -1047,22 +1027,22 @@ export default function TournamentDetailPage() {
                     </div>
                   )}
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <Button onClick={apply} className="w-full sm:w-auto">
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={apply} size="sm">
                       {regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
                     </Button>
-                    <Button onClick={saveExtras} variant="secondary" className="w-full sm:w-auto">
+                    <Button onClick={saveExtras} variant="secondary" size="sm">
                       저장
                     </Button>
-                    <Button onClick={cancelMine} variant="outline" className="w-full sm:w-auto">
+                    <Button onClick={cancelMine} variant="outline" size="sm">
                       신청 취소
                     </Button>
-                    <Button asChild variant="outline" className="w-full sm:w-auto">
+                    <Button asChild variant="outline" size="sm">
                       <Link href={`/t/${tournamentId}/participants`}>
                         참가자 현황
                       </Link>
                     </Button>
-                    <Button onClick={refresh} variant="ghost" className="w-full sm:w-auto">
+                    <Button onClick={refresh} variant="ghost" size="sm">
                       새로고침
                     </Button>
                   </div>
@@ -1165,44 +1145,6 @@ export default function TournamentDetailPage() {
                   </CardContent>
                 </Card>
               )}
-
-              <Card className="border-slate-200/70">
-                <CardHeader>
-                  <CardTitle>참가 현황(공개)</CardTitle>
-                  <CardDescription>닉네임과 상태만 노출됩니다.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto -mx-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>닉네임</TableHead>
-                          <TableHead>상태</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                    <TableBody>
-                      {regs.map((r) => (
-                        <TableRow key={r.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span>{r.nickname}</span>
-                              {me && r.user_id === me ? (
-                                <Badge variant="outline">나</Badge>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="capitalize">
-                              {r.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
 
             <Card className="border-slate-200/70">
@@ -1487,40 +1429,6 @@ export default function TournamentDetailPage() {
                                 취소
                               </Button>
                             </div>
-                          </div>
-
-                          <div>
-                            <h3 className="font-medium">신청 현황(공개)</h3>
-                            <Table className="mt-2">
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>닉네임</TableHead>
-                                  <TableHead>상태</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {seRegs.map((r) => (
-                                  <TableRow key={r.id}>
-                                    <TableCell>
-                                      <div className="flex items-center gap-2">
-                                        <span>{r.nickname}</span>
-                                        {me && r.user_id === me ? (
-                                          <Badge variant="outline">나</Badge>
-                                        ) : null}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge
-                                        variant="secondary"
-                                        className="capitalize"
-                                      >
-                                        {r.status}
-                                      </Badge>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
                           </div>
                         </div>
                       </CardContent>

@@ -76,11 +76,11 @@ export default function TournamentsPage() {
                     {t.event_date} · {t.course_name ?? "-"}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-sm text-slate-500">
+                <CardContent className="flex flex-row items-center justify-between gap-3">
+                  <span className="inline-block text-sm text-slate-500">
                     {t.location ?? "-"}
                   </span>
-                  <Button asChild className="w-full sm:w-auto">
+                  <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${t.id}`}>상세 보기</Link>
                   </Button>
                 </CardContent>

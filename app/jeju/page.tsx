@@ -22,7 +22,7 @@ export default function JejuPage() {
               콘텐츠를 준비하고 있습니다. 조금만 기다려 주세요.
             </p>
             <Button asChild variant="outline">
-              <Link href="/">대회 목록으로 돌아가기</Link>
+              <Link href="/start">메인화면으로 돌아가기</Link>
             </Button>
           </CardContent>
         </Card>
