@@ -66,7 +66,7 @@ export default function AdminTournamentNewPage() {
           <CardTitle>새 대회 만들기</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">대회명 *</label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -138,8 +138,8 @@ export default function AdminTournamentNewPage() {
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={save}>저장</Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button onClick={save} className="w-full sm:w-auto">저장</Button>
           </div>
 
           {msg && <p className="text-sm text-slate-600">{msg}</p>}

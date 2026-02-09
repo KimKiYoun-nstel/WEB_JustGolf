@@ -44,6 +44,8 @@ type SideEventRegistration = {
   nickname: string;
   status: "applied" | "confirmed" | "waitlisted" | "canceled";
   memo: string | null;
+  meal_selected: boolean | null;
+  lodging_selected: boolean | null;
 };
 
 type RoundType = "pre" | "post";
@@ -121,12 +123,15 @@ export default function AdminSideEventsPage() {
       for (const se of (seRes.data ?? []) as SideEvent[]) {
         const serRes = await supabase
           .from("side_event_registrations")
-          .select("id,user_id,nickname,status,memo")
+          .select("id,user_id,nickname,status,memo,meal_selected,lodging_selected")
           .eq("side_event_id", se.id)
           .order("id", { ascending: true });
 
         if (!serRes.error) {
-          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
+          const filtered = ((serRes.data ?? []) as SideEventRegistration[]).filter(
+            (row) => row.status !== "canceled"
+          );
+          seRegMap.set(se.id, filtered);
         }
       }
       setSideEventRegs(seRegMap);
@@ -298,21 +303,10 @@ export default function AdminSideEventsPage() {
     setLodgingRequired(se.lodging_required ?? false);
   };
 
-  const updateRegStatus = async (
-    regId: number,
-    newStatus: "confirmed" | "waitlisted" | "canceled"
-  ) => {
-    setMsg("");
-    const { error } = await supabase
-      .from("side_event_registrations")
-      .update({ status: newStatus })
-      .eq("id", regId);
-
-    if (error) {
-      setMsg(`상태 변경 실패: ${friendlyError(error)}`);
-    } else {
-      await loadSideEvents();
-    }
+  const renderTriState = (value: boolean | null) => {
+    if (value === true) return "참여";
+    if (value === false) return "불참";
+    return "미정";
   };
 
   if (loading) {
@@ -596,7 +590,8 @@ export default function AdminSideEventsPage() {
                             <TableRow>
                               <TableHead>닉네임</TableHead>
                               <TableHead>상태</TableHead>
-                              <TableHead>작업</TableHead>
+                              <TableHead>식사</TableHead>
+                              <TableHead>숙박</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -608,38 +603,15 @@ export default function AdminSideEventsPage() {
                                     {r.status}
                                   </Badge>
                                 </TableCell>
-                                <TableCell className="space-x-1">
-                                  {r.status === "applied" && (
-                                    <>
-                                      <Button
-                                        onClick={() =>
-                                          updateRegStatus(r.id, "confirmed")
-                                        }
-                                        size="sm"
-                                        variant="outline"
-                                      >
-                                        확정
-                                      </Button>
-                                      <Button
-                                        onClick={() =>
-                                          updateRegStatus(r.id, "waitlisted")
-                                        }
-                                        size="sm"
-                                        variant="outline"
-                                      >
-                                        대기
-                                      </Button>
-                                    </>
-                                  )}
-                                  <Button
-                                    onClick={() =>
-                                      updateRegStatus(r.id, "canceled")
-                                    }
-                                    size="sm"
-                                    variant="destructive"
-                                  >
-                                    취소
-                                  </Button>
+                                <TableCell>
+                                  <span className="text-sm text-slate-600">
+                                    {renderTriState(r.meal_selected)}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-slate-600">
+                                    {renderTriState(r.lodging_selected)}
+                                  </span>
                                 </TableCell>
                               </TableRow>
                             ))}

@@ -13,6 +13,7 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -38,6 +39,7 @@ export default function Header() {
       if (!session?.user) {
         setIsAdmin(false);
       }
+      setMobileOpen(false);
     });
 
     return () => {
@@ -49,6 +51,7 @@ export default function Header() {
     await supabase.auth.signOut();
     setUser(null);
     setIsAdmin(false);
+    setMobileOpen(false);
     router.push("/");
   };
 
@@ -68,22 +71,37 @@ export default function Header() {
         <div className="flex items-center justify-between">
           {/* 로고/홈 */}
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-slate-900">⛳ Golf Tour</span>
+            <span className="text-xl font-bold text-slate-900">⛳ Just Golf</span>
           </Link>
 
-          {/* 네비게이션 */}
-          <nav className="flex items-center gap-6">
+          {/* 네비게이션 (데스크탑) */}
+          <nav className="hidden items-center gap-6 md:flex">
             {/* 공개 네비 */}
-            <Link
-              href="/"
-              className={`text-sm font-medium transition-colors ${
-                pathname === "/"
-                  ? "text-slate-900 font-semibold"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              대회 목록
-            </Link>
+            {user && (
+              <Link
+                href="/tournaments"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/tournaments"
+                    ? "text-slate-900 font-semibold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                대회 목록
+              </Link>
+            )}
+
+            {user && !isAdmin && (
+              <Link
+                href="/start"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/start"
+                    ? "text-slate-900 font-semibold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                시작
+              </Link>
+            )}
 
             {/* 관리자 네비 */}
             {isAdmin && (
@@ -104,7 +122,7 @@ export default function Header() {
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-600">
                   {isAdmin ? "👨‍💼" : "👤"}{" "}
-                  <span className="font-medium text-slate-900">
+                  <span className="max-w-[200px] truncate font-medium text-slate-900">
                     {user.email}
                   </span>
                 </span>
@@ -121,11 +139,89 @@ export default function Header() {
               </Button>
             )}
           </nav>
+
+          {/* 모바일 메뉴 버튼 */}
+          <div className="flex items-center gap-2 md:hidden">
+            {user ? (
+              <span className="max-w-[120px] truncate text-xs text-slate-600">
+                {user.email}
+              </span>
+            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setMobileOpen((prev) => !prev)}
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-menu"
+            >
+              메뉴
+            </Button>
+          </div>
         </div>
 
-        {/* 상태 바 (현재 페이지 설명) */}
-        <div className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">
-          {pathname === "/" && "📍 대회 목록을 확인하고 신청하세요"}
+        {/* 네비게이션 (모바일) */}
+        {mobileOpen && (
+          <div
+            id="mobile-menu"
+            className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:hidden"
+          >
+            <div className="flex flex-col gap-2">
+              {user && (
+                <Link
+                  href="/tournaments"
+                  className="text-sm font-medium text-slate-700"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  대회 목록
+                </Link>
+              )}
+              {user && !isAdmin && (
+                <Link
+                  href="/start"
+                  className="text-sm font-medium text-slate-700"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  시작
+                </Link>
+              )}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="text-sm font-medium text-slate-700"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  관리자
+                </Link>
+              )}
+              {user ? (
+                <div className="flex flex-col gap-2 pt-2">
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href="/profile" onClick={() => setMobileOpen(false)}>
+                      내 프로필
+                    </Link>
+                  </Button>
+                  <Button onClick={handleLogout} size="sm" variant="outline">
+                    로그아웃
+                  </Button>
+                </div>
+              ) : (
+                <Button asChild size="sm">
+                  <Link href="/login" onClick={() => setMobileOpen(false)}>
+                    로그인
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 상태 바 (현재 페이지 설명) - 데스크톱만 표시 */}
+        <div className="mt-3 hidden border-t border-slate-100 pt-2 text-xs text-slate-500 md:block">
+          {pathname === "/" && "📍 로그인 페이지로 이동합니다"}
+          {pathname === "/tournaments" && "📍 대회 목록을 확인하고 신청하세요"}
+          {pathname === "/start" && "📍 빠른 바로가기를 제공합니다"}
+          {pathname === "/jeju" && "📍 제주달콧 바로가기(준비중)"}
+          {pathname === "/board" && "📍 피드백 게시판 - 버그 신고, 기능 제안"}
           {pathname?.startsWith("/t/") &&
             !pathname?.includes("/participants") &&
             !pathname?.includes("/groups") &&

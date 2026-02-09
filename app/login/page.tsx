@@ -14,8 +14,18 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  // 저장된 이메일 불러오기
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("rememberedEmail");
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   useEffect(() => {
     // 미들웨어에서 리다이렉트된 경우 승인 대기 메시지
@@ -50,7 +60,8 @@ function LoginForm() {
         return;
       }
 
-      const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
+      // 모든 사용자는 /start로 이동
+      const target = "/start";
       // Vercel 환경에서 더 안정적인 리다이렉트
       window.location.href = target;
     };
@@ -88,7 +99,14 @@ function LoginForm() {
       return;
     }
 
-    // 로그인 성공 후 이전 페이지 또는 관리자 여부에 따라 리다이렉트
+    // 로그인 정보 기억하기
+    if (rememberMe) {
+      localStorage.setItem("rememberedEmail", email);
+    } else {
+      localStorage.removeItem("rememberedEmail");
+    }
+
+    // 로그인 성공 후 승인 여부 확인
     const redirectTo = searchParams.get("redirectTo");
     
     const { data: profile } = await supabase
@@ -104,8 +122,8 @@ function LoginForm() {
       return;
     }
 
-    const rawTarget = redirectTo && redirectTo.startsWith("/") ? redirectTo : "";
-    const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
+    // 모든 사용자는 /start로 이동
+    const target = "/start";
 
     setMsg("로그인 성공! 이동 중...");
     // Vercel edge에서 쿠키 동기화 대기 후 리다이렉트
@@ -157,6 +175,20 @@ function LoginForm() {
               placeholder="닉네임"
               disabled={loading}
             />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+              disabled={loading}
+            />
+            <label htmlFor="rememberMe" className="text-sm text-slate-600">
+              로그인 정보 기억하기
+            </label>
           </div>
 
           <div className="flex flex-wrap gap-2">

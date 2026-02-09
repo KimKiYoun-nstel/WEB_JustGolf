@@ -213,7 +213,7 @@ export default function AdminTournamentEditPage() {
           <CardTitle>대회 수정</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">대회명 *</label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -285,9 +285,9 @@ export default function AdminTournamentEditPage() {
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={save}>저장</Button>
-            <Button onClick={duplicate} variant="outline">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button onClick={save} className="w-full sm:w-auto">저장</Button>
+            <Button onClick={duplicate} variant="outline" className="w-full sm:w-auto">
               이 대회 복제
             </Button>
           </div>

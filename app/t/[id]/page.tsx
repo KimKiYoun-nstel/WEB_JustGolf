@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
@@ -39,9 +39,10 @@ type Registration = {
   id: number;
   user_id: string;
   nickname: string;
-  status: "applied" | "confirmed" | "waitlisted" | "canceled";
+  status: "applied" | "confirmed" | "waitlisted" | "canceled" | "undecided";
   memo: string | null;
   meal_option_id: number | null;
+  relation: string | null;
 };
 
 type TournamentFile = {
@@ -84,7 +85,7 @@ type MealOption = {
 };
 
 type RegistrationExtras = {
-  carpool_available: boolean;
+  carpool_available: boolean | null;
   carpool_seats: number | null;
   transportation: string | null;
   departure_location: string | null;
@@ -105,9 +106,19 @@ type TournamentExtra = {
   display_order: number;
 };
 
+type PrizeSupport = {
+  id: number;
+  supporter_id: string;
+  supporter_name: string | null;
+  item_name: string;
+  note: string | null;
+  created_at: string;
+};
+
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
+  const router = useRouter();
 
   const { user, loading } = useAuth();
   const [me, setMe] = useState<string>("");
@@ -122,18 +133,28 @@ export default function TournamentDetailPage() {
   const [tournamentExtras, setTournamentExtras] = useState<TournamentExtra[]>([]);
   const [selectedExtras, setSelectedExtras] = useState<number[]>([]);
   const [nickname, setNickname] = useState("");
+  const [relation, setRelation] = useState("본인");
   const [profileNickname, setProfileNickname] = useState("");
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [memo, setMemo] = useState("");
+  const [mainStatus, setMainStatus] = useState<Registration["status"]>("applied");
+  const [mainRegId, setMainRegId] = useState<number | null>(null);
   const [selectedMealId, setSelectedMealId] = useState<number | null>(null);
-  const [carpoolAvailable, setCarpoolAvailable] = useState(false);
+  const [carpoolAvailable, setCarpoolAvailable] = useState<boolean | null>(null);
   const [carpoolSeats, setCarpoolSeats] = useState<number | null>(null);
   const [transportation, setTransportation] = useState("");
   const [departureLocation, setDepartureLocation] = useState("");
   const [extraNotes, setExtraNotes] = useState("");
   const [carpoolPublic, setCarpoolPublic] = useState<CarpoolPublic[]>([]);
-  const [sideEventMealSelections, setSideEventMealSelections] = useState<Map<number, boolean>>(new Map());
-  const [sideEventLodgingSelections, setSideEventLodgingSelections] = useState<Map<number, boolean>>(new Map());
+  const [sideEventMealSelections, setSideEventMealSelections] = useState<Map<number, boolean | null>>(new Map());
+  const [sideEventLodgingSelections, setSideEventLodgingSelections] = useState<Map<number, boolean | null>>(new Map());
+  const [extraName, setExtraName] = useState("");
+  const [extraRelation, setExtraRelation] = useState("");
+  const [extraStatus, setExtraStatus] = useState<Registration["status"]>("applied");
+  const [extraMemo, setExtraMemo] = useState("");
+  const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
+  const [prizeItem, setPrizeItem] = useState("");
+  const [prizeNote, setPrizeNote] = useState("");
   const [msg, setMsg] = useState("");
 
   const friendlyError = (error: { code?: string; message: string }) => {
@@ -180,9 +201,11 @@ export default function TournamentDetailPage() {
     }
     setT(tRes.data as Tournament);
 
+    let mainRegIdForExtras: number | null = null;
+
     const rRes = await supabase
       .from("registrations")
-      .select("id,user_id,nickname,status,memo,meal_option_id")
+      .select("id,user_id,nickname,status,memo,meal_option_id,relation")
       .eq("tournament_id", tournamentId)
       .order("id", { ascending: true });
 
@@ -190,41 +213,60 @@ export default function TournamentDetailPage() {
       setMsg(`신청 현황 조회 실패: ${friendlyError(rRes.error)}`);
     } else {
       const regList = (rRes.data ?? []) as Registration[];
-      setRegs(regList);
+      const myRegs = uid ? regList.filter((r) => r.user_id === uid) : [];
+      const activeMyRegs = myRegs.filter((r) => r.status !== "canceled");
+      const preferredMain =
+        activeMyRegs.find((r) => (r.relation ?? "").trim() === "본인") ??
+        activeMyRegs[0] ??
+        myRegs.find((r) => (r.relation ?? "").trim() === "본인") ??
+        myRegs[0];
 
-      const mine = uid ? regList.find((r) => r.user_id === uid) : undefined;
-      if (mine) {
-        setSelectedMealId(mine.meal_option_id ?? null);
+      mainRegIdForExtras = preferredMain?.id ?? null;
+
+      setMainRegId(preferredMain?.id ?? null);
+      setMainStatus(preferredMain?.status ?? "applied");
+      setRelation(preferredMain?.relation ?? "본인");
+
+      if (preferredMain) {
+        if (preferredMain.nickname && preferredMain.nickname.trim()) {
+          setNickname(preferredMain.nickname);
+        }
+        setMemo(preferredMain.memo ?? "");
+        setSelectedMealId(preferredMain.meal_option_id ?? null);
+
         const extraRes = await supabase
           .from("registration_extras")
           .select(
             "carpool_available,carpool_seats,transportation,departure_location,notes"
           )
-          .eq("registration_id", mine.id)
+          .eq("registration_id", preferredMain.id)
           .single();
 
         if (!extraRes.error && extraRes.data) {
           const extras = extraRes.data as RegistrationExtras;
-          setCarpoolAvailable(extras.carpool_available ?? false);
+          setCarpoolAvailable(extras.carpool_available ?? null);
           setCarpoolSeats(extras.carpool_seats ?? null);
           setTransportation(extras.transportation ?? "");
           setDepartureLocation(extras.departure_location ?? "");
           setExtraNotes(extras.notes ?? "");
         } else {
-          setCarpoolAvailable(false);
+          setCarpoolAvailable(null);
           setCarpoolSeats(null);
           setTransportation("");
           setDepartureLocation("");
           setExtraNotes("");
         }
       } else {
+        setMemo("");
         setSelectedMealId(null);
-        setCarpoolAvailable(false);
+        setCarpoolAvailable(null);
         setCarpoolSeats(null);
         setTransportation("");
         setDepartureLocation("");
         setExtraNotes("");
       }
+
+      setRegs(regList);
     }
 
     const fRes = await supabase
@@ -287,6 +329,26 @@ export default function TournamentDetailPage() {
       setCarpoolPublic([]);
     }
 
+    const prizeRes = await supabase
+      .from("tournament_prize_supports")
+      .select("id,user_id,item_name,note,created_at,profiles(nickname)")
+      .eq("tournament_id", tournamentId)
+      .order("created_at", { ascending: true });
+
+    if (!prizeRes.error) {
+      const mapped = (prizeRes.data ?? []).map((row: any) => ({
+        id: row.id,
+        supporter_id: row.user_id,
+        supporter_name: row.profiles?.nickname ?? null,
+        item_name: row.item_name,
+        note: row.note ?? null,
+        created_at: row.created_at,
+      }));
+      setPrizes(mapped as PrizeSupport[]);
+    } else {
+      setPrizes([]);
+    }
+
     // Load tournament extras (활동)
     const extrasRes = await supabase
       .from("tournament_extras")
@@ -300,23 +362,20 @@ export default function TournamentDetailPage() {
     }
 
     // Load user's selected extras
-    if (uid) {
-      const mine = regs.find((r) => r.user_id === uid);
-      if (mine) {
-        const selectedRes = await supabase
-          .from("registration_activity_selections")
-          .select("extra_id")
-          .eq("registration_id", mine.id)
-          .eq("selected", true);
+    if (uid && mainRegIdForExtras) {
+      const selectedRes = await supabase
+        .from("registration_activity_selections")
+        .select("extra_id")
+        .eq("registration_id", mainRegIdForExtras)
+        .eq("selected", true);
 
-        if (!selectedRes.error && selectedRes.data) {
-          setSelectedExtras(selectedRes.data.map((s: any) => s.extra_id));
-        } else {
-          setSelectedExtras([]);
-        }
+      if (!selectedRes.error && selectedRes.data) {
+        setSelectedExtras(selectedRes.data.map((s: any) => s.extra_id));
       } else {
         setSelectedExtras([]);
       }
+    } else {
+      setSelectedExtras([]);
     }
   };
 
@@ -343,27 +402,29 @@ export default function TournamentDetailPage() {
       setMsg("닉네임을 입력해줘.");
       return;
     }
-
-    // 신청 상태 확인: 활성 신청/취소 신청 분리
-    const activeReg = regs.find(
-      (r) => r.user_id === uid && r.status !== "canceled"
-    );
-    const canceledReg = regs.find(
-      (r) => r.user_id === uid && r.status === "canceled"
-    );
+    const rel = relation.trim() || "본인";
 
     let registrationId: number | undefined;
+    const existingMain =
+      (mainRegId ? regs.find((r) => r.id === mainRegId) : undefined) ??
+      regs.find(
+        (r) => r.user_id === uid && (r.relation ?? "").trim() === "본인"
+      ) ??
+      regs.find((r) => r.user_id === uid);
 
-    if (activeReg) {
-      // 이미 신청했으면 UPDATE (정보 수정 모드)
+    if (existingMain) {
+      const nextStatus =
+        existingMain.status === "canceled" ? mainStatus : mainStatus;
       const { data, error } = await supabase
         .from("registrations")
         .update({
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
+          relation: rel,
+          status: nextStatus,
         })
-        .eq("id", activeReg.id)
+        .eq("id", existingMain.id)
         .select("id")
         .single();
 
@@ -373,28 +434,11 @@ export default function TournamentDetailPage() {
       }
 
       registrationId = data?.id;
-      setMsg("신청 정보가 수정되었습니다!");
-    } else if (canceledReg) {
-      // 취소 상태면 재신청으로 복구
-      const { data, error } = await supabase
-        .from("registrations")
-        .update({
-          nickname: nick,
-          memo: memo.trim() || null,
-          meal_option_id: selectedMealId,
-          status: "applied",
-        })
-        .eq("id", canceledReg.id)
-        .select("id")
-        .single();
-
-      if (error) {
-        setMsg(`재신청 실패: ${friendlyError(error)}`);
-        return;
-      }
-
-      registrationId = data?.id;
-      setMsg("재신청 완료!");
+      setMsg(
+        existingMain.status === "canceled"
+          ? "재신청 완료!"
+          : "신청 정보가 수정되었습니다!"
+      );
     } else {
       // 신청이 없거나 canceled면 INSERT
       const { data, error } = await supabase
@@ -405,7 +449,8 @@ export default function TournamentDetailPage() {
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
-          status: "applied",
+          relation: rel,
+          status: mainStatus,
         })
         .select("id")
         .single();
@@ -439,9 +484,9 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    const mine = regs.find((r) => r.user_id === uid);
+    const mine = mainRegId ? regs.find((r) => r.id === mainRegId) : undefined;
     if (!mine) {
-      setMsg("내 신청 내역이 없어.");
+      setMsg("대표 참가자 신청 내역이 없어.");
       return;
     }
 
@@ -457,12 +502,118 @@ export default function TournamentDetailPage() {
     }
   };
 
+  const addParticipant = async () => {
+    setMsg("");
+    const uid = user?.id;
+    if (!uid) {
+      setMsg("추가 참가자를 등록하려면 로그인 필요");
+      return;
+    }
+    if (isApproved === false) {
+      setMsg("관리자 승인 대기 상태입니다. 승인 후 신청할 수 있어요.");
+      return;
+    }
+
+    const name = extraName.trim();
+    if (!name) {
+      setMsg("추가 참가자 이름을 입력해줘.");
+      return;
+    }
+
+    const rel = extraRelation.trim() || null;
+    const status = extraStatus === "canceled" ? "applied" : extraStatus;
+
+    const { error } = await supabase
+      .from("registrations")
+      .insert({
+        tournament_id: tournamentId,
+        user_id: uid,
+        nickname: name,
+        relation: rel,
+        memo: extraMemo.trim() || null,
+        status,
+      });
+
+    if (error) {
+      setMsg(`추가 참가자 등록 실패: ${friendlyError(error)}`);
+      return;
+    }
+
+    setExtraName("");
+    setExtraRelation("");
+    setExtraStatus("applied");
+    setExtraMemo("");
+    setMsg("추가 참가자가 등록되었습니다.");
+    await refresh();
+  };
+
+  const cancelParticipant = async (registrationId: number) => {
+    setMsg("");
+    const uid = user?.id;
+    if (!uid) {
+      setMsg("로그인 필요");
+      return;
+    }
+
+    const target = regs.find((r) => r.id === registrationId && r.user_id === uid);
+    if (!target) {
+      setMsg("참가자 정보를 찾을 수 없습니다.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("registrations")
+      .update({ status: "canceled" })
+      .eq("id", target.id);
+
+    if (error) {
+      setMsg(`취소 실패: ${friendlyError(error)}`);
+    } else {
+      setMsg("참가 취소 완료");
+      await refresh();
+    }
+  };
+
+  const addPrizeSupport = async () => {
+    setMsg("");
+    const uid = user?.id;
+    if (!uid) {
+      setMsg("경품 지원을 등록하려면 로그인 필요");
+      return;
+    }
+
+    const item = prizeItem.trim();
+    if (!item) {
+      setMsg("지원할 경품 내용을 입력해줘.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("tournament_prize_supports")
+      .insert({
+        tournament_id: tournamentId,
+        user_id: uid,
+        item_name: item,
+        note: prizeNote.trim() || null,
+      });
+
+    if (error) {
+      setMsg(`경품 지원 등록 실패: ${friendlyError(error)}`);
+      return;
+    }
+
+    setPrizeItem("");
+    setPrizeNote("");
+    setMsg("경품 지원이 등록되었습니다.");
+    await refresh();
+  };
+
   const upsertExtras = async (registrationId: number) => {
     const { error } = await supabase.from("registration_extras").upsert(
       {
         registration_id: registrationId,
         carpool_available: carpoolAvailable,
-        carpool_seats: carpoolAvailable ? carpoolSeats : null,
+        carpool_seats: carpoolAvailable === true ? carpoolSeats : null,
         transportation: transportation.trim() || null,
         departure_location: departureLocation.trim() || null,
         notes: extraNotes.trim() || null,
@@ -514,16 +665,9 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    const mine = regs.find((r) => r.user_id === uid && r.status !== "canceled");
-    if (!mine) {
-      const canceled = regs.find(
-        (r) => r.user_id === uid && r.status === "canceled"
-      );
-      setMsg(
-        canceled
-          ? "신청이 취소 상태입니다. 재신청 후 저장해줘."
-          : "먼저 대회 신청을 완료해줘."
-      );
+    const mine = mainRegId ? regs.find((r) => r.id === mainRegId) : undefined;
+    if (!mine || mine.status === "canceled") {
+      setMsg("대표 참가자 신청이 필요합니다.");
       return;
     }
 
@@ -649,6 +793,22 @@ export default function TournamentDetailPage() {
     }
   };
 
+  const myParticipantList = regs.filter(
+    (r) => r.user_id === me && r.id !== mainRegId
+  );
+  const hasActiveRegistration = regs.some(
+    (r) => r.user_id === me && r.status !== "canceled"
+  );
+
+  const formatStatus = (status: Registration["status"]) => {
+    if (status === "undecided") return "미정";
+    if (status === "applied") return "신청";
+    if (status === "confirmed") return "확정";
+    if (status === "waitlisted") return "대기";
+    if (status === "canceled") return "취소";
+    return status;
+  };
+
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
@@ -701,6 +861,30 @@ export default function TournamentDetailPage() {
                     )}
                   </div>
 
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">관계</label>
+                      <Input
+                        value={relation}
+                        onChange={(e) => setRelation(e.target.value)}
+                        placeholder="예: 본인, 가족, 지인"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">참가 상태</label>
+                      <select
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        value={mainStatus}
+                        onChange={(e) =>
+                          setMainStatus(e.target.value as Registration["status"])
+                        }
+                      >
+                        <option value="applied">신청</option>
+                        <option value="undecided">미정</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">메모(선택)</label>
                     <Input
@@ -711,21 +895,34 @@ export default function TournamentDetailPage() {
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">카풀 제공</label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={carpoolAvailable}
-                        onChange={(e) => {
-                          setCarpoolAvailable(e.target.checked);
-                          if (!e.target.checked) setCarpoolSeats(null);
-                        }}
-                      />
-                      제공 가능
-                    </label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={
+                        carpoolAvailable === null
+                          ? "undecided"
+                          : carpoolAvailable
+                          ? "yes"
+                          : "no"
+                      }
+                      onChange={(e) => {
+                        if (e.target.value === "undecided") {
+                          setCarpoolAvailable(null);
+                          setCarpoolSeats(null);
+                        } else if (e.target.value === "yes") {
+                          setCarpoolAvailable(true);
+                        } else {
+                          setCarpoolAvailable(false);
+                          setCarpoolSeats(null);
+                        }
+                      }}
+                    >
+                      <option value="undecided">미정</option>
+                      <option value="yes">제공 가능</option>
+                      <option value="no">제공 안 함</option>
+                    </select>
                   </div>
 
-                  {carpoolAvailable && (
+                  {carpoolAvailable === true && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">제공 좌석 수</label>
                       <select
@@ -749,20 +946,44 @@ export default function TournamentDetailPage() {
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">이동수단</label>
-                    <Input
-                      value={transportation}
-                      onChange={(e) => setTransportation(e.target.value)}
-                      placeholder="예: 자차, 카풀, 대중교통"
-                    />
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                      <Input
+                        value={transportation}
+                        onChange={(e) => setTransportation(e.target.value)}
+                        placeholder="예: 자차, 카풀, 대중교통"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setTransportation("미정")}
+                        className="w-full md:w-auto"
+                      >
+                        미정
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">출발지</label>
-                    <Input
-                      value={departureLocation}
-                      onChange={(e) => setDepartureLocation(e.target.value)}
-                      placeholder="예: 강남역"
-                    />
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                      <Input
+                        value={departureLocation}
+                        onChange={(e) => setDepartureLocation(e.target.value)}
+                        placeholder="예: 강남역"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDepartureLocation("미정")}
+                        className="w-full md:w-auto"
+                      >
+                        미정
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -783,7 +1004,7 @@ export default function TournamentDetailPage() {
                         value={selectedMealId ?? ""}
                         onChange={(e) => setSelectedMealId(e.target.value ? Number(e.target.value) : null)}
                       >
-                        <option value="">선택 안 함</option>
+                        <option value="">미정</option>
                         {mealOptions.map((opt) => (
                           <option key={opt.id} value={opt.id}>
                             {opt.menu_name}
@@ -826,22 +1047,22 @@ export default function TournamentDetailPage() {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={apply}>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <Button onClick={apply} className="w-full sm:w-auto">
                       {regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
                     </Button>
-                    <Button onClick={saveExtras} variant="secondary">
+                    <Button onClick={saveExtras} variant="secondary" className="w-full sm:w-auto">
                       저장
                     </Button>
-                    <Button onClick={cancelMine} variant="outline">
+                    <Button onClick={cancelMine} variant="outline" className="w-full sm:w-auto">
                       신청 취소
                     </Button>
-                    <Button asChild variant="outline">
+                    <Button asChild variant="outline" className="w-full sm:w-auto">
                       <Link href={`/t/${tournamentId}/participants`}>
                         참가자 현황
                       </Link>
                     </Button>
-                    <Button onClick={refresh} variant="ghost">
+                    <Button onClick={refresh} variant="ghost" className="w-full sm:w-auto">
                       새로고침
                     </Button>
                   </div>
@@ -850,19 +1071,115 @@ export default function TournamentDetailPage() {
                 </CardContent>
               </Card>
 
+              {user && myParticipantList.length > 0 && (
+                <Card className="border-slate-200/70">
+                  <CardHeader>
+                    <CardTitle>내 참가자 목록</CardTitle>
+                    <CardDescription>
+                      내 계정으로 신청한 모든 참가자입니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="overflow-x-auto -mx-6">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>닉네임</TableHead>
+                            <TableHead>관계</TableHead>
+                            <TableHead>상태</TableHead>
+                            <TableHead>작업</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                      <TableBody>
+                        {myParticipantList.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell>{p.nickname}</TableCell>
+                            <TableCell>{p.relation ?? "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{formatStatus(p.status)}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {p.status !== "canceled" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => cancelParticipant(p.id)}
+                                >
+                                  취소
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+
+                    <div className="border-t pt-4 space-y-3">
+                      <h3 className="font-medium text-sm">추가 참가자 등록</h3>
+                      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">닉네임</label>
+                          <Input
+                            value={extraName}
+                            onChange={(e) => setExtraName(e.target.value)}
+                            placeholder="참가자 이름"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">관계</label>
+                          <Input
+                            value={extraRelation}
+                            onChange={(e) => setExtraRelation(e.target.value)}
+                            placeholder="예: 가족, 지인"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">상태</label>
+                          <select
+                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                            value={extraStatus}
+                            onChange={(e) =>
+                              setExtraStatus(e.target.value as Registration["status"])
+                            }
+                          >
+                            <option value="applied">신청</option>
+                            <option value="undecided">미정</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">메모</label>
+                          <Input
+                            value={extraMemo}
+                            onChange={(e) => setExtraMemo(e.target.value)}
+                            placeholder="선택사항"
+                          />
+                        </div>
+                      </div>
+                      <Button onClick={addParticipant} size="sm">
+                        추가 참가자 등록
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card className="border-slate-200/70">
                 <CardHeader>
                   <CardTitle>참가 현황(공개)</CardTitle>
                   <CardDescription>닉네임과 상태만 노출됩니다.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>닉네임</TableHead>
-                        <TableHead>상태</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                  <div className="overflow-x-auto -mx-6">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>닉네임</TableHead>
+                          <TableHead>상태</TableHead>
+                        </TableRow>
+                      </TableHeader>
                     <TableBody>
                       {regs.map((r) => (
                         <TableRow key={r.id}>
@@ -883,6 +1200,7 @@ export default function TournamentDetailPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -900,7 +1218,8 @@ export default function TournamentDetailPage() {
                     카풀 제공자가 아직 없습니다.
                   </p>
                 ) : (
-                  <Table>
+                  <div className="overflow-x-auto -mx-6">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>닉네임</TableHead>
@@ -918,9 +1237,78 @@ export default function TournamentDetailPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
+
+            {user && (
+              <Card className="border-slate-200/70">
+                <CardHeader>
+                  <CardTitle>경품 지원 현황</CardTitle>
+                  <CardDescription>
+                    대회를 위해 경품을 지원해주신 분들입니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {prizes.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      아직 등록된 경품이 없습니다.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto -mx-6">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                          <TableHead>지원자</TableHead>
+                          <TableHead>경품명</TableHead>
+                          <TableHead>비고</TableHead>
+                          <TableHead>등록일</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {prizes.map((prize) => (
+                          <TableRow key={prize.id}>
+                            <TableCell>{prize.supporter_name ?? "익명"}</TableCell>
+                            <TableCell>{prize.item_name}</TableCell>
+                            <TableCell>{prize.note ?? "-"}</TableCell>
+                            <TableCell>
+                              {new Date(prize.created_at).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  )}
+
+                  <div className="border-t pt-4 space-y-3">
+                    <h3 className="font-medium text-sm">경품 지원하기</h3>
+                    <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">경품명</label>
+                        <Input
+                          value={prizeItem}
+                          onChange={(e) => setPrizeItem(e.target.value)}
+                          placeholder="예: 골프공 1박스"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">비고</label>
+                        <Input
+                          value={prizeNote}
+                          onChange={(e) => setPrizeNote(e.target.value)}
+                          placeholder="선택사항"
+                        />
+                      </div>
+                    </div>
+                    <Button onClick={addPrizeSupport} size="sm">
+                      경품 등록
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="border-slate-200/70">
               <CardHeader>
@@ -1017,19 +1405,30 @@ export default function TournamentDetailPage() {
                             {/* Meal option selection */}
                             {se.meal_option_id && (
                               <div className="space-y-1">
-                                <label className="flex items-center gap-2 text-sm font-medium">
-                                  <input
-                                    type="checkbox"
-                                    checked={sideEventMealSelections.get(se.id) ?? false}
-                                    onChange={(e) => {
-                                      const newMap = new Map(sideEventMealSelections);
-                                      newMap.set(se.id, e.target.checked);
-                                      setSideEventMealSelections(newMap);
-                                    }}
-                                    className="h-4 w-4"
-                                  />
-                                  식사 선택
-                                </label>
+                                <label className="text-sm font-medium">식사 참여</label>
+                                <select
+                                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                  value={
+                                    sideEventMealSelections.get(se.id) === null
+                                      ? "undecided"
+                                      : sideEventMealSelections.get(se.id)
+                                      ? "yes"
+                                      : "no"
+                                  }
+                                  onChange={(e) => {
+                                    const newMap = new Map(sideEventMealSelections);
+                                    if (e.target.value === "undecided") {
+                                      newMap.set(se.id, null);
+                                    } else {
+                                      newMap.set(se.id, e.target.value === "yes");
+                                    }
+                                    setSideEventMealSelections(newMap);
+                                  }}
+                                >
+                                  <option value="undecided">미정</option>
+                                  <option value="yes">참여</option>
+                                  <option value="no">불참</option>
+                                </select>
                                 <p className="text-xs text-slate-500">
                                   라운드 참여 시 식사를 포함합니다.
                                 </p>
@@ -1039,19 +1438,32 @@ export default function TournamentDetailPage() {
                             {/* Lodging selection */}
                             {se.lodging_available && (
                               <div className="space-y-1">
-                                <label className="flex items-center gap-2 text-sm font-medium">
-                                  <input
-                                    type="checkbox"
-                                    checked={sideEventLodgingSelections.get(se.id) ?? false}
-                                    onChange={(e) => {
-                                      const newMap = new Map(sideEventLodgingSelections);
-                                      newMap.set(se.id, e.target.checked);
-                                      setSideEventLodgingSelections(newMap);
-                                    }}
-                                    className="h-4 w-4"
-                                  />
-                                  숙박 선택 {se.lodging_required && "(필수)"}
+                                <label className="text-sm font-medium">
+                                  숙박 참여 {se.lodging_required && "(필수)"}
                                 </label>
+                                <select
+                                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                  value={
+                                    sideEventLodgingSelections.get(se.id) === null
+                                      ? "undecided"
+                                      : sideEventLodgingSelections.get(se.id)
+                                      ? "yes"
+                                      : "no"
+                                  }
+                                  onChange={(e) => {
+                                    const newMap = new Map(sideEventLodgingSelections);
+                                    if (e.target.value === "undecided") {
+                                      newMap.set(se.id, null);
+                                    } else {
+                                      newMap.set(se.id, e.target.value === "yes");
+                                    }
+                                    setSideEventLodgingSelections(newMap);
+                                  }}
+                                >
+                                  <option value="undecided">미정</option>
+                                  <option value="yes">참여</option>
+                                  <option value="no">불참</option>
+                                </select>
                                 <p className="text-xs text-slate-500">
                                   {se.lodging_required
                                     ? "이 라운드는 숙박이 필수입니다."

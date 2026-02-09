@@ -41,7 +41,7 @@ type ManagerPermission = {
 type UserProfile = {
   id: string;
   nickname: string;
-  email: string;
+  email: string | null;
 };
 
 export default function ManagerSetupPage() {
@@ -143,26 +143,28 @@ export default function ManagerSetupPage() {
     setMsg("");
     setSearchResults([]);
 
-    const email = searchEmail.trim();
-    if (!email) {
-      setMsg("이메일을 입력해주세요");
+    const keyword = searchEmail.trim();
+    if (!keyword) {
+      setMsg("이메일 또는 닉네임을 입력해주세요");
       return;
     }
 
-    // profiles에서 검색
     const { data, error } = await supabase
       .from("profiles")
-      .select("id,nickname")
-      .ilike("id", `%${email}%`); // UUID로 직접 검색은 어려우므로 간단히 처리
+      .select("id,nickname,email")
+      .or(`email.ilike.%${keyword}%,nickname.ilike.%${keyword}%`)
+      .order("nickname", { ascending: true })
+      .limit(20);
 
     if (error) {
       setMsg(`검색 실패: ${friendlyError(error)}`);
       return;
     }
 
-    // 실제로는 auth.users를 검색해야 하지만 클라이언트에서는 불가능
-    // 간단한 방법: 사용자가 직접 email을 입력하면 profiles에서 조회
-    setMsg("이메일로 직접 사용자 ID를 알거나, 닉네임으로 검색하세요 (간단 구현)");
+    setSearchResults((data ?? []) as UserProfile[]);
+    if ((data ?? []).length === 0) {
+      setMsg("검색 결과가 없습니다.");
+    }
   };
 
   const grantPermission = async (userId: string) => {
@@ -273,36 +275,65 @@ export default function ManagerSetupPage() {
               이 권한은 이 대회에만 적용되며, 다른 대회에는 영향을 주지 않습니다.
             </p>
             <p className="font-medium text-blue-900">
-              권한을 부여하려면: 사용자의 닉네임을 확인하고 아래에서 직접 입력하세요.
+              권한을 부여하려면: 이메일 또는 닉네임으로 검색 후 선택하세요.
             </p>
           </CardContent>
         </Card>
 
-        {/* 권한 부여 (간단 버전: 닉네임으로 검색) */}
+        {/* 권한 부여 (검색) */}
         <Card className="border-slate-200/70">
           <CardHeader>
             <CardTitle>권한 부여</CardTitle>
             <CardDescription>
-              사용자 닉네임 또는 User ID를 입력하여 권한을 부여합니다.
+              이메일 또는 닉네임으로 검색하여 권한을 부여합니다.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">사용자 ID (UUID)</label>
+              <label className="text-sm font-medium">이메일 또는 닉네임</label>
               <Input
                 value={searchEmail}
                 onChange={(e) => setSearchEmail(e.target.value)}
-                placeholder="사용자 UUID를 입력하세요"
+                placeholder="예: test@example.com 또는 홍길동"
               />
-              <p className="text-xs text-slate-500">
-                실제 서비스에서는 이메일/닉네임 검색 기능이 필요합니다. 
-                현재는 UUID를 직접 입력해야 합니다.
-              </p>
             </div>
 
-            <Button onClick={() => grantPermission(searchEmail.trim())}>
-              권한 부여
-            </Button>
+            <Button onClick={searchUsers}>검색</Button>
+
+            {searchResults.length > 0 && (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>닉네임</TableHead>
+                      <TableHead>이메일</TableHead>
+                      <TableHead className="text-right">작업</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {searchResults.map((profile) => (
+                      <TableRow key={profile.id}>
+                        <TableCell className="font-medium">
+                          {profile.nickname}
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-600">
+                          {profile.email ?? "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            onClick={() => grantPermission(profile.id)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            권한 부여
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
