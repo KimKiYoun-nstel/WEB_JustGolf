@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useAuth } from "../lib/auth";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import {
@@ -23,6 +24,7 @@ type Tournament = {
 };
 
 export default function Home() {
+  const { user, loading } = useAuth();
   const [rows, setRows] = useState<Tournament[]>([]);
   const [error, setError] = useState("");
 
@@ -54,9 +56,11 @@ export default function Home() {
               공개 일정과 참가 현황을 한곳에서 확인하세요. 신청하려면 로그인이 필요합니다.
             </p>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/login">로그인</Link>
-          </Button>
+          {!loading && !user && (
+            <Button asChild variant="outline">
+              <Link href="/login">로그인</Link>
+            </Button>
+          )}
         </header>
 
         {error && <p className="text-sm text-red-600">Error: {error}</p>}

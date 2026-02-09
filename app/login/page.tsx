@@ -18,6 +18,18 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // 미들웨어에서 리다이렉트된 경우 승인 대기 메시지
+    const msgParam = searchParams.get("msg");
+    if (msgParam === "unapproved") {
+      // 미승인 상태이므로 세션 종료
+      const logOutAndShowMsg = async () => {
+        await supabase.auth.signOut();
+        setMsg("관리자 승인 대기 상태입니다. 승인 후 이용할 수 있어요.");
+      };
+      logOutAndShowMsg();
+      return;
+    }
+
     if (authLoading || !user?.id) return;
 
     const redirectTo = searchParams.get("redirectTo");
@@ -29,9 +41,14 @@ function LoginForm() {
     const redirectForUser = async () => {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("is_admin")
+        .select("is_admin,is_approved")
         .eq("id", user.id)
         .single();
+
+      if (profile?.is_approved === false) {
+        setMsg("관리자 승인 대기 상태입니다. 승인 후 이용할 수 있어요.");
+        return;
+      }
 
       const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
       // Vercel 환경에서 더 안정적인 리다이렉트
@@ -76,12 +93,17 @@ function LoginForm() {
     
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_admin")
+      .select("is_admin,is_approved")
       .eq("id", data.user?.id)
       .single();
 
     setLoading(false);
-    
+
+    if (profile?.is_approved === false) {
+      setMsg("관리자 승인 대기 상태입니다. 승인 후 이용할 수 있어요.");
+      return;
+    }
+
     const rawTarget = redirectTo && redirectTo.startsWith("/") ? redirectTo : "";
     const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
 

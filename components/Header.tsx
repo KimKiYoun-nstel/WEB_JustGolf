@@ -126,7 +126,11 @@ export default function Header() {
         {/* 상태 바 (현재 페이지 설명) */}
         <div className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">
           {pathname === "/" && "📍 대회 목록을 확인하고 신청하세요"}
-          {pathname?.startsWith("/t/") && "📍 대회 상세 정보 및 라운드 신청"}
+          {pathname?.startsWith("/t/") &&
+            !pathname?.includes("/participants") &&
+            !pathname?.includes("/groups") &&
+            "📍 대회 상세 정보 및 라운드 신청"}
+          {pathname?.includes("/participants") && "📍 참가자 현황을 확인합니다"}
           {pathname === "/login" && "📍 계정 생성 또는 로그인"}
           {pathname === "/profile" && "📍 내 프로필 정보를 수정합니다"}
           {pathname?.startsWith("/admin") && pathname === "/admin" && "📍 관리자 대시보드"}

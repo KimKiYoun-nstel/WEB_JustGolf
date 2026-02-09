@@ -26,6 +26,24 @@ export async function middleware(request: NextRequest) {
     });
   }
 
+  // 미승인 사용자는 로그인으로 리다이렉트 (승인 대기 상태)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_approved")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.is_approved === false) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("msg", "unapproved");
+    return new Response(null, {
+      status: 307,
+      headers: {
+        Location: loginUrl.toString(),
+      },
+    });
+  }
+
   return response;
 }
 

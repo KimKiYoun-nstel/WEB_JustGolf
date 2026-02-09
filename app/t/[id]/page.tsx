@@ -123,6 +123,7 @@ export default function TournamentDetailPage() {
   const [selectedExtras, setSelectedExtras] = useState<number[]>([]);
   const [nickname, setNickname] = useState("");
   const [profileNickname, setProfileNickname] = useState("");
+  const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [memo, setMemo] = useState("");
   const [selectedMealId, setSelectedMealId] = useState<number | null>(null);
   const [carpoolAvailable, setCarpoolAvailable] = useState(false);
@@ -152,17 +153,19 @@ export default function TournamentDetailPage() {
     if (uid) {
       const pRes = await supabase
         .from("profiles")
-        .select("nickname")
+        .select("nickname,is_approved")
         .eq("id", uid)
         .single();
 
       if (!pRes.error) {
         const nick = (pRes.data?.nickname ?? "").toString();
         setProfileNickname(nick);
+        setIsApproved(pRes.data?.is_approved ?? null);
         if (!nickname.trim()) setNickname(nick);
       }
     } else {
       setProfileNickname("");
+      setIsApproved(null);
     }
 
     const tRes = await supabase
@@ -331,19 +334,27 @@ export default function TournamentDetailPage() {
       setMsg("신청하려면 로그인 필요! (/login)");
       return;
     }
+    if (isApproved === false) {
+      setMsg("관리자 승인 대기 상태입니다. 승인 후 신청할 수 있어요.");
+      return;
+    }
     const nick = nickname.trim() || profileNickname.trim();
     if (!nick) {
       setMsg("닉네임을 입력해줘.");
       return;
     }
 
-    // 신청 상태를 확인 (canceled 제외 다른 상태는 업데이트, canceled는 다시 신청 가능)
-    const myReg = regs.find((r) => r.user_id === uid && r.status !== "canceled");
+    // 신청 상태 확인: 활성 신청/취소 신청 분리
+    const activeReg = regs.find(
+      (r) => r.user_id === uid && r.status !== "canceled"
+    );
+    const canceledReg = regs.find(
+      (r) => r.user_id === uid && r.status === "canceled"
+    );
 
     let registrationId: number | undefined;
-    let isUpdate = false;
 
-    if (myReg) {
+    if (activeReg) {
       // 이미 신청했으면 UPDATE (정보 수정 모드)
       const { data, error } = await supabase
         .from("registrations")
@@ -352,7 +363,7 @@ export default function TournamentDetailPage() {
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
         })
-        .eq("id", myReg.id)
+        .eq("id", activeReg.id)
         .select("id")
         .single();
 
@@ -362,8 +373,28 @@ export default function TournamentDetailPage() {
       }
 
       registrationId = data?.id;
-      isUpdate = true;
       setMsg("신청 정보가 수정되었습니다!");
+    } else if (canceledReg) {
+      // 취소 상태면 재신청으로 복구
+      const { data, error } = await supabase
+        .from("registrations")
+        .update({
+          nickname: nick,
+          memo: memo.trim() || null,
+          meal_option_id: selectedMealId,
+          status: "applied",
+        })
+        .eq("id", canceledReg.id)
+        .select("id")
+        .single();
+
+      if (error) {
+        setMsg(`재신청 실패: ${friendlyError(error)}`);
+        return;
+      }
+
+      registrationId = data?.id;
+      setMsg("재신청 완료!");
     } else {
       // 신청이 없거나 canceled면 INSERT
       const { data, error } = await supabase
@@ -485,7 +516,14 @@ export default function TournamentDetailPage() {
 
     const mine = regs.find((r) => r.user_id === uid && r.status !== "canceled");
     if (!mine) {
-      setMsg("먼저 대회 신청을 완료해줘.");
+      const canceled = regs.find(
+        (r) => r.user_id === uid && r.status === "canceled"
+      );
+      setMsg(
+        canceled
+          ? "신청이 취소 상태입니다. 재신청 후 저장해줘."
+          : "먼저 대회 신청을 완료해줘."
+      );
       return;
     }
 
@@ -522,6 +560,10 @@ export default function TournamentDetailPage() {
       setMsg("신청하려면 로그인 필요! (/login)");
       return;
     }
+    if (isApproved === false) {
+      setMsg("관리자 승인 대기 상태입니다. 승인 후 신청할 수 있어요.");
+      return;
+    }
     const nick = nickname.trim() || profileNickname.trim();
     if (!nick) {
       setMsg("닉네임을 입력해줘.");
@@ -530,6 +572,36 @@ export default function TournamentDetailPage() {
 
     const mealSelected = sideEventMealSelections.get(sideEventId) ?? null;
     const lodgingSelected = sideEventLodgingSelections.get(sideEventId) ?? null;
+
+    const existing = (sideEventRegs.get(sideEventId) ?? []).find(
+      (r) => r.user_id === uid
+    );
+
+    if (existing) {
+      const { error } = await supabase
+        .from("side_event_registrations")
+        .update({
+          nickname: nick,
+          memo: memo.trim() || null,
+          status: "applied",
+          meal_selected: mealSelected,
+          lodging_selected: lodgingSelected,
+        })
+        .eq("id", existing.id);
+
+      if (error) {
+        setMsg(`라운드 신청 실패: ${friendlyError(error)}`);
+        return;
+      }
+
+      setMsg(
+        existing.status === "canceled"
+          ? "라운드 재신청 완료!"
+          : "라운드 신청 정보가 수정되었습니다!"
+      );
+      await refresh();
+      return;
+    }
 
     const { error } = await supabase
       .from("side_event_registrations")
@@ -543,10 +615,7 @@ export default function TournamentDetailPage() {
         lodging_selected: lodgingSelected,
       });
 
-    if (error)
-      setMsg(
-        `라운드 신청 실패: ${friendlyError(error)}`
-      );
+    if (error) setMsg(`라운드 신청 실패: ${friendlyError(error)}`);
     else {
       setMsg("라운드 신청 완료!");
       await refresh();
@@ -767,13 +836,11 @@ export default function TournamentDetailPage() {
                     <Button onClick={cancelMine} variant="outline">
                       신청 취소
                     </Button>
-                    {user && regs.find((r) => r.user_id === user.id) && (
-                      <Button asChild variant="outline">
-                        <Link href={`/t/${tournamentId}/status`}>
-                          내 참가 현황
-                        </Link>
-                      </Button>
-                    )}
+                    <Button asChild variant="outline">
+                      <Link href={`/t/${tournamentId}/participants`}>
+                        참가자 현황
+                      </Link>
+                    </Button>
                     <Button onClick={refresh} variant="ghost">
                       새로고침
                     </Button>
