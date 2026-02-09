@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
 import { TOURNAMENT_FILES_BUCKET } from "../../../lib/storage";
