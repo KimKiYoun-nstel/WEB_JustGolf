@@ -85,6 +85,11 @@ export default function AdminTournamentsPage() {
                         </Link>
                       </Button>
                       <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/dashboard`}>
+                          가입 승인
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
                         <Link
                           href={`/admin/tournaments/${row.id}/registrations`}
                         >
@@ -102,8 +107,23 @@ export default function AdminTournamentsPage() {
                         </Link>
                       </Button>
                       <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/manager-setup`}>
+                          라운드 관리자 설정
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
                         <Link href={`/admin/tournaments/${row.id}/meal-options`}>
                           메뉴 관리
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/extras`}>
+                          활동 관리
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/groups`}>
+                          조편성
                         </Link>
                       </Button>
                       <Button asChild size="sm" variant="ghost">

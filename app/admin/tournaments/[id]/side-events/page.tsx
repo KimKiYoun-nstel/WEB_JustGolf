@@ -33,6 +33,9 @@ type SideEvent = {
   notes: string | null;
   max_participants: number | null;
   status: string;
+  meal_option_id: number | null;
+  lodging_available: boolean;
+  lodging_required: boolean;
 };
 
 type SideEventRegistration = {
@@ -65,6 +68,9 @@ export default function AdminSideEventsPage() {
     Map<number, SideEventRegistration[]>
   >(new Map());
 
+  // Available meal options
+  const [mealOptions, setMealOptions] = useState<Array<{ id: number; name: string }>>([]);
+
   // New/Edit form state
   const [editingId, setEditingId] = useState<number | null>(null);
   const [roundType, setRoundType] = useState<RoundType>("pre");
@@ -76,6 +82,9 @@ export default function AdminSideEventsPage() {
   const [status, setStatus] = useState<Status>("draft");
   const [openAt, setOpenAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
+  const [mealOptionId, setMealOptionId] = useState<string>("");
+  const [lodgingAvailable, setLodgingAvailable] = useState(false);
+  const [lodgingRequired, setLodgingRequired] = useState(false);
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "42501") return "권한이 없어요.";
@@ -95,7 +104,7 @@ export default function AdminSideEventsPage() {
       const seRes = await supabase
         .from("side_events")
         .select(
-          "id,tournament_id,round_type,title,tee_time,location,notes,max_participants,status"
+          "id,tournament_id,round_type,title,tee_time,location,notes,max_participants,status,meal_option_id,lodging_available,lodging_required"
         )
         .eq("tournament_id", tournamentId)
         .order("round_type,id", { ascending: true });
@@ -121,6 +130,17 @@ export default function AdminSideEventsPage() {
         }
       }
       setSideEventRegs(seRegMap);
+
+      // Load meal options for this tournament
+      const moRes = await supabase
+        .from("meal_options")
+        .select("id,name")
+        .eq("tournament_id", tournamentId)
+        .order("name", { ascending: true });
+
+      if (!moRes.error) {
+        setMealOptions((moRes.data ?? []) as Array<{ id: number; name: string }>);
+      }
     } finally {
       setLoading(false);
     }
@@ -139,13 +159,28 @@ export default function AdminSideEventsPage() {
     }
 
     const checkAdmin = async () => {
+      // 1. Check if user is admin
       const pRes = await supabase
         .from("profiles")
         .select("is_admin")
         .eq("id", user.id)
         .single();
 
-      if (!pRes.data?.is_admin) {
+      const isAdmin = pRes.data?.is_admin ?? false;
+
+      // 2. Check if user is round manager for this tournament
+      const mgrRes = await supabase
+        .from("manager_permissions")
+        .select("can_manage_side_events")
+        .eq("tournament_id", tournamentId)
+        .eq("user_id", user.id)
+        .is("revoked_at", null)
+        .single();
+
+      const canManageRounds = mgrRes.data?.can_manage_side_events ?? false;
+
+      // Allow access if either admin or round manager
+      if (!isAdmin && !canManageRounds) {
         setUnauthorized(true);
         setLoading(false);
         return;
@@ -169,6 +204,9 @@ export default function AdminSideEventsPage() {
     setStatus("draft");
     setOpenAt("");
     setCloseAt("");
+    setMealOptionId("");
+    setLodgingAvailable(false);
+    setLodgingRequired(false);
   };
 
   const saveSideEvent = async () => {
@@ -190,6 +228,9 @@ export default function AdminSideEventsPage() {
       status,
       open_at: openAt ? new Date(openAt).toISOString() : null,
       close_at: closeAt ? new Date(closeAt).toISOString() : null,
+      meal_option_id: mealOptionId ? Number(mealOptionId) : null,
+      lodging_available: lodgingAvailable,
+      lodging_required: lodgingRequired,
       created_by: user?.id,
     };
 
@@ -252,6 +293,9 @@ export default function AdminSideEventsPage() {
     setStatus(se.status as Status);
     setOpenAt("");
     setCloseAt("");
+    setMealOptionId(se.meal_option_id?.toString() ?? "");
+    setLodgingAvailable(se.lodging_available ?? false);
+    setLodgingRequired(se.lodging_required ?? false);
   };
 
   const updateRegStatus = async (
@@ -418,6 +462,54 @@ export default function AdminSideEventsPage() {
                   value={closeAt}
                   onChange={(e) => setCloseAt(e.target.value)}
                 />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">식사 옵션 (선택)</label>
+                <select
+                  value={mealOptionId}
+                  onChange={(e) => setMealOptionId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                >
+                  <option value="">없음</option>
+                  {mealOptions.map((mo) => (
+                    <option key={mo.id} value={mo.id}>
+                      {mo.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500">
+                  라운드 신청 시 식사를 선택할 수 있게 합니다.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">숙박 (선택)</label>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={lodgingAvailable}
+                      onChange={(e) => setLodgingAvailable(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    숙박 가능
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={lodgingRequired}
+                      onChange={(e) => setLodgingRequired(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    숙박 필수
+                  </label>
+                </div>
+                <p className="text-xs text-slate-500">
+                  라운드 신청 시 숙박 여부를 선택할 수 있게 합니다.
+                </p>
               </div>
             </div>
 

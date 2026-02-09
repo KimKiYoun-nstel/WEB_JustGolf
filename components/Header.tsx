@@ -108,6 +108,9 @@ export default function Header() {
                     {user.email}
                   </span>
                 </span>
+                <Button asChild size="sm" variant="ghost">
+                  <Link href="/profile">내 프로필</Link>
+                </Button>
                 <Button onClick={handleLogout} size="sm" variant="outline">
                   로그아웃
                 </Button>
@@ -125,6 +128,7 @@ export default function Header() {
           {pathname === "/" && "📍 대회 목록을 확인하고 신청하세요"}
           {pathname?.startsWith("/t/") && "📍 대회 상세 정보 및 라운드 신청"}
           {pathname === "/login" && "📍 계정 생성 또는 로그인"}
+          {pathname === "/profile" && "📍 내 프로필 정보를 수정합니다"}
           {pathname?.startsWith("/admin") && pathname === "/admin" && "📍 관리자 대시보드"}
           {pathname?.startsWith("/admin/tournaments") &&
             pathname === "/admin/tournaments" &&

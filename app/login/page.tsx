@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
+import { useAuth } from "../../lib/auth";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
@@ -10,11 +11,35 @@ import { Input } from "../../components/ui/input";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
   const [msg, setMsg] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (authLoading || !user?.id) return;
+
+    const redirectTo = searchParams.get("redirectTo");
+    const rawTarget =
+      redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("/login")
+        ? redirectTo
+        : "";
+
+    const redirectForUser = async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .single();
+
+      const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
+      router.replace(target);
+    };
+
+    redirectForUser();
+  }, [authLoading, user?.id, router, searchParams]);
 
   const signUp = async () => {
     setMsg("");
@@ -57,17 +82,12 @@ function LoginForm() {
 
     setLoading(false);
     
-    // redirectTo가 있으면 해당 페이지로, 없으면 기존 로직대로
-    if (redirectTo) {
-      setMsg("로그인 성공! 이동 중...");
-      setTimeout(() => router.push(redirectTo), 1000);
-    } else if (profile?.is_admin) {
-      setMsg("로그인 성공! (관리자) 이동 중...");
-      setTimeout(() => router.push("/admin"), 1000);
-    } else {
-      setMsg("로그인 성공! 이동 중...");
-      setTimeout(() => router.push("/"), 1000);
-    }
+    const rawTarget = redirectTo && redirectTo.startsWith("/") ? redirectTo : "";
+    const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
+
+    setMsg("로그인 성공! 이동 중...");
+    router.replace(target);
+    setTimeout(() => window.location.assign(target), 1200);
   };
 
   const signOut = async () => {

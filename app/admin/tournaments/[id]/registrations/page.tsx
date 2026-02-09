@@ -25,6 +25,11 @@ type Registration = {
   memo: string | null;
   meal_option_id: number | null;
   meal_name: string | null;
+  carpool_available: boolean | null;
+  carpool_seats: number | null;
+  transportation: string | null;
+  departure_location: string | null;
+  notes: string | null;
   created_at: string;
 };
 
@@ -58,6 +63,7 @@ export default function AdminRegistrationsPage() {
         memo,
         meal_option_id,
         tournament_meal_options(menu_name),
+        registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes),
         created_at
       `)
       .eq("tournament_id", tournamentId)
@@ -78,6 +84,11 @@ export default function AdminRegistrationsPage() {
       memo: row.memo,
       meal_option_id: row.meal_option_id,
       meal_name: row.tournament_meal_options?.menu_name ?? null,
+      carpool_available: row.registration_extras?.carpool_available ?? null,
+      carpool_seats: row.registration_extras?.carpool_seats ?? null,
+      transportation: row.registration_extras?.transportation ?? null,
+      departure_location: row.registration_extras?.departure_location ?? null,
+      notes: row.registration_extras?.notes ?? null,
       created_at: row.created_at,
     }));
 
@@ -170,6 +181,9 @@ export default function AdminRegistrationsPage() {
                 <TableHead>닉네임</TableHead>
                 <TableHead>상태</TableHead>
                 <TableHead>식사 메뉴</TableHead>
+                <TableHead>카풀</TableHead>
+                <TableHead>이동/출발지</TableHead>
+                <TableHead>비고</TableHead>
                 <TableHead>메모</TableHead>
                 <TableHead>변경</TableHead>
               </TableRow>
@@ -186,6 +200,31 @@ export default function AdminRegistrationsPage() {
                   <TableCell className="text-slate-600">
                     {row.meal_name ? (
                       <span className="text-sm">{row.meal_name}</span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-slate-600">
+                    {row.carpool_available ? (
+                      <span className="text-sm">
+                        가능{row.carpool_seats ? ` (${row.carpool_seats}석)` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-slate-600">
+                    {row.transportation || row.departure_location ? (
+                      <span className="text-sm">
+                        {row.transportation ?? "-"} / {row.departure_location ?? "-"}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-slate-600">
+                    {row.notes ? (
+                      <span className="text-sm">{row.notes}</span>
                     ) : (
                       <span className="text-slate-400 text-xs">-</span>
                     )}
