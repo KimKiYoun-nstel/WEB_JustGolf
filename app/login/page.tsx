@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -9,6 +9,7 @@ import { Input } from "../../components/ui/input";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
@@ -45,7 +46,9 @@ export default function LoginPage() {
       return;
     }
 
-    // 로그인 성공 후 관리자 여부 확인
+    // 로그인 성공 후 이전 페이지 또는 관리자 여부에 따라 리다이렉트
+    const redirectTo = searchParams.get("redirectTo");
+    
     const { data: profile } = await supabase
       .from("profiles")
       .select("is_admin")
@@ -54,7 +57,11 @@ export default function LoginPage() {
 
     setLoading(false);
     
-    if (profile?.is_admin) {
+    // redirectTo가 있으면 해당 페이지로, 없으면 기존 로직대로
+    if (redirectTo) {
+      setMsg("로그인 성공! 이동 중...");
+      setTimeout(() => router.push(redirectTo), 1000);
+    } else if (profile?.is_admin) {
       setMsg("로그인 성공! (관리자) 이동 중...");
       setTimeout(() => router.push("/admin"), 1000);
     } else {

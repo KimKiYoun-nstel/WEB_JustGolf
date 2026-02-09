@@ -1,0 +1,39 @@
+import { type NextRequest } from "next/server";
+import { updateSession } from "./lib/supabase/middleware";
+
+export async function middleware(request: NextRequest) {
+  const { response, supabase } = await updateSession(request);
+
+  // 로그인 페이지는 항상 접근 가능
+  if (request.nextUrl.pathname === "/login") {
+    return response;
+  }
+
+  // 세션 확인
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // 비로그인 사용자는 /login으로 리다이렉트
+  if (!user) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
+    return Response.redirect(redirectUrl);
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (images, etc.)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
