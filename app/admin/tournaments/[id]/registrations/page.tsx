@@ -23,6 +23,8 @@ type Registration = {
   nickname: string;
   status: "applied" | "confirmed" | "waitlisted" | "canceled";
   memo: string | null;
+  meal_option_id: number | null;
+  meal_name: string | null;
   created_at: string;
 };
 
@@ -48,12 +50,38 @@ export default function AdminRegistrationsPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("registrations")
-      .select("id,user_id,nickname,status,memo,created_at")
+      .select(`
+        id,
+        user_id,
+        nickname,
+        status,
+        memo,
+        meal_option_id,
+        tournament_meal_options(menu_name),
+        created_at
+      `)
       .eq("tournament_id", tournamentId)
       .order("created_at", { ascending: true });
 
-    if (error) setMsg(`조회 실패: ${error.message}`);
-    else setRows((data ?? []) as Registration[]);
+    if (error) {
+      setMsg(`조회 실패: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    // Transform data to include meal_name
+    const transformed = (data ?? []).map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      nickname: row.nickname,
+      status: row.status,
+      memo: row.memo,
+      meal_option_id: row.meal_option_id,
+      meal_name: row.tournament_meal_options?.menu_name ?? null,
+      created_at: row.created_at,
+    }));
+
+    setRows(transformed as Registration[]);
     setLoading(false);
   };
 
@@ -141,6 +169,7 @@ export default function AdminRegistrationsPage() {
               <TableRow>
                 <TableHead>닉네임</TableHead>
                 <TableHead>상태</TableHead>
+                <TableHead>식사 메뉴</TableHead>
                 <TableHead>메모</TableHead>
                 <TableHead>변경</TableHead>
               </TableRow>
@@ -153,6 +182,13 @@ export default function AdminRegistrationsPage() {
                     <Badge variant="secondary" className="capitalize">
                       {row.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-slate-600">
+                    {row.meal_name ? (
+                      <span className="text-sm">{row.meal_name}</span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-slate-500">
                     {row.memo ?? "-"}

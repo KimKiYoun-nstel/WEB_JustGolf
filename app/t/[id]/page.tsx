@@ -69,6 +69,13 @@ type SideEventRegistration = {
   memo: string | null;
 };
 
+type MealOption = {
+  id: number;
+  menu_name: string;
+  is_active: boolean;
+  display_order: number;
+};
+
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
@@ -82,9 +89,11 @@ export default function TournamentDetailPage() {
   const [sideEventRegs, setSideEventRegs] = useState<
     Map<number, SideEventRegistration[]>
   >(new Map());
+  const [mealOptions, setMealOptions] = useState<MealOption[]>([]);
   const [nickname, setNickname] = useState("");
   const [profileNickname, setProfileNickname] = useState("");
   const [memo, setMemo] = useState("");
+  const [selectedMealId, setSelectedMealId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
 
   const friendlyError = (error: { code?: string; message: string }) => {
@@ -175,6 +184,18 @@ export default function TournamentDetailPage() {
       }
       setSideEventRegs(seRegMap);
     }
+
+    // Load meal options for this tournament
+    const mealRes = await supabase
+      .from("tournament_meal_options")
+      .select("id,menu_name,is_active,display_order")
+      .eq("tournament_id", tournamentId)
+      .eq("is_active", true)
+      .order("display_order", { ascending: true });
+
+    if (!mealRes.error) {
+      setMealOptions((mealRes.data ?? []) as MealOption[]);
+    }
   };
 
   useEffect(() => {
@@ -202,6 +223,7 @@ export default function TournamentDetailPage() {
       user_id: uid,
       nickname: nick,
       memo: memo.trim() || null,
+      meal_option_id: selectedMealId,
       status: "applied",
     });
 
@@ -357,6 +379,24 @@ export default function TournamentDetailPage() {
                       onChange={(e) => setMemo(e.target.value)}
                     />
                   </div>
+
+                  {mealOptions.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">식사 메뉴 선택</label>
+                      <select
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        value={selectedMealId ?? ""}
+                        onChange={(e) => setSelectedMealId(e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">선택 안 함</option>
+                        {mealOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.menu_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={apply}>신청</Button>
