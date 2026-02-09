@@ -96,6 +96,11 @@ export default function AdminTournamentsPage() {
                           파일 관리
                         </Link>
                       </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/side-events`}>
+                          라운드 관리
+                        </Link>
+                      </Button>
                       <Button asChild size="sm" variant="ghost">
                         <Link href={`/t/${row.id}`}>공개 페이지</Link>
                       </Button>

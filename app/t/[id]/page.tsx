@@ -50,6 +50,25 @@ type TournamentFile = {
   is_public: boolean;
 };
 
+type SideEvent = {
+  id: number;
+  round_type: "pre" | "post";
+  title: string;
+  tee_time: string | null;
+  location: string | null;
+  notes: string | null;
+  max_participants: number | null;
+  status: string;
+};
+
+type SideEventRegistration = {
+  id: number;
+  user_id: string;
+  nickname: string;
+  status: "applied" | "confirmed" | "waitlisted" | "canceled";
+  memo: string | null;
+};
+
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
@@ -59,6 +78,10 @@ export default function TournamentDetailPage() {
   const [t, setT] = useState<Tournament | null>(null);
   const [regs, setRegs] = useState<Registration[]>([]);
   const [files, setFiles] = useState<TournamentFile[]>([]);
+  const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
+  const [sideEventRegs, setSideEventRegs] = useState<
+    Map<number, SideEventRegistration[]>
+  >(new Map());
   const [nickname, setNickname] = useState("");
   const [profileNickname, setProfileNickname] = useState("");
   const [memo, setMemo] = useState("");
@@ -124,6 +147,34 @@ export default function TournamentDetailPage() {
 
     if (fRes.error) setMsg(`파일 조회 실패: ${friendlyError(fRes.error)}`);
     else setFiles((fRes.data ?? []) as TournamentFile[]);
+
+    // Load side events for this tournament
+    const seRes = await supabase
+      .from("side_events")
+      .select("id,round_type,title,tee_time,location,notes,max_participants,status")
+      .eq("tournament_id", tournamentId)
+      .order("round_type,id", { ascending: true });
+
+    if (seRes.error)
+      setMsg(`라운드 조회 실패: ${friendlyError(seRes.error)}`);
+    else {
+      setSideEvents((seRes.data ?? []) as SideEvent[]);
+
+      // Load registrations for each side event
+      const seRegMap = new Map<number, SideEventRegistration[]>();
+      for (const se of (seRes.data ?? []) as SideEvent[]) {
+        const serRes = await supabase
+          .from("side_event_registrations")
+          .select("id,user_id,nickname,status,memo")
+          .eq("side_event_id", se.id)
+          .order("id", { ascending: true });
+
+        if (!serRes.error) {
+          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
+        }
+      }
+      setSideEventRegs(seRegMap);
+    }
   };
 
   useEffect(() => {
@@ -183,6 +234,66 @@ export default function TournamentDetailPage() {
     if (error) setMsg(`취소 실패: ${friendlyError(error)}`);
     else {
       setMsg("취소 완료");
+      await refresh();
+    }
+  };
+
+  const applySideEvent = async (sideEventId: number) => {
+    setMsg("");
+    const uid = user?.id;
+    if (!uid) {
+      setMsg("신청하려면 로그인 필요! (/login)");
+      return;
+    }
+    const nick = nickname.trim() || profileNickname.trim();
+    if (!nick) {
+      setMsg("닉네임을 입력해줘.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("side_event_registrations")
+      .insert({
+        side_event_id: sideEventId,
+        user_id: uid,
+        nickname: nick,
+        memo: memo.trim() || null,
+        status: "applied",
+      });
+
+    if (error)
+      setMsg(
+        `라운드 신청 실패: ${friendlyError(error)}`
+      );
+    else {
+      setMsg("라운드 신청 완료!");
+      await refresh();
+    }
+  };
+
+  const cancelSideEventMine = async (sideEventId: number) => {
+    setMsg("");
+    const uid = user?.id;
+    if (!uid) {
+      setMsg("로그인 필요");
+      return;
+    }
+
+    const regs = sideEventRegs.get(sideEventId) ?? [];
+    const mine = regs.find((r) => r.user_id === uid);
+    if (!mine) {
+      setMsg("이 라운드의 신청 내역이 없어.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("side_event_registrations")
+      .update({ status: "canceled" })
+      .eq("id", mine.id);
+
+    if (error) setMsg(`취소 실패: ${friendlyError(error)}`);
+    else {
+      setMsg("라운드 취소 완료");
       await refresh();
     }
   };
@@ -342,6 +453,98 @@ export default function TournamentDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {sideEvents.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold text-slate-900">
+                  사전/사후 라운드
+                </h2>
+                {sideEvents.map((se) => {
+                  const seRegs = sideEventRegs.get(se.id) ?? [];
+                  return (
+                    <Card key={se.id} className="border-slate-200/70">
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between gap-3">
+                          <span>
+                            {se.round_type === "pre" ? "📍 사전" : "📍 사후"}{" "}
+                            {se.title}
+                          </span>
+                          <Badge variant="secondary" className="capitalize">
+                            {se.status}
+                          </Badge>
+                        </CardTitle>
+                        <CardDescription>
+                          {se.tee_time && `${se.tee_time} · `}
+                          {se.location ?? "-"}
+                          {se.max_participants &&
+                            ` · 최대 ${se.max_participants}명`}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {se.notes && (
+                          <p className="text-sm text-slate-600">{se.notes}</p>
+                        )}
+
+                        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+                          <div className="space-y-2">
+                            <h3 className="font-medium">라운드 신청</h3>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                onClick={() => applySideEvent(se.id)}
+                                size="sm"
+                              >
+                                신청
+                              </Button>
+                              <Button
+                                onClick={() => cancelSideEventMine(se.id)}
+                                size="sm"
+                                variant="outline"
+                              >
+                                취소
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 className="font-medium">신청 현황(공개)</h3>
+                            <Table className="mt-2">
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>닉네임</TableHead>
+                                  <TableHead>상태</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {seRegs.map((r) => (
+                                  <TableRow key={r.id}>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <span>{r.nickname}</span>
+                                        {me && r.user_id === me ? (
+                                          <Badge variant="outline">나</Badge>
+                                        ) : null}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge
+                                        variant="secondary"
+                                        className="capitalize"
+                                      >
+                                        {r.status}
+                                      </Badge>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </div>

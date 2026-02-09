@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../../../lib/supabaseClient";
@@ -31,9 +32,11 @@ type TournamentFile = {
 export default function AdminFilesPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [rows, setRows] = useState<TournamentFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
   const [fileType, setFileType] = useState<TournamentFile["file_type"]>(
     "groups"
@@ -42,6 +45,7 @@ export default function AdminFilesPage() {
 
   const load = async () => {
     setMsg("");
+    setLoading(true);
     const { data, error } = await supabase
       .from("tournament_files")
       .select(
@@ -52,12 +56,40 @@ export default function AdminFilesPage() {
 
     if (error) setMsg(`조회 실패: ${error.message}`);
     else setRows((data ?? []) as TournamentFile[]);
+    setLoading(false);
   };
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
-    load();
-  }, [tournamentId]);
+    
+    // Auth 로딩이 끝날 때까지 대기
+    if (authLoading) return;
+
+    // 로그인되지 않으면 리턴
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const checkAdmin = async () => {
+      const pRes = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .single();
+
+      if (!pRes.data?.is_admin) {
+        setUnauthorized(true);
+        setLoading(false);
+        return;
+      }
+
+      await load();
+    };
+
+    checkAdmin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentId, user?.id, authLoading]);
 
   const upload = async () => {
     setMsg("");
@@ -107,11 +139,32 @@ export default function AdminFilesPage() {
   };
 
   return (
-    <main>
-      <Card className="border-slate-200/70">
-        <CardHeader>
-          <CardTitle>파일 관리</CardTitle>
-        </CardHeader>
+    <main className="min-h-screen bg-slate-50/70">
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        {loading && (
+          <Card className="border-slate-200/70">
+            <CardContent className="py-10">
+              <p className="text-sm text-slate-500">로딩중...</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {unauthorized && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="py-6 text-red-700">
+              <p>관리자만 접근할 수 있습니다.</p>
+              <Button asChild variant="outline" className="mt-4">
+                <Link href="/admin">관리자 대시보드로</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !unauthorized && (
+          <Card className="border-slate-200/70">
+            <CardHeader>
+              <CardTitle>파일 관리</CardTitle>
+            </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
             <div className="space-y-2">
@@ -183,7 +236,9 @@ export default function AdminFilesPage() {
             </Table>
           </div>
         </CardContent>
-      </Card>
+          </Card>
+        )}
+      </div>
     </main>
   );
 }

@@ -31,10 +31,11 @@ const toInputDateTime = (value: string | null) => {
 export default function AdminTournamentEditPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
 
   const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
 
   const [title, setTitle] = useState("");
@@ -80,8 +81,35 @@ export default function AdminTournamentEditPage() {
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
-    load();
-  }, [tournamentId]);
+    
+    // Auth 로딩이 끝날 때까지 대기
+    if (authLoading) return;
+
+    // 로그인되지 않으면 리턴
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const checkAdmin = async () => {
+      const pRes = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .single();
+
+      if (!pRes.data?.is_admin) {
+        setUnauthorized(true);
+        setLoading(false);
+        return;
+      }
+
+      await load();
+    };
+
+    checkAdmin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentId, user?.id, authLoading]);
 
   const save = async () => {
     setMsg("");
@@ -147,17 +175,39 @@ export default function AdminTournamentEditPage() {
 
   if (loading) {
     return (
-      <main>
-        <Card className="border-slate-200/70 p-6">
-          <p className="text-sm text-slate-500">대회 정보를 불러오는 중...</p>
-        </Card>
+      <main className="min-h-screen bg-slate-50/70">
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          <Card className="border-slate-200/70">
+            <CardContent className="py-10">
+              <p className="text-sm text-slate-500">로딩중...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if (unauthorized) {
+    return (
+      <main className="min-h-screen bg-slate-50/70">
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="py-6 text-red-700">
+              <p>관리자만 접근할 수 있습니다.</p>
+              <Button asChild variant="outline" className="mt-4">
+                <Link href="/admin">관리자 대시보드로</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </main>
     );
   }
 
   return (
-    <main>
-      <Card className="max-w-2xl border-slate-200/70">
+    <main className="min-h-screen bg-slate-50/70">
+      <div className="mx-auto max-w-2xl px-6 py-10">
+        <Card className="border-slate-200/70">
         <CardHeader>
           <CardTitle>대회 수정</CardTitle>
         </CardHeader>
@@ -244,6 +294,7 @@ export default function AdminTournamentEditPage() {
           {msg && <p className="text-sm text-slate-600">{msg}</p>}
         </CardContent>
       </Card>
+    </div>
     </main>
   );
 }
