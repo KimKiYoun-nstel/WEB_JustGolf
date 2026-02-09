@@ -14,12 +14,16 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 비로그인 사용자는 /login으로 리다이렉트
+  // 비로그인 사용자는 로그인으로 리다이렉트
   if (!user) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
-    return Response.redirect(redirectUrl);
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
+    return new Response(null, {
+      status: 307,
+      headers: {
+        Location: loginUrl.toString(),
+      },
+    });
   }
 
   return response;

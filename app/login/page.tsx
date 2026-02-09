@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
 import { Button } from "../../components/ui/button";
@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 import { Input } from "../../components/ui/input";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
@@ -35,11 +34,12 @@ function LoginForm() {
         .single();
 
       const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
-      router.replace(target);
+      // Vercel 환경에서 더 안정적인 리다이렉트
+      window.location.href = target;
     };
 
     redirectForUser();
-  }, [authLoading, user?.id, router, searchParams]);
+  }, [authLoading, user?.id, searchParams]);
 
   const signUp = async () => {
     setMsg("");
@@ -86,8 +86,10 @@ function LoginForm() {
     const target = rawTarget || (profile?.is_admin ? "/admin" : "/");
 
     setMsg("로그인 성공! 이동 중...");
-    router.replace(target);
-    setTimeout(() => window.location.assign(target), 1200);
+    // Vercel edge에서 쿠키 동기화 대기 후 리다이렉트
+    setTimeout(() => {
+      window.location.href = target;
+    }, 500);
   };
 
   const signOut = async () => {
