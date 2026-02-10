@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -70,6 +70,7 @@ export default function TournamentDashboardPage() {
   };
 
   const fetchData = async () => {
+    const supabase = createClient();
     setLoading(true);
     setMsg("");
 
@@ -106,7 +107,7 @@ export default function TournamentDashboardPage() {
     // 3. 신청 상태 통계
     const stats: StatusStats = {
       applied_count: regsWithEmail.filter((r) => r.status === "applied").length,
-      confirmed_count: regsWithEmail.filter((r) => r.status === "confirmed")
+      confirmed_count: regsWithEmail.filter((r) => r.status === "approved")
         .length,
       waitlisted_count: regsWithEmail.filter((r) => r.status === "waitlisted")
         .length,

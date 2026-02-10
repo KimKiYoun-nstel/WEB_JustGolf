@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../lib/supabaseClient";
+import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
 import { Button } from "../../components/ui/button";
 import {
@@ -41,6 +41,7 @@ export default function BoardPage() {
   }, []);
 
   const loadFeedbacks = async () => {
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("feedbacks")
       .select("*, profiles!user_id(nickname)")
@@ -75,6 +76,7 @@ export default function BoardPage() {
     setLoading(true);
     setMsg("");
 
+    const supabase = createClient();
     const { error } = await supabase.from("feedbacks").insert({
       user_id: user.id,
       title: title.trim(),

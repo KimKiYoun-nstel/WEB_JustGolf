@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "./supabaseClient";
+import { createClient } from "./supabaseClient";
 
 export const getUser = async (): Promise<User | null> => {
+  const supabase = createClient();
   const { data } = await supabase.auth.getUser();
   return data.user ?? null;
 };
@@ -12,6 +13,7 @@ export const getUser = async (): Promise<User | null> => {
 export const onAuthStateChange = (
   cb: (user: User | null) => void
 ): (() => void) => {
+  const supabase = createClient();
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((_event, session) => {

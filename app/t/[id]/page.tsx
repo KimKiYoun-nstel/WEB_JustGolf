@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../lib/supabaseClient";
+import { createClient } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
 import { TOURNAMENT_FILES_BUCKET } from "../../../lib/storage";
 import { Badge } from "../../../components/ui/badge";
@@ -39,7 +39,7 @@ type Registration = {
   id: number;
   user_id: string;
   nickname: string;
-  status: "applied" | "confirmed" | "waitlisted" | "canceled" | "undecided";
+  status: "applied" | "approved" | "waitlisted" | "canceled" | "undecided";
   memo: string | null;
   meal_option_id: number | null;
   relation: string | null;
@@ -119,6 +119,7 @@ export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
   const router = useRouter();
+  const supabase = createClient();
 
   const { user, loading } = useAuth();
   const [me, setMe] = useState<string>("");
@@ -167,6 +168,7 @@ export default function TournamentDetailPage() {
   };
 
   const refresh = async () => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id ?? "";
     setMe(uid);
@@ -385,6 +387,7 @@ export default function TournamentDetailPage() {
   }, [tournamentId, loading, user?.id]);
 
   const apply = async () => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -474,6 +477,7 @@ export default function TournamentDetailPage() {
   };
 
   const cancelMine = async () => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -500,6 +504,7 @@ export default function TournamentDetailPage() {
   };
 
   const addParticipant = async () => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -545,6 +550,7 @@ export default function TournamentDetailPage() {
   };
 
   const cancelParticipant = async (registrationId: number) => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -572,6 +578,7 @@ export default function TournamentDetailPage() {
   };
 
   const addPrizeSupport = async () => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -606,6 +613,7 @@ export default function TournamentDetailPage() {
   };
 
   const upsertExtras = async (registrationId: number) => {
+    const supabase = createClient();
     const { error } = await supabase.from("registration_extras").upsert(
       {
         registration_id: registrationId,
@@ -627,6 +635,7 @@ export default function TournamentDetailPage() {
   };
 
   const upsertActivitySelections = async (registrationId: number) => {
+    const supabase = createClient();
     // 기존 선택 모두 삭제
     await supabase
       .from("registration_activity_selections")
@@ -655,6 +664,7 @@ export default function TournamentDetailPage() {
   };
 
   const saveExtras = async () => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -695,6 +705,7 @@ export default function TournamentDetailPage() {
   };
 
   const applySideEvent = async (sideEventId: number) => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -764,6 +775,7 @@ export default function TournamentDetailPage() {
   };
 
   const cancelSideEventMine = async (sideEventId: number) => {
+    const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
@@ -800,7 +812,7 @@ export default function TournamentDetailPage() {
   const formatStatus = (status: Registration["status"]) => {
     if (status === "undecided") return "미정";
     if (status === "applied") return "신청";
-    if (status === "confirmed") return "확정";
+    if (status === "approved") return "확정";
     if (status === "waitlisted") return "대기";
     if (status === "canceled") return "취소";
     return status;
@@ -828,6 +840,13 @@ export default function TournamentDetailPage() {
                 <CardDescription>
                   {t.event_date} · {t.course_name ?? "-"} · {t.location ?? "-"}
                 </CardDescription>
+                <div className="mt-3 flex justify-center">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/t/${tournamentId}/participants`}>
+                      참가자 현황
+                    </Link>
+                  </Button>
+                </div>
               </CardHeader>
               {t.notes && (
                 <CardContent>
@@ -1036,11 +1055,6 @@ export default function TournamentDetailPage() {
                     </Button>
                     <Button onClick={cancelMine} variant="outline" size="sm">
                       신청 취소
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/t/${tournamentId}/participants`}>
-                        참가자 현황
-                      </Link>
                     </Button>
                     <Button onClick={refresh} variant="ghost" size="sm">
                       새로고침

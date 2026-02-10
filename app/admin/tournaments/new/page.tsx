@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { supabase } from "../../../../lib/supabaseClient";
+import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
@@ -26,6 +26,7 @@ export default function AdminTournamentNewPage() {
   const [msg, setMsg] = useState("");
 
   const save = async () => {
+    const supabase = createClient();
     setMsg("");
     if (!title.trim() || !eventDate) {
       setMsg("대회명과 일정은 필수예요.");

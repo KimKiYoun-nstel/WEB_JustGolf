@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -21,7 +21,7 @@ type Registration = {
   id: number;
   user_id: string;
   nickname: string;
-  status: "applied" | "confirmed" | "waitlisted" | "canceled";
+  status: "applied" | "approved" | "waitlisted" | "canceled";
   memo: string | null;
   meal_option_id: number | null;
   meal_name: string | null;
@@ -35,7 +35,7 @@ type Registration = {
 
 const statuses: Registration["status"][] = [
   "applied",
-  "confirmed",
+  "approved",
   "waitlisted",
   "canceled",
 ];
@@ -51,6 +51,7 @@ export default function AdminRegistrationsPage() {
   const [msg, setMsg] = useState("");
 
   const load = async () => {
+    const supabase = createClient();
     setMsg("");
     setLoading(true);
     const { data, error } = await supabase
@@ -109,6 +110,7 @@ export default function AdminRegistrationsPage() {
     }
 
     const checkAdmin = async () => {
+      const supabase = createClient();
       const pRes = await supabase
         .from("profiles")
         .select("is_admin")
@@ -132,6 +134,7 @@ export default function AdminRegistrationsPage() {
     id: number,
     status: Registration["status"]
   ) => {
+    const supabase = createClient();
     setMsg("");
     const { error } = await supabase
       .from("registrations")

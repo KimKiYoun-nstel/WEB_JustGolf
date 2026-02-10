@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { TOURNAMENT_FILES_BUCKET } from "../../../../../lib/storage";
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
@@ -44,6 +44,7 @@ export default function AdminFilesPage() {
   const [file, setFile] = useState<File | null>(null);
 
   const load = async () => {
+    const supabase = createClient();
     setMsg("");
     setLoading(true);
     const { data, error } = await supabase
@@ -72,6 +73,7 @@ export default function AdminFilesPage() {
     }
 
     const checkAdmin = async () => {
+      const supabase = createClient();
       const pRes = await supabase
         .from("profiles")
         .select("is_admin")
@@ -91,8 +93,7 @@ export default function AdminFilesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
 
-  const upload = async () => {
-    setMsg("");
+  const upload = async () => {    const supabase = createClient();    setMsg("");
     if (!file) {
       setMsg("업로드할 파일을 선택해줘.");
       return;
@@ -132,6 +133,7 @@ export default function AdminFilesPage() {
   };
 
   const publicUrl = (path: string) => {
+    const supabase = createClient();
     const { data } = supabase.storage
       .from(TOURNAMENT_FILES_BUCKET)
       .getPublicUrl(path);

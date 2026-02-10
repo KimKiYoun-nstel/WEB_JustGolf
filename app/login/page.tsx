@@ -1,15 +1,17 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
+import { useSearchParams, useRouter } from "next/navigation";
+import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
+import { withRetry, getUserFriendlyError } from "../../lib/errorHandler";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 
 function LoginForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +19,14 @@ function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const supabase = createClient();
+
+  // 이미 로그인하면 자동으로 /start로 리다이렉트
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push("/start");
+    }
+  }, [user, authLoading, router]);
 
   // 저장된 이메일 불러오기
   useEffect(() => {
@@ -25,117 +35,128 @@ function LoginForm() {
       setEmail(savedEmail);
       setRememberMe(true);
     }
-  }, []);
 
-  useEffect(() => {
-    // 미들웨어에서 리다이렉트된 경우 승인 대기 메시지
-    const msgParam = searchParams.get("msg");
-    if (msgParam === "unapproved") {
-      // 미승인 상태이므로 세션 종료
-      const logOutAndShowMsg = async () => {
-        await supabase.auth.signOut();
-        setMsg("관리자 승인 대기 상태입니다. 승인 후 이용할 수 있어요.");
-      };
-      logOutAndShowMsg();
-      return;
+    // URL에서 메시지 읽기 (예: middleware에서 리다이렉트할 때)
+    const urlMessage = searchParams.get("message");
+    if (urlMessage) {
+      setMsg(urlMessage);
     }
-
-    if (authLoading || !user?.id) return;
-
-    const redirectTo = searchParams.get("redirectTo");
-    const rawTarget =
-      redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("/login")
-        ? redirectTo
-        : "";
-
-    const redirectForUser = async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin,is_approved")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.is_approved === false) {
-        setMsg("관리자 승인 대기 상태입니다. 승인 후 이용할 수 있어요.");
-        return;
-      }
-
-      // 모든 사용자는 /start로 이동
-      const target = "/start";
-      // Vercel 환경에서 더 안정적인 리다이렉트
-      window.location.href = target;
-    };
-
-    redirectForUser();
-  }, [authLoading, user?.id, searchParams]);
+  }, [searchParams]);
 
   const signUp = async () => {
     setMsg("");
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { nickname },
-      },
-    });
-    setLoading(false);
-    if (error) setMsg(`회원가입 실패: ${error.message}`);
-    else setMsg("회원가입 요청 완료! (메일 인증이 켜져 있으면 이메일 확인 필요)");
+    
+    try {
+      setMsg("회원가입 요청 중...");
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { nickname },
+        },
+      });
+
+      if (error) {
+        const errorMsg = getUserFriendlyError(error, "signUp");
+        setMsg(`회원가입 실패: ${errorMsg}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.user?.id) {
+        setMsg("회원가입 실패: 사용자 정보를 찾을 수 없습니다.");
+        setLoading(false);
+        return;
+      }
+
+      // Trigger가 profile을 자동 생성 - 재시도 로직으로 생성 대기
+      let profileCheck = null;
+      let lastError = null;
+      const maxRetries = 5;
+      const retryDelayMs = 500;
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        }
+
+        const pRes = await supabase
+          .from("profiles")
+          .select("id, nickname, is_approved")
+          .eq("id", data.user.id)
+          .single();
+
+        if (!pRes.error && pRes.data) {
+          profileCheck = pRes.data;
+          break;
+        }
+
+        lastError = pRes.error;
+      }
+
+      if (!profileCheck) {
+        // 5회 재시도 후에도 실패했으면 생성 대기 중일 가능성
+        setMsg("회원가입 완료되었습니다. 관리자 승인 후 로그인해주세요.");
+        setLoading(false);
+        return;
+      }
+
+      setMsg(`회원가입 완료! ${profileCheck.is_approved ? '로그인할 수 있습니다.' : '관리자 승인 후 로그인할 수 있습니다.'}`);
+      setLoading(false);
+    } catch (err) {
+      const errorMsg = getUserFriendlyError(err, "signUp");
+      setMsg(`회원가입 실패: ${errorMsg}`);
+      setLoading(false);
+    }
   };
 
   const signIn = async () => {
     setMsg("");
     setLoading(true);
     
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    
-    if (error) {
+    try {
+      setMsg("로그인 요청 중...");
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (error) {
+        const errorMsg = getUserFriendlyError(error, "signIn");
+        setMsg(`로그인 실패: ${errorMsg}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.user?.id) {
+        setMsg("로그인 실패: 사용자 정보를 찾을 수 없습니다.");
+        setLoading(false);
+        return;
+      }
+
+      // 로그인 정보 기억하기
+      if (rememberMe) {
+        localStorage.setItem("rememberedEmail", email);
+      } else {
+        localStorage.removeItem("rememberedEmail");
+      }
+
+      // 로그인 성공 - 클라이언트 사이드 네비게이션
+      setMsg("로그인 성공! 이동 중...");
+      setTimeout(() => {
+        router.push("/start");
+      }, 300);
+    } catch (err) {
+      const errorMsg = getUserFriendlyError(err, "signIn");
+      setMsg(`로그인 실패: ${errorMsg}`);
       setLoading(false);
-      setMsg(`로그인 실패: ${error.message}`);
-      return;
     }
-
-    // 로그인 정보 기억하기
-    if (rememberMe) {
-      localStorage.setItem("rememberedEmail", email);
-    } else {
-      localStorage.removeItem("rememberedEmail");
-    }
-
-    // 로그인 성공 후 승인 여부 확인
-    const redirectTo = searchParams.get("redirectTo");
-    
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin,is_approved")
-      .eq("id", data.user?.id)
-      .single();
-
-    setLoading(false);
-
-    if (profile?.is_approved === false) {
-      setMsg("관리자 승인 대기 상태입니다. 승인 후 이용할 수 있어요.");
-      return;
-    }
-
-    // 모든 사용자는 /start로 이동
-    const target = "/start";
-
-    setMsg("로그인 성공! 이동 중...");
-    // Vercel edge에서 쿠키 동기화 대기 후 리다이렉트
-    setTimeout(() => {
-      window.location.href = target;
-    }, 500);
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setMsg("로그아웃 완료");
-  };
+
 
   return (
     <main className="min-h-screen bg-slate-50/70 px-6 py-12">
@@ -197,9 +218,6 @@ function LoginForm() {
             </Button>
             <Button onClick={signUp} variant="secondary" disabled={loading}>
               {loading ? "처리 중..." : "회원가입"}
-            </Button>
-            <Button onClick={signOut} variant="outline" disabled={loading}>
-              로그아웃
             </Button>
           </div>
 

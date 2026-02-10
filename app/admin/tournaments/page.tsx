@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabaseClient";
+import { createClient } from "../../../lib/supabaseClient";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
@@ -33,6 +33,7 @@ export default function AdminTournamentsPage() {
 
   const load = async () => {
     setMsg("");
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("tournaments")
       .select("id,title,event_date,status")

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -48,6 +48,7 @@ export default function AdminMealOptionsPage() {
     }
 
     const checkAdminAndLoad = async () => {
+      const supabase = createClient();
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_admin")
@@ -67,6 +68,7 @@ export default function AdminMealOptionsPage() {
   }, [tournamentId, user?.id, authLoading]);
 
   const loadOptions = async () => {
+    const supabase = createClient();
     setLoading(true);
     const { data, error } = await supabase
       .from("tournament_meal_options")
@@ -90,6 +92,7 @@ export default function AdminMealOptionsPage() {
       return;
     }
 
+    const supabase = createClient();
     setMsg("");
     const maxOrder = options.length > 0 ? Math.max(...options.map((o) => o.display_order)) : 0;
 
@@ -111,6 +114,7 @@ export default function AdminMealOptionsPage() {
   };
 
   const toggleActive = async (id: number, currentActive: boolean) => {
+    const supabase = createClient();
     const { error } = await supabase
       .from("tournament_meal_options")
       .update({ is_active: !currentActive })
@@ -126,6 +130,7 @@ export default function AdminMealOptionsPage() {
   };
 
   const moveOrder = async (id: number, direction: "up" | "down") => {
+    const supabase = createClient();
     const idx = options.findIndex((o) => o.id === id);
     if (idx === -1) return;
 
@@ -152,6 +157,7 @@ export default function AdminMealOptionsPage() {
   const deleteOption = async (id: number) => {
     if (!confirm("정말 삭제하시겠습니까? (비활성화를 권장합니다)")) return;
 
+    const supabase = createClient();
     const { error } = await supabase
       .from("tournament_meal_options")
       .delete()

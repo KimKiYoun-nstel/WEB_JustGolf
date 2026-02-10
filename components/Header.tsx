@@ -3,52 +3,44 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
+import { createClient } from "../lib/supabaseClient";
+import { useAuth } from "../lib/auth";
 import { Button } from "./ui/button";
-import type { User } from "@supabase/supabase-js";
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
+  const { user, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [profileNickname, setProfileNickname] = useState("");
+  const supabase = createClient();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user ?? null);
+    if (!user) {
+      setIsAdmin(false);
+      setProfileNickname("");
+      return;
+    }
 
-      if (data.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin,nickname")
-          .eq("id", data.user.id)
-          .single();
+    const fetchProfile = async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin,nickname")
+        .eq("id", user.id)
+        .single();
 
-        setIsAdmin(profile?.is_admin ?? false);
-      }
-      setLoading(false);
+      setIsAdmin(profile?.is_admin ?? false);
+      setProfileNickname(profile?.nickname ?? "");
     };
 
-    checkAuth();
-
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        setIsAdmin(false);
-      }
-    });
-
-    return () => {
-      data.subscription?.unsubscribe();
-    };
-  }, []);
+    fetchProfile();
+  }, [user]);
 
   const handleLogout = async () => {
+    const supabase = createClient();
     await supabase.auth.signOut();
-    setUser(null);
     setIsAdmin(false);
+    setProfileNickname("");
     router.push("/login");
   };
 
@@ -90,12 +82,12 @@ export default function Header() {
           <nav className="flex items-center gap-2">
             {user && (
               <>
-                <Button asChild size="sm" variant="ghost">
-                  <Link href="/tournaments">대회 목록</Link>
-                </Button>
+                <span className="text-sm font-medium text-slate-700">
+                  {profileNickname ? `${profileNickname}님` : "닉네임 없음"}
+                </span>
                 {!isAdmin && (
                   <Button asChild size="sm" variant="ghost">
-                    <Link href="/start">시작</Link>
+                    <Link href="/start">홈</Link>
                   </Button>
                 )}
                 {isAdmin && (

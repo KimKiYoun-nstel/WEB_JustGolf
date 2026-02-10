@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../../lib/supabaseClient";
+import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
@@ -52,8 +52,8 @@ type SideEventReg = {
   round_type: string;
   status: string;
   memo: string | null;
-  meal_selected: boolean | null;
-  lodging_selected: boolean | null;
+  meal_selected: boolean;
+  lodging_selected: boolean;
 };
 
 type TournamentExtra = {
@@ -91,6 +91,7 @@ export default function MyStatusPage() {
   }, [tournamentId, loading, user]);
 
   const fetchData = async () => {
+    const supabase = createClient();
     if (!user) return;
 
     setIsLoading(true);

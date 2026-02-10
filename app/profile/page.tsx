@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
+import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
 import { Button } from "../../components/ui/button";
 import {
@@ -45,6 +45,7 @@ export default function ProfilePage() {
     setEmail(user.email ?? "");
 
     // 닉네임은 profiles 테이블에서 가져옴
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
       .select("nickname")
@@ -74,6 +75,7 @@ export default function ProfilePage() {
       return;
     }
 
+    const supabase = createClient();
     const { error } = await supabase
       .from("profiles")
       .update({ nickname: nick })
@@ -110,6 +112,7 @@ export default function ProfilePage() {
     }
 
     // Supabase Auth로 비밀번호 변경
+    const supabase = createClient();
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
 import { Button } from "../../../../../components/ui/button";
 import {
@@ -74,6 +74,7 @@ export default function ManagerSetupPage() {
   }, [tournamentId, loading, user]);
 
   const checkAdmin = async () => {
+    const supabase = createClient();
     if (!user) {
       router.push("/login");
       return;
@@ -95,6 +96,7 @@ export default function ManagerSetupPage() {
   };
 
   const fetchData = async () => {
+    const supabase = createClient();
     setMsg("");
 
     // 1. 토너먼트 정보
@@ -140,6 +142,7 @@ export default function ManagerSetupPage() {
   };
 
   const searchUsers = async () => {
+    const supabase = createClient();
     setMsg("");
     setSearchResults([]);
 
@@ -168,6 +171,7 @@ export default function ManagerSetupPage() {
   };
 
   const grantPermission = async (userId: string) => {
+    const supabase = createClient();
     setMsg("");
 
     const granterId = user?.id;
@@ -192,6 +196,7 @@ export default function ManagerSetupPage() {
   };
 
   const revokePermission = async (managerId: number) => {
+    const supabase = createClient();
     setMsg("");
 
     const revokerId = user?.id;

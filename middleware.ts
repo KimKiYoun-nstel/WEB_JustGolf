@@ -26,24 +26,25 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  // 미승인 사용자는 로그인으로 리다이렉트 (승인 대기 상태)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_approved")
-    .eq("id", user.id)
-    .single();
+  // /start 등 보호된 페이지 접근 시 승인 상태 확인 (RPC 함수 사용)
+  if (request.nextUrl.pathname.startsWith("/start") || 
+      request.nextUrl.pathname.startsWith("/admin") ||
+      request.nextUrl.pathname.startsWith("/tournaments")) {
+    const { data: isApproved, error } = await supabase.rpc("is_approved_user", { uid: user.id });
 
-  if (profile?.is_approved === false) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("msg", "unapproved");
-    return new Response(null, {
-      status: 307,
-      headers: {
-        Location: loginUrl.toString(),
-      },
-    });
+    if (error || !isApproved) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("message", "관리자 승인 대기 중입니다.");
+      return new Response(null, {
+        status: 307,
+        headers: {
+          Location: loginUrl.toString(),
+        },
+      });
+    }
   }
 
+  // 로그인된 사용자는 모두 접근 가능
   return response;
 }
 

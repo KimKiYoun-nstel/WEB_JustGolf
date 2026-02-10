@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../../lib/supabaseClient";
+import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
@@ -37,7 +37,7 @@ type Registration = {
   status: string;
   memo: string | null;
   meal_name: string | null;
-  carpool_available: boolean | null;
+  carpool_available: boolean;
   carpool_seats: number | null;
   transportation: string | null;
   departure_location: string | null;
@@ -57,8 +57,8 @@ type SideEventRegistration = {
   id: number;
   nickname: string;
   status: string;
-  meal_selected: boolean | null;
-  lodging_selected: boolean | null;
+  meal_selected: boolean;
+  lodging_selected: boolean;
 };
 
 type PrizeSupport = {
@@ -72,6 +72,7 @@ type PrizeSupport = {
 export default function TournamentParticipantsPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
+  const supabase = createClient();
 
   const { user } = useAuth();
   const [t, setT] = useState<Tournament | null>(null);
@@ -123,7 +124,7 @@ export default function TournamentParticipantsPage() {
       status: row.status,
       memo: row.memo ?? null,
       meal_name: row.tournament_meal_options?.menu_name ?? null,
-      carpool_available: row.registration_extras?.carpool_available ?? null,
+      carpool_available: row.registration_extras?.carpool_available ?? false,
       carpool_seats: row.registration_extras?.carpool_seats ?? null,
       transportation: row.registration_extras?.transportation ?? null,
       departure_location: row.registration_extras?.departure_location ?? null,
@@ -244,14 +245,14 @@ export default function TournamentParticipantsPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>닉네임</TableHead>
-                          <TableHead>상태</TableHead>
-                          <TableHead>식사</TableHead>
-                          <TableHead>카풀</TableHead>
-                          <TableHead>이동/출발지</TableHead>
-                          <TableHead>비고</TableHead>
-                          <TableHead>메모</TableHead>
-                          <TableHead>신청일시</TableHead>
+                          <TableHead className="whitespace-nowrap">닉네임</TableHead>
+                          <TableHead className="whitespace-nowrap">상태</TableHead>
+                          <TableHead className="whitespace-nowrap">식사</TableHead>
+                          <TableHead className="whitespace-nowrap">카풀</TableHead>
+                          <TableHead className="whitespace-nowrap">이동/출발지</TableHead>
+                          <TableHead className="whitespace-nowrap">비고</TableHead>
+                          <TableHead className="whitespace-nowrap">메모</TableHead>
+                          <TableHead className="whitespace-nowrap">신청일시</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -327,10 +328,10 @@ export default function TournamentParticipantsPage() {
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead>닉네임</TableHead>
-                                  <TableHead>상태</TableHead>
-                                  <TableHead>식사</TableHead>
-                                  <TableHead>숙박</TableHead>
+                                  <TableHead className="whitespace-nowrap">닉네임</TableHead>
+                                  <TableHead className="whitespace-nowrap">상태</TableHead>
+                                  <TableHead className="whitespace-nowrap">식사</TableHead>
+                                  <TableHead className="whitespace-nowrap">숙박</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -359,23 +360,27 @@ export default function TournamentParticipantsPage() {
               </Card>
             )}
 
-            {prizes.length > 0 && (
-              <Card className="border-slate-200/70">
-                <CardHeader>
-                  <CardTitle>경품 지원 현황</CardTitle>
-                  <CardDescription>
-                    참가자분들이 제공한 경품 목록입니다.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
+            <Card className="border-slate-200/70">
+              <CardHeader>
+                <CardTitle>경품 지원 현황</CardTitle>
+                <CardDescription>
+                  참가자분들이 제공한 경품 목록입니다.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {prizes.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    아직 등록된 경품이 없습니다.
+                  </p>
+                ) : (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>지원자</TableHead>
-                          <TableHead>경품명</TableHead>
-                          <TableHead>비고</TableHead>
-                          <TableHead>등록일</TableHead>
+                          <TableHead className="whitespace-nowrap">지원자</TableHead>
+                          <TableHead className="whitespace-nowrap">경품명</TableHead>
+                          <TableHead className="whitespace-nowrap">비고</TableHead>
+                          <TableHead className="whitespace-nowrap">등록일</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -394,9 +399,9 @@ export default function TournamentParticipantsPage() {
                       </TableBody>
                     </Table>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
+              </CardContent>
+            </Card>
 
             <div className="flex gap-2">
               {user && (

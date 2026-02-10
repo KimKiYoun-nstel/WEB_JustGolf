@@ -147,7 +147,7 @@ export default function AdminHomePage() {
             </Link>
           </Button>
           <Button asChild variant="secondary" className="h-auto flex-col">
-            <Link href="/">
+            <Link href="/start">
               <span className="text-lg">🌍</span>
               <span>공개 페이지</span>
             </Link>

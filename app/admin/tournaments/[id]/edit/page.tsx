@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
@@ -50,6 +50,7 @@ export default function AdminTournamentEditPage() {
   const [status, setStatus] = useState<Status>("draft");
 
   const load = async () => {
+    const supabase = createClient();
     setMsg("");
     setLoading(true);
 
@@ -93,6 +94,7 @@ export default function AdminTournamentEditPage() {
     }
 
     const checkAdmin = async () => {
+      const supabase = createClient();
       const pRes = await supabase
         .from("profiles")
         .select("is_admin")
@@ -113,6 +115,7 @@ export default function AdminTournamentEditPage() {
   }, [tournamentId, user?.id, authLoading]);
 
   const save = async () => {
+    const supabase = createClient();
     setMsg("");
     if (!title.trim() || !eventDate) {
       setMsg("대회명과 일정은 필수예요.");
@@ -141,6 +144,7 @@ export default function AdminTournamentEditPage() {
   };
 
   const duplicate = async () => {
+    const supabase = createClient();
     setMsg("");
     if (!title.trim() || !eventDate) {
       setMsg("대회명과 일정은 필수예요.");

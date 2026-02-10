@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../../lib/supabaseClient";
+import { createClient } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
@@ -41,6 +41,7 @@ export default function AdminUsersPage() {
     setMsg("");
     setLoading(true);
 
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
       .select("id,nickname,is_admin,is_approved,created_at")
@@ -64,6 +65,7 @@ export default function AdminUsersPage() {
     }
 
     const checkAdmin = async () => {
+      const supabase = createClient();
       const pRes = await supabase
         .from("profiles")
         .select("is_admin")
@@ -85,6 +87,7 @@ export default function AdminUsersPage() {
 
   const updateApproval = async (id: string, approved: boolean) => {
     setMsg("");
+    const supabase = createClient();
     const { error } = await supabase
       .from("profiles")
       .update({ is_approved: approved })
@@ -96,6 +99,23 @@ export default function AdminUsersPage() {
     }
 
     setMsg(approved ? "승인 완료" : "승인 해제 완료");
+    await load();
+  };
+
+  const updateAdmin = async (id: string, isAdmin: boolean) => {
+    setMsg("");
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_admin: isAdmin })
+      .eq("id", id);
+
+    if (error) {
+      setMsg(`권한 변경 실패: ${error.message}`);
+      return;
+    }
+
+    setMsg(isAdmin ? "관리자로 승격 완료" : "관리자 권한 해제 완료");
     await load();
   };
 
@@ -184,6 +204,25 @@ export default function AdminUsersPage() {
                               onClick={() => updateApproval(row.id, true)}
                             >
                               승인
+                            </Button>
+                          )}
+                          
+                          {row.is_admin ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateAdmin(row.id, false)}
+                            >
+                              관리자 해제
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateAdmin(row.id, true)}
+                              disabled={!row.is_approved}
+                            >
+                              관리자 승격
                             </Button>
                           )}
                         </div>

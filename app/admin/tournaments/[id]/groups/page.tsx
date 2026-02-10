@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -31,7 +31,7 @@ type GroupMember = {
 type Registration = {
   id: number;
   nickname: string;
-  status: "confirmed";
+  status: "approved";
 };
 
 export default function AdminTournamentGroupsPage() {
@@ -55,6 +55,7 @@ export default function AdminTournamentGroupsPage() {
     }
 
     const checkAdminAndLoad = async () => {
+      const supabase = createClient();
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_admin")
@@ -74,6 +75,7 @@ export default function AdminTournamentGroupsPage() {
   }, [tournamentId, user?.id, authLoading]);
 
   const loadAll = async () => {
+    const supabase = createClient();
     setMsg("");
     setLoading(true);
 
@@ -96,7 +98,7 @@ export default function AdminTournamentGroupsPage() {
       .from("registrations")
       .select("id,nickname,status")
       .eq("tournament_id", tournamentId)
-      .eq("status", "confirmed")
+      .eq("status", "approved")
       .order("id", { ascending: true });
 
     if (regRes.error) {
@@ -139,6 +141,7 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const createGroup = async () => {
+    const supabase = createClient();
     setMsg("");
     const nextNo = groups.length > 0 ? Math.max(...groups.map((g) => g.group_no)) + 1 : 1;
     const { error } = await supabase.from("tournament_groups").insert({
@@ -156,6 +159,7 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const updateGroup = async (group: Group) => {
+    const supabase = createClient();
     setMsg("");
     const { error } = await supabase
       .from("tournament_groups")
@@ -171,6 +175,7 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const togglePublish = async (group: Group) => {
+    const supabase = createClient();
     setMsg("");
     const { error } = await supabase
       .from("tournament_groups")
@@ -186,6 +191,7 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const setAllPublish = async (nextState: boolean) => {
+    const supabase = createClient();
     setMsg("");
     const { error } = await supabase
       .from("tournament_groups")
@@ -201,6 +207,7 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const deleteGroup = async (group: Group) => {
+    const supabase = createClient();
     const hasMembers = members.some((m) => m.group_id === group.id);
     if (hasMembers) {
       const ok = confirm("배정된 멤버가 있습니다. 그래도 삭제할까요?");
@@ -228,6 +235,7 @@ export default function AdminTournamentGroupsPage() {
     position: number,
     registrationId: number | null
   ) => {
+    const supabase = createClient();
     setMsg("");
 
     if (!registrationId) {

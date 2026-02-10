@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results
+/playwright-report
+.nyc_output
 
 # next.js
 /.next/
@@ -39,3 +42,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test utilities and verification scripts
+Test/*.mjs
+Test/*.js
+
+# generated documentation (keep only deployment guides)
+Docs/DB_SCHEMA_CURRENT.json
+Docs/CURRENT_IMPLEMENTATION_STATUS.md
+Docs/SCHEMA_VALIDATION.md
+
+# temporary generated files
+*.tmp
+*.log
+

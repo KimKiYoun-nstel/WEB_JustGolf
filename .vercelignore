@@ -1,0 +1,31 @@
+# Vercel에서 무시할 파일 목록
+
+# 환경설정
+.env.local
+.env*.local
+
+# 테스트
+__tests__
+e2e
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# 개발 도구
+.vscode
+.idea
+*.swp
+*.swo
+
+# 노드 모듈 (Vercel에서 npm install 실행)
+node_modules
+
+# 빌드 산출물 (Vercel에서 자동 생성)
+.next
+out
+dist
+
+# 문서
+VERCEL_DEPLOYMENT.md
+README.md

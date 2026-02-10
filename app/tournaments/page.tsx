@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { createClient } from "../../lib/supabaseClient";
+import { useAuth } from "../../lib/auth";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -23,20 +24,73 @@ type Tournament = {
 };
 
 export default function TournamentsPage() {
+  const { user } = useAuth();
   const [rows, setRows] = useState<Tournament[]>([]);
   const [error, setError] = useState("");
+  const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  const formatStatus = (status: string) => {
+    if (status === "undecided") return "미정";
+    if (status === "applied") return "신청";
+    if (status === "approved") return "확정";
+    if (status === "waitlisted") return "대기";
+    if (status === "canceled") return "취소";
+    return status;
+  };
 
   useEffect(() => {
+    let active = true;
+
     (async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from("tournaments")
         .select("id,title,event_date,course_name,location,status")
         .order("event_date", { ascending: false });
 
-      if (error) setError(error.message);
-      else setRows((data ?? []) as Tournament[]);
+      if (!active) return;
+
+      if (error) {
+        setError(error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      setRows((data ?? []) as Tournament[]);
+
+      if (!user?.id) {
+        setMyStatuses({});
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: regData, error: regError } = await supabase
+        .from("registrations")
+        .select("tournament_id,status,relation")
+        .eq("user_id", user.id)
+        .eq("relation", "본인");
+
+      if (!active) return;
+
+      if (regError) {
+        setMyStatuses({});
+        setIsLoading(false);
+        return;
+      }
+
+      const nextStatuses: Record<number, string> = {};
+      (regData ?? []).forEach((row: any) => {
+        nextStatuses[row.tournament_id] = row.status;
+      });
+      setMyStatuses(nextStatuses);
+      setIsLoading(false);
     })();
-  }, []);
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
 
   return (
     <main className="min-h-screen bg-slate-50/70">
@@ -56,7 +110,13 @@ export default function TournamentsPage() {
         {error && <p className="text-sm text-red-600">Error: {error}</p>}
 
         <section className="grid gap-4">
-          {rows.length === 0 ? (
+          {isLoading ? (
+            <Card className="border-slate-200/70">
+              <CardContent className="py-10 text-center text-slate-500">
+                로딩 중...
+              </CardContent>
+            </Card>
+          ) : rows.length === 0 ? (
             <Card className="border-slate-200/70">
               <CardContent className="py-10 text-center text-slate-500">
                 등록된 대회가 없습니다.
@@ -75,13 +135,18 @@ export default function TournamentsPage() {
                   <CardDescription>
                     {t.event_date} · {t.course_name ?? "-"}
                   </CardDescription>
+                  {user && (
+                    <div className="mt-2 text-xs text-slate-500">
+                      내 참가 상태: {myStatuses[t.id] ? formatStatus(myStatuses[t.id]) : "미신청"}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="flex flex-row items-center justify-between gap-3">
                   <span className="inline-block text-sm text-slate-500">
                     {t.location ?? "-"}
                   </span>
                   <Button asChild size="sm" variant="outline">
-                    <Link href={`/t/${t.id}`}>상세 보기</Link>
+                    <Link href={`/t/${t.id}/participants`}>상세 보기</Link>
                   </Button>
                 </CardContent>
               </Card>

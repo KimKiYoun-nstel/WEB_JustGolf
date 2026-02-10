@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
+
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -68,6 +69,7 @@ export default function TournamentExtrasPage() {
   }, [tournamentId, loading, user]);
 
   const checkAdmin = async () => {
+    const supabase = createClient();
     if (!user) {
       router.push("/login");
       return;
@@ -89,6 +91,7 @@ export default function TournamentExtrasPage() {
   };
 
   const fetchData = async () => {
+    const supabase = createClient();
     setMsg("");
 
     // 1. 토너먼트 정보
@@ -120,6 +123,7 @@ export default function TournamentExtrasPage() {
   };
 
   const addActivity = async () => {
+    const supabase = createClient();
     setMsg("");
 
     const name = activityName.trim();
@@ -156,6 +160,7 @@ export default function TournamentExtrasPage() {
   };
 
   const deleteActivity = async (id: number) => {
+    const supabase = createClient();
     setMsg("");
 
     // is_active를 false로 변경 (soft delete)
@@ -173,6 +178,7 @@ export default function TournamentExtrasPage() {
   };
 
   const moveUp = async (id: number) => {
+    const supabase = createClient();
     const idx = extras.findIndex((e) => e.id === id);
     if (idx === 0) return; // 이미 맨 위
 
@@ -194,6 +200,7 @@ export default function TournamentExtrasPage() {
   };
 
   const moveDown = async (id: number) => {
+    const supabase = createClient();
     const idx = extras.findIndex((e) => e.id === id);
     if (idx === extras.length - 1) return; // 이미 맨 아래
 

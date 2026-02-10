@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth";
-import { supabase } from "../../lib/supabaseClient";
+import { createClient } from "../../lib/supabaseClient";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 
@@ -33,6 +33,7 @@ export default function AdminLayout({
     }
 
     (async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from("profiles")
         .select("is_admin,nickname")
@@ -85,7 +86,7 @@ export default function AdminLayout({
           <p className="text-sm text-slate-600">관리자 권한이 없습니다.</p>
           {error && <p className="mt-2 text-sm text-red-600">Error: {error}</p>}
           <Button asChild variant="outline" className="mt-4">
-            <Link href="/">홈으로 이동</Link>
+            <Link href="/start">홈으로 이동</Link>
           </Button>
         </Card>
       </main>
@@ -107,7 +108,7 @@ export default function AdminLayout({
           </div>
           <nav className="flex flex-wrap gap-2">
             <Button asChild variant="ghost">
-              <Link href="/">홈</Link>
+              <Link href="/start">홈</Link>
             </Button>
             <Button asChild variant="ghost">
               <Link href="/admin">대시보드</Link>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -100,6 +100,7 @@ export default function AdminSideEventsPage() {
   };
 
   const loadSideEvents = async () => {
+    const supabase = createClient();
     setMsg("");
     setLoading(true);
     try {
@@ -164,6 +165,7 @@ export default function AdminSideEventsPage() {
     }
 
     const checkAdmin = async () => {
+      const supabase = createClient();
       // 1. Check if user is admin
       const pRes = await supabase
         .from("profiles")
@@ -215,6 +217,7 @@ export default function AdminSideEventsPage() {
   };
 
   const saveSideEvent = async () => {
+    const supabase = createClient();
     setMsg("");
 
     if (!title.trim()) {
@@ -271,6 +274,7 @@ export default function AdminSideEventsPage() {
   };
 
   const deleteSideEvent = async (id: number) => {
+    const supabase = createClient();
     setMsg("");
     if (!confirm("정말 삭제할까? 신청 내역도 함께 삭제됩니다.")) return;
 

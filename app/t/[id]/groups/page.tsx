@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../../../../lib/supabaseClient";
+import { createClient } from "../../../../lib/supabaseClient";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
@@ -42,6 +42,7 @@ export default function TournamentGroupsPage() {
     setLoading(true);
     setMsg("");
 
+    const supabase = createClient();
     const groupRes = await supabase
       .from("tournament_groups")
       .select("id,group_no,tee_time,is_published")
