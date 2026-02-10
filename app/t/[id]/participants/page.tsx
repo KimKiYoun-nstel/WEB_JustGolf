@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
+import { formatRegistrationStatus, formatTournamentStatus } from "../../../../lib/statusLabels";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import {
@@ -214,7 +215,7 @@ export default function TournamentParticipantsPage() {
                   {t.title}
                 </h1>
                 <Badge variant="secondary" className="capitalize">
-                  {t.status}
+                  {formatTournamentStatus(t.status)}
                 </Badge>
               </div>
               <p className="text-sm text-slate-500">
@@ -268,7 +269,7 @@ export default function TournamentParticipantsPage() {
                             </TableCell>
                             <TableCell>
                               <Badge variant="secondary" className="capitalize">
-                                {r.status}
+                                {formatRegistrationStatus(r.status)}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-sm text-slate-600">
@@ -339,7 +340,9 @@ export default function TournamentParticipantsPage() {
                                   <TableRow key={r.id}>
                                     <TableCell>{r.nickname}</TableCell>
                                     <TableCell>
-                                      <Badge variant="secondary">{r.status}</Badge>
+                                      <Badge variant="secondary">
+                                        {formatRegistrationStatus(r.status)}
+                                      </Badge>
                                     </TableCell>
                                     <TableCell className="text-sm text-slate-600">
                                       {r.meal_selected === null ? "미정" : r.meal_selected ? "참여" : "불참"}

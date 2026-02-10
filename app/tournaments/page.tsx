@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
+import { formatRegistrationStatus, formatTournamentStatus } from "../../lib/statusLabels";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -30,14 +31,7 @@ export default function TournamentsPage() {
   const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  const formatStatus = (status: string) => {
-    if (status === "undecided") return "미정";
-    if (status === "applied") return "신청";
-    if (status === "approved") return "확정";
-    if (status === "waitlisted") return "대기";
-    if (status === "canceled") return "취소";
-    return status;
-  };
+  const formatStatus = (status: string) => formatRegistrationStatus(status);
 
   useEffect(() => {
     let active = true;
@@ -129,7 +123,7 @@ export default function TournamentsPage() {
                   <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
                     <CardTitle className="truncate text-base sm:text-lg">{t.title}</CardTitle>
                     <Badge variant="secondary" className="capitalize">
-                      {t.status}
+                      {formatTournamentStatus(t.status)}
                     </Badge>
                   </div>
                   <CardDescription>

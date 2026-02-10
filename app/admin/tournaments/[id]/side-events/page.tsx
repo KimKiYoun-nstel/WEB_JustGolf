@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
+import { formatRegistrationStatus, formatTournamentStatus } from "../../../../../lib/statusLabels";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import {
@@ -385,10 +386,10 @@ export default function AdminSideEventsPage() {
                   onChange={(e) => setStatus(e.target.value as Status)}
                   className="rounded border border-slate-200 px-3 py-2 text-sm"
                 >
-                  <option value="draft">draft</option>
-                  <option value="open">open</option>
-                  <option value="closed">closed</option>
-                  <option value="done">done</option>
+                  <option value="draft">{formatTournamentStatus("draft")}</option>
+                  <option value="open">{formatTournamentStatus("open")}</option>
+                  <option value="closed">{formatTournamentStatus("closed")}</option>
+                  <option value="done">{formatTournamentStatus("done")}</option>
                 </select>
               </div>
             </div>
@@ -544,7 +545,7 @@ export default function AdminSideEventsPage() {
                       </CardTitle>
                       <div className="flex gap-2">
                         <Badge variant="secondary" className="capitalize">
-                          {se.status}
+                          {formatTournamentStatus(se.status)}
                         </Badge>
                         <Button
                           onClick={() => editSideEvent(se)}
@@ -604,7 +605,7 @@ export default function AdminSideEventsPage() {
                                 <TableCell>{r.nickname}</TableCell>
                                 <TableCell>
                                   <Badge variant="secondary">
-                                    {r.status}
+                                    {formatRegistrationStatus(r.status)}
                                   </Badge>
                                 </TableCell>
                                 <TableCell>

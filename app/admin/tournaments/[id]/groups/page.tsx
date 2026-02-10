@@ -326,7 +326,7 @@ export default function AdminTournamentGroupsPage() {
           <div>
             <h1 className="text-2xl font-bold">조편성 관리</h1>
             <p className="text-sm text-slate-500">
-              확정(confirmed) 참가자를 조에 배정하고 공개 여부를 설정합니다.
+              확정 참가자를 조에 배정하고 공개 여부를 설정합니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
+import { formatTournamentStatus } from "../../../../../lib/statusLabels";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
 import { Input } from "../../../../../components/ui/input";
@@ -255,10 +256,10 @@ export default function AdminTournamentEditPage() {
                 onChange={(e) => setStatus(e.target.value as Status)}
                 className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm"
               >
-                <option value="draft">draft</option>
-                <option value="open">open</option>
-                <option value="closed">closed</option>
-                <option value="done">done</option>
+                <option value="draft">{formatTournamentStatus("draft")}</option>
+                <option value="open">{formatTournamentStatus("open")}</option>
+                <option value="closed">{formatTournamentStatus("closed")}</option>
+                <option value="done">{formatTournamentStatus("done")}</option>
               </select>
             </div>
             <div className="space-y-2">

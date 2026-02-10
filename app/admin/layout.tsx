@@ -99,7 +99,7 @@ export default function AdminLayout({
         <header className="flex flex-col gap-4 border-b border-slate-200/70 pb-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Admin Console
+              관리자 콘솔
             </p>
             <h1 className="text-2xl font-semibold text-slate-900">관리자</h1>
             <p className="text-sm text-slate-500">

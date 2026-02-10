@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../../../lib/supabaseClient";
+import { formatTournamentStatus } from "../../../lib/statusLabels";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
@@ -69,7 +70,7 @@ export default function AdminTournamentsPage() {
                       <div className="flex items-center gap-2 text-xs text-slate-500">
                         <span>{row.event_date}</span>
                         <Badge variant="secondary" className="capitalize">
-                          {row.status}
+                          {formatTournamentStatus(row.status)}
                         </Badge>
                       </div>
                     </div>

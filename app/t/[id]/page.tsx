@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
 import { TOURNAMENT_FILES_BUCKET } from "../../../lib/storage";
+import { formatRegistrationStatus, formatTournamentStatus } from "../../../lib/statusLabels";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
@@ -809,14 +810,8 @@ export default function TournamentDetailPage() {
     (r) => r.user_id === me && r.status !== "canceled"
   );
 
-  const formatStatus = (status: Registration["status"]) => {
-    if (status === "undecided") return "미정";
-    if (status === "applied") return "신청";
-    if (status === "approved") return "확정";
-    if (status === "waitlisted") return "대기";
-    if (status === "canceled") return "취소";
-    return status;
-  };
+  const formatStatus = (status: Registration["status"]) =>
+    formatRegistrationStatus(status);
 
   return (
     <main className="min-h-screen bg-slate-50/70">
@@ -834,7 +829,7 @@ export default function TournamentDetailPage() {
                 <CardTitle className="flex items-center justify-between gap-3">
                   <span>{t.title}</span>
                   <Badge variant="secondary" className="capitalize">
-                    {t.status}
+                    {formatTournamentStatus(t.status)}
                   </Badge>
                 </CardTitle>
                 <CardDescription>
@@ -1339,7 +1334,7 @@ export default function TournamentDetailPage() {
                             {se.title}
                           </span>
                           <Badge variant="secondary" className="capitalize">
-                            {se.status}
+                            {formatTournamentStatus(se.status)}
                           </Badge>
                         </CardTitle>
                         <CardDescription>

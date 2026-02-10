@@ -96,7 +96,7 @@ export default function AdminHomePage() {
             <div>
               <p className="font-semibold">2️⃣ 대회 상태 변경</p>
               <p className="ml-4 text-slate-600">
-                대회 수정 → 상태를 'open'으로 변경 → 신청 받기 시작
+                대회 수정 → 상태를 '모집중'으로 변경 → 신청 받기 시작
               </p>
             </div>
             <div>
@@ -108,7 +108,7 @@ export default function AdminHomePage() {
             <div>
               <p className="font-semibold">4️⃣ 참가자 관리</p>
               <p className="ml-4 text-slate-600">
-                세부 대회 → "신청자 관리" → 상태 변경 (confirmed/waitlisted)
+                세부 대회 → "신청자 관리" → 상태 변경 (확정/대기)
               </p>
             </div>
             <div>

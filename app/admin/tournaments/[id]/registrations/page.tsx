@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
+import { formatRegistrationStatus } from "../../../../../lib/statusLabels";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
@@ -197,7 +198,7 @@ export default function AdminRegistrationsPage() {
                   <TableCell className="font-medium">{row.nickname}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="capitalize">
-                      {row.status}
+                      {formatRegistrationStatus(row.status)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-slate-600">
@@ -245,7 +246,7 @@ export default function AdminRegistrationsPage() {
                           size="sm"
                           variant={row.status === status ? "secondary" : "outline"}
                         >
-                          {status}
+                          {formatRegistrationStatus(status)}
                         </Button>
                       ))}
                     </div>
