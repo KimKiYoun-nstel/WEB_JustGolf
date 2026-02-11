@@ -243,10 +243,29 @@ export default function TournamentParticipantsPage() {
 
             <Card className="border-slate-200/70">
               <CardHeader>
-                <CardTitle>참가자 목록</CardTitle>
-                <CardDescription>
-                  신청 정보가 최대한 공개됩니다.
-                </CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>참가자 목록</CardTitle>
+                    <CardDescription>
+                      신청 정보가 최대한 공개됩니다.
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="text-sm text-slate-500">총 신청</div>
+                    <div className="text-2xl font-bold text-slate-900">{rows.length}명</div>
+                    <div className="flex gap-2 text-xs">
+                      <span className="text-green-700">
+                        확정 {rows.filter((r) => r.status === "approved").length}
+                      </span>
+                      <span className="text-blue-700">
+                        신청 {rows.filter((r) => r.status === "applied").length}
+                      </span>
+                      <span className="text-yellow-700">
+                        대기 {rows.filter((r) => r.status === "waitlisted").length}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {rows.length === 0 ? (
