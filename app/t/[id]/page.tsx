@@ -152,6 +152,13 @@ export default function TournamentDetailPage() {
   const [prizeItem, setPrizeItem] = useState("");
   const [prizeNote, setPrizeNote] = useState("");
   const [msg, setMsg] = useState("");
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [editingParticipant, setEditingParticipant] = useState<Registration | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRelation, setEditRelation] = useState("");
+  const [editMemo, setEditMemo] = useState("");
+  const [editMealId, setEditMealId] = useState<number | null>(null);
+  const [editActivityIds, setEditActivityIds] = useState<number[]>([]);
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 신청했습니다.";
@@ -434,12 +441,20 @@ export default function TournamentDetailPage() {
     // 추가 정보(카풀 등) 저장
     if (registrationId) {
       const saved = await upsertExtras(registrationId);
-      if (!saved) return;
+      if (!saved) {
+        setLoadingAction(null);
+        return;
+      }
 
       const activitySaved = await upsertActivitySelections(registrationId);
-      if (!activitySaved) return;
+      if (!activitySaved) {
+        setLoadingAction(null);
+        return;
+      }
     }
 
+    setLoadingAction(null);
+    setMsg("✅ 신청이 완료되었습니다.");
     await refresh();
   };
 
@@ -458,14 +473,22 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    if (!confirm(`${mine.nickname}님의 신청을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    setLoadingAction('cancel-main');
+
     const { error } = await supabase
       .from("registrations")
-      .update({ status: "canceled" })
+      .delete()
       .eq("id", mine.id);
 
-    if (error) setMsg(`취소 실패: ${friendlyError(error)}`);
+    setLoadingAction(null);
+
+    if (error) setMsg(`삭제 실패: ${friendlyError(error)}`);
     else {
-      setMsg("취소 완료");
+      setMsg("✅ 신청이 삭제되었습니다.");
       await refresh();
     }
   };
@@ -531,22 +554,24 @@ export default function TournamentDetailPage() {
         .insert(activityInserts);
 
       if (actError) {
+        setLoadingAction(null);
         setMsg(`활동 선택 저장 실패: ${friendlyError(actError)}`);
         return;
       }
     }
 
+    setLoadingAction(null);
     setExtraName("");
     setExtraRelation("");
     setExtraStatus("applied");
     setExtraMemo("");
     setExtraMealId(null);
     setExtraActivityIds([]);
-    setMsg("추가 참가자가 등록되었습니다.");
+    setMsg("✅ 추가 참가자가 등록되었습니다.");
     await refresh();
   };
 
-  const cancelParticipant = async (registrationId: number) => {
+  const deleteParticipant = async (registrationId: number) => {
     const supabase = createClient();
     setMsg("");
     const uid = user?.id;
@@ -558,21 +583,121 @@ export default function TournamentDetailPage() {
     // 본인 또는 내가 등록한 제3자인지 확인
     const target = regs.find((r) => r.id === registrationId && r.registering_user_id === uid);
     if (!target) {
-      setMsg("취소 권한이 없습니다.");
+      setMsg("삭제 권한이 없습니다.");
       return;
     }
 
+    if (!confirm(`${target.nickname}님의 신청을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    setLoadingAction(`delete-${registrationId}`);
+
     const { error } = await supabase
       .from("registrations")
-      .update({ status: "canceled" })
+      .delete()
       .eq("id", target.id);
 
+    setLoadingAction(null);
+
     if (error) {
-      setMsg(`취소 실패: ${friendlyError(error)}`);
+      setMsg(`삭제 실패: ${friendlyError(error)}`);
     } else {
-      setMsg("참가 취소 완료");
+      setMsg("✅ 신청이 삭제되었습니다.");
       await refresh();
     }
+  };
+
+  const startEditParticipant = async (registrationId: number) => {
+    const participant = regs.find((r) => r.id === registrationId);
+    if (!participant || participant.user_id !== null) {
+      setMsg("제3자 등록만 수정할 수 있습니다.");
+      return;
+    }
+
+    setEditingParticipant(participant);
+    setEditName(participant.nickname);
+    setEditRelation(participant.relation ?? "");
+    setEditMemo(participant.memo ?? "");
+    setEditMealId(participant.meal_option_id ?? null);
+
+    // Load activity selections
+    const supabase = createClient();
+    const selectedRes = await supabase
+      .from("registration_activity_selections")
+      .select("extra_id")
+      .eq("registration_id", registrationId)
+      .eq("selected", true);
+
+    if (!selectedRes.error && selectedRes.data) {
+      setEditActivityIds(selectedRes.data.map((s: any) => s.extra_id));
+    } else {
+      setEditActivityIds([]);
+    }
+  };
+
+  const saveEditParticipant = async () => {
+    const supabase = createClient();
+    setMsg("");
+    const uid = user?.id;
+    if (!uid || !editingParticipant) {
+      setMsg("로그인 필요");
+      return;
+    }
+
+    const name = editName.trim();
+    if (!name) {
+      setMsg("닉네임을 입력해주세요.");
+      return;
+    }
+
+    setLoadingAction(`edit-${editingParticipant.id}`);
+
+    // Update registration
+    const { error } = await supabase
+      .from("registrations")
+      .update({
+        nickname: name,
+        relation: editRelation.trim() || null,
+        memo: editMemo.trim() || null,
+        meal_option_id: editMealId,
+      })
+      .eq("id", editingParticipant.id);
+
+    if (error) {
+      setLoadingAction(null);
+      setMsg(`수정 실패: ${friendlyError(error)}`);
+      return;
+    }
+
+    // Update activity selections
+    await supabase
+      .from("registration_activity_selections")
+      .delete()
+      .eq("registration_id", editingParticipant.id);
+
+    if (editActivityIds.length > 0) {
+      const activityInserts = editActivityIds.map((extraId) => ({
+        registration_id: editingParticipant.id,
+        extra_id: extraId,
+        selected: true,
+      }));
+
+      const { error: actError } = await supabase
+        .from("registration_activity_selections")
+        .insert(activityInserts);
+
+      if (actError) {
+        setLoadingAction(null);
+        setMsg(`활동 선택 저장 실패: ${friendlyError(actError)}`);
+        return;
+      }
+    }
+
+    setLoadingAction(null);
+    setEditingParticipant(null);
+    setMsg("✅ 참가자 정보가 수정되었습니다.");
+    await refresh();
   };
 
   const addPrizeSupport = async () => {
@@ -1056,21 +1181,25 @@ export default function TournamentDetailPage() {
                   )}
 
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={apply} size="sm">
-                      {regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
+                    <Button onClick={apply} size="sm" disabled={loadingAction === 'apply'}>
+                      {loadingAction === 'apply' ? "처리중..." : regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
                     </Button>
                     <Button onClick={saveExtras} variant="secondary" size="sm">
                       저장
                     </Button>
-                    <Button onClick={cancelMine} variant="outline" size="sm">
-                      신청 취소
+                    <Button onClick={cancelMine} variant="outline" size="sm" disabled={loadingAction === 'cancel-main'}>
+                      {loadingAction === 'cancel-main' ? "삭제중..." : "신청 삭제"}
                     </Button>
                     <Button onClick={refresh} variant="ghost" size="sm">
                       새로고침
                     </Button>
                   </div>
 
-                  {msg && <p className="text-sm text-slate-600">{msg}</p>}
+                  {msg && (
+                    <div className={`text-sm p-3 rounded-md ${msg.startsWith('✅') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-50 text-slate-700 border border-slate-200'}`}>
+                      {msg}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1100,23 +1229,143 @@ export default function TournamentDetailPage() {
                               <TableCell>{p.nickname}</TableCell>
                               <TableCell>{p.relation ?? "-"}</TableCell>
                               <TableCell>
-                                <Badge variant="secondary">{formatStatus(p.status)}</Badge>
+                                <Badge variant={p.status === "approved" ? "default" : "outline"}>
+                                  {formatStatus(p.status)}
+                                </Badge>
                               </TableCell>
                               <TableCell>
-                                {p.status !== "canceled" && (
+                                <div className="flex gap-1">
+                                  {p.user_id === null && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => startEditParticipant(p.id)}
+                                      disabled={!!loadingAction}
+                                    >
+                                      수정
+                                    </Button>
+                                  )}
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => cancelParticipant(p.id)}
+                                    onClick={() => deleteParticipant(p.id)}
+                                    disabled={loadingAction === `delete-${p.id}`}
                                   >
-                                    취소
+                                    {loadingAction === `delete-${p.id}` ? "삭제중..." : "삭제"}
                                   </Button>
-                                )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 제3자 정보 수정 다이얼로그 */}
+              {user && editingParticipant && (
+                <Card className="border-blue-200 bg-blue-50/30">
+                  <CardHeader>
+                    <CardTitle className="text-blue-900">제3자 정보 수정</CardTitle>
+                    <CardDescription>
+                      {editingParticipant.nickname}님의 정보를 수정합니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">닉네임</label>
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          placeholder="예: 홍길동"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">관계</label>
+                        <Input
+                          value={editRelation}
+                          onChange={(e) => setEditRelation(e.target.value)}
+                          placeholder="예: 가족, 지인"
+                        />
+                      </div>
+                    </div>
+
+                    {mealOptions.length > 0 && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">식사 메뉴</label>
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          value={editMealId ?? ""}
+                          onChange={(e) => setEditMealId(e.target.value ? Number(e.target.value) : null)}
+                        >
+                          <option value="">미정</option>
+                          {mealOptions.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.menu_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {tournamentExtras.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium">참여 활동</label>
+                        <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 max-h-40 overflow-y-auto">
+                          {tournamentExtras.map((extra) => (
+                            <label key={extra.id} className="flex items-start gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4"
+                                checked={editActivityIds.includes(extra.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditActivityIds([...editActivityIds, extra.id]);
+                                  } else {
+                                    setEditActivityIds(editActivityIds.filter((id) => id !== extra.id));
+                                  }
+                                }}
+                              />
+                              <div>
+                                <span className="font-medium">{extra.activity_name}</span>
+                                {extra.description && (
+                                  <p className="text-xs text-slate-500">{extra.description}</p>
+                                )}
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">메모 (선택)</label>
+                      <Input
+                        value={editMemo}
+                        onChange={(e) => setEditMemo(e.target.value)}
+                        placeholder="특이사항 등"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={saveEditParticipant} 
+                        size="sm"
+                        disabled={loadingAction === `edit-${editingParticipant.id}`}
+                      >
+                        {loadingAction === `edit-${editingParticipant.id}` ? "저장중..." : "저장"}
+                      </Button>
+                      <Button 
+                        onClick={() => setEditingParticipant(null)} 
+                        variant="outline" 
+                        size="sm"
+                        disabled={!!loadingAction}
+                      >
+                        취소
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -1225,8 +1474,8 @@ export default function TournamentDetailPage() {
                       />
                     </div>
 
-                    <Button onClick={addParticipant} size="sm" className="w-full sm:w-auto">
-                      추가 참가자 등록
+                    <Button onClick={addParticipant} size="sm" className="w-full sm:w-auto" disabled={loadingAction === 'addParticipant'}>
+                      {loadingAction === 'addParticipant' ? "등록중..." : "추가 참가자 등록"}
                     </Button>
                   </CardContent>
                 </Card>
