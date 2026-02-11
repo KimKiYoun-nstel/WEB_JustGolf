@@ -412,7 +412,7 @@ export default function AdminRegistrationsPage() {
             </TableBody>
           </Table>
 
-          <Button onClick={load} variant="ghost">
+          <Button onClick={load} variant="secondary">
             새로고침
           </Button>
             </CardContent>

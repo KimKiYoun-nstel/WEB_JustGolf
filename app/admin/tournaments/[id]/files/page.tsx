@@ -200,7 +200,7 @@ export default function AdminFilesPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">업로드된 파일</h3>
-              <Button onClick={load} variant="ghost">
+              <Button onClick={load} variant="secondary">
                 새로고침
               </Button>
             </div>

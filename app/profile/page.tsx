@@ -235,7 +235,7 @@ export default function ProfilePage() {
           >
             돌아가기
           </Button>
-          <Button onClick={() => router.push("/")} variant="ghost">
+          <Button onClick={() => router.push("/")} variant="secondary">
             홈으로
           </Button>
         </div>

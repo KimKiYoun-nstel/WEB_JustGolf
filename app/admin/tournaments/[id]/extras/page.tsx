@@ -375,7 +375,7 @@ export default function TournamentExtrasPage() {
           <Button asChild variant="outline">
             <Link href="/admin/tournaments">대회 목록</Link>
           </Button>
-          <Button asChild variant="ghost">
+          <Button asChild variant="outline">
             <Link href={`/t/${tournamentId}`}>공개 페이지</Link>
           </Button>
         </div>

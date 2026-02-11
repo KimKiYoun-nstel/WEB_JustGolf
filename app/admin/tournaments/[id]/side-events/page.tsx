@@ -348,7 +348,7 @@ export default function AdminSideEventsPage() {
           <h1 className="text-3xl font-bold text-slate-900">
             사전/사후 라운드 관리
           </h1>
-          <Button onClick={() => router.back()} variant="ghost">
+          <Button onClick={() => router.back()} variant="secondary">
             뒤로
           </Button>
         </div>
@@ -550,7 +550,7 @@ export default function AdminSideEventsPage() {
                         <Button
                           onClick={() => editSideEvent(se)}
                           size="sm"
-                          variant="ghost"
+                          variant="outline"
                         >
                           수정
                         </Button>

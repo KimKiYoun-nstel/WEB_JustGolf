@@ -107,13 +107,13 @@ export default function AdminLayout({
             </p>
           </div>
           <nav className="flex flex-wrap gap-2">
-            <Button asChild variant="ghost">
+            <Button asChild variant="secondary">
               <Link href="/start">홈</Link>
             </Button>
-            <Button asChild variant="ghost">
+            <Button asChild variant="secondary">
               <Link href="/admin">대시보드</Link>
             </Button>
-            <Button asChild variant="ghost">
+            <Button asChild variant="secondary">
               <Link href="/admin/tournaments">대회 관리</Link>
             </Button>
           </nav>

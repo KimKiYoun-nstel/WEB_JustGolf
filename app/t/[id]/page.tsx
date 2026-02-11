@@ -1093,7 +1093,7 @@ export default function TournamentDetailPage() {
                     <Button
                       type="button"
                       size="sm"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => setTransportation("미정")}
                       className="text-xs"
                     >
@@ -1111,7 +1111,7 @@ export default function TournamentDetailPage() {
                     <Button
                       type="button"
                       size="sm"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => setDepartureLocation("미정")}
                       className="text-xs"
                     >
@@ -1190,7 +1190,7 @@ export default function TournamentDetailPage() {
                     <Button onClick={cancelMine} variant="outline" size="sm" disabled={loadingAction === 'cancel-main'}>
                       {loadingAction === 'cancel-main' ? "삭제중..." : "신청 삭제"}
                     </Button>
-                    <Button onClick={refresh} variant="ghost" size="sm">
+                    <Button onClick={refresh} variant="secondary" size="sm">
                       새로고침
                     </Button>
                   </div>
@@ -1247,7 +1247,7 @@ export default function TournamentDetailPage() {
                                   )}
                                   <Button
                                     size="sm"
-                                    variant="ghost"
+                                    variant="outline"
                                     onClick={() => deleteParticipant(p.id)}
                                     disabled={loadingAction === `delete-${p.id}`}
                                   >
