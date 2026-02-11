@@ -44,6 +44,7 @@ type Registration = {
   departure_location: string | null;
   notes: string | null;
   created_at: string;
+  activities: string[];
 };
 
 type SideEvent = {
@@ -107,7 +108,8 @@ export default function TournamentParticipantsPage() {
       .select(
         "id,user_id,nickname,status,memo,created_at,"
           + "tournament_meal_options(menu_name),"
-          + "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes)"
+          + "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes),"
+          + "registration_activity_selections(selected,tournament_extras(activity_name))"
       )
       .eq("tournament_id", tournamentId)
       .order("created_at", { ascending: true });
@@ -118,7 +120,13 @@ export default function TournamentParticipantsPage() {
       return;
     }
 
-    const transformed = (rRes.data ?? []).map((row: any) => ({
+    const transformed = (rRes.data ?? []).map((row: any) => {
+      const activities = (row.registration_activity_selections ?? [])
+        .filter((sel: any) => sel?.selected)
+        .map((sel: any) => sel?.tournament_extras?.activity_name)
+        .filter((name: string | null) => Boolean(name));
+
+      return {
       id: row.id,
       user_id: row.user_id,
       nickname: row.nickname,
@@ -131,7 +139,9 @@ export default function TournamentParticipantsPage() {
       departure_location: row.registration_extras?.departure_location ?? null,
       notes: row.registration_extras?.notes ?? null,
       created_at: row.created_at,
-    }));
+      activities: activities as string[],
+      };
+    });
 
     setRows(transformed as Registration[]);
 
@@ -164,14 +174,14 @@ export default function TournamentParticipantsPage() {
     // Load prize supports
     const prizeRes = await supabase
       .from("tournament_prize_supports")
-      .select("id,item_name,note,created_at,profiles(nickname)")
+      .select("id,item_name,note,created_at,supporter_nickname")
       .eq("tournament_id", tournamentId)
       .order("created_at", { ascending: true });
 
     if (!prizeRes.error) {
       const mapped = (prizeRes.data ?? []).map((row: any) => ({
         id: row.id,
-        supporter_name: row.profiles?.nickname ?? null,
+        supporter_name: row.supporter_nickname ?? null,
         item_name: row.item_name,
         note: row.note ?? null,
         created_at: row.created_at,
@@ -186,7 +196,7 @@ export default function TournamentParticipantsPage() {
     if (!Number.isFinite(tournamentId)) return;
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournamentId]);
+  }, [tournamentId, user?.id]);
 
   return (
     <main className="min-h-screen bg-slate-50/70">
@@ -249,6 +259,7 @@ export default function TournamentParticipantsPage() {
                           <TableHead className="whitespace-nowrap">닉네임</TableHead>
                           <TableHead className="whitespace-nowrap">상태</TableHead>
                           <TableHead className="whitespace-nowrap">식사</TableHead>
+                          <TableHead className="whitespace-nowrap">활동</TableHead>
                           <TableHead className="whitespace-nowrap">카풀</TableHead>
                           <TableHead className="whitespace-nowrap">이동/출발지</TableHead>
                           <TableHead className="whitespace-nowrap">비고</TableHead>
@@ -274,6 +285,11 @@ export default function TournamentParticipantsPage() {
                             </TableCell>
                             <TableCell className="text-sm text-slate-600">
                               {r.meal_name ?? "-"}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {r.activities.length > 0
+                                ? r.activities.slice(0, 3).join(", ")
+                                : "-"}
                             </TableCell>
                             <TableCell className="text-sm text-slate-600">
                               {r.carpool_available
@@ -403,6 +419,18 @@ export default function TournamentParticipantsPage() {
                     </Table>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-200/70">
+              <CardHeader>
+                <CardTitle>조편성</CardTitle>
+                <CardDescription>공개된 조편성을 확인하세요.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline">
+                  <Link href={`/t/${tournamentId}/groups`}>조편성 보기</Link>
+                </Button>
               </CardContent>
             </Card>
 

@@ -21,6 +21,8 @@ type Tournament = {
   event_date: string;
   course_name: string | null;
   location: string | null;
+  tee_time: string | null;
+  notes: string | null;
   status: string;
 };
 
@@ -29,6 +31,7 @@ export default function TournamentsPage() {
   const [rows, setRows] = useState<Tournament[]>([]);
   const [error, setError] = useState("");
   const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
+  const [applicantCounts, setApplicantCounts] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   const formatStatus = (status: string) => formatRegistrationStatus(status);
@@ -40,7 +43,7 @@ export default function TournamentsPage() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("tournaments")
-        .select("id,title,event_date,course_name,location,status")
+        .select("id,title,event_date,course_name,location,tee_time,notes,status")
         .order("event_date", { ascending: false });
 
       if (!active) return;
@@ -51,7 +54,23 @@ export default function TournamentsPage() {
         return;
       }
 
-      setRows((data ?? []) as Tournament[]);
+      const tournamentRows = (data ?? []) as Tournament[];
+      setRows(tournamentRows);
+
+      const { data: countData, error: countError } = await supabase
+        .from("registrations")
+        .select("tournament_id,status")
+        .eq("status", "applied");
+
+      if (!countError) {
+        const nextCounts: Record<number, number> = {};
+        (countData ?? []).forEach((row: any) => {
+          nextCounts[row.tournament_id] = (nextCounts[row.tournament_id] ?? 0) + 1;
+        });
+        setApplicantCounts(nextCounts);
+      } else {
+        setApplicantCounts({});
+      }
 
       if (!user?.id) {
         setMyStatuses({});
@@ -127,7 +146,7 @@ export default function TournamentsPage() {
                     </Badge>
                   </div>
                   <CardDescription>
-                    {t.event_date} · {t.course_name ?? "-"}
+                    대회 정보 요약
                   </CardDescription>
                   {user && (
                     <div className="mt-2 text-xs text-slate-500">
@@ -136,9 +155,14 @@ export default function TournamentsPage() {
                   )}
                 </CardHeader>
                 <CardContent className="flex flex-row items-center justify-between gap-3">
-                  <span className="inline-block text-sm text-slate-500">
-                    {t.location ?? "-"}
-                  </span>
+                  <div className="grid gap-1 text-sm text-slate-600">
+                    <div>일자: {t.event_date}</div>
+                    <div>코스: {t.course_name ?? "-"}</div>
+                    <div>지역: {t.location ?? "-"}</div>
+                    <div>첫 티오프: {t.tee_time ?? "-"}</div>
+                    <div>신청자 수: {applicantCounts[t.id] ?? 0}명</div>
+                    <div>메모: {t.notes ?? "-"}</div>
+                  </div>
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${t.id}/participants`}>상세 보기</Link>
                   </Button>

@@ -38,28 +38,48 @@ export default function BoardPage() {
 
   useEffect(() => {
     loadFeedbacks();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const loadFeedbacks = async () => {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("feedbacks")
-      .select("*, profiles!user_id(nickname)")
+      .select("id,user_id,title,content,category,status,created_at")
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      const mapped = data.map((row: any) => ({
-        id: row.id,
-        user_id: row.user_id,
-        title: row.title,
-        content: row.content,
-        category: row.category,
-        status: row.status,
-        created_at: row.created_at,
-        nickname: row.profiles?.nickname ?? "익명",
-      }));
-      setFeedbacks(mapped as Feedback[]);
+    if (error || !data) return;
+
+    let nicknameById: Record<string, string> = {};
+    const userIds = Array.from(
+      new Set((data ?? []).map((row: any) => row.user_id).filter(Boolean))
+    );
+
+    if (userIds.length > 0 && user?.id) {
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id,nickname")
+        .in("id", userIds);
+
+      if (!profileError && profiles) {
+        nicknameById = profiles.reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.nickname ?? "익명";
+          return acc;
+        }, {});
+      }
     }
+
+    const mapped = data.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      title: row.title,
+      content: row.content,
+      category: row.category,
+      status: row.status,
+      created_at: row.created_at,
+      nickname: nicknameById[row.user_id] ?? "익명",
+    }));
+    setFeedbacks(mapped as Feedback[]);
   };
 
   const submitFeedback = async () => {

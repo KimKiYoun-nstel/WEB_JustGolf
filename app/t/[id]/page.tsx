@@ -32,6 +32,7 @@ type Tournament = {
   event_date: string;
   course_name: string | null;
   location: string | null;
+  tee_time: string | null;
   notes: string | null;
   status: string;
 };
@@ -107,14 +108,6 @@ type TournamentExtra = {
   display_order: number;
 };
 
-type PrizeSupport = {
-  id: number;
-  supporter_id: string;
-  supporter_name: string | null;
-  item_name: string;
-  note: string | null;
-  created_at: string;
-};
 
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
@@ -154,7 +147,6 @@ export default function TournamentDetailPage() {
   const [extraRelation, setExtraRelation] = useState("");
   const [extraStatus, setExtraStatus] = useState<Registration["status"]>("applied");
   const [extraMemo, setExtraMemo] = useState("");
-  const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
   const [prizeItem, setPrizeItem] = useState("");
   const [prizeNote, setPrizeNote] = useState("");
   const [msg, setMsg] = useState("");
@@ -194,7 +186,7 @@ export default function TournamentDetailPage() {
 
     const tRes = await supabase
       .from("tournaments")
-      .select("id,title,event_date,course_name,location,notes,status")
+      .select("id,title,event_date,course_name,location,tee_time,notes,status")
       .eq("id", tournamentId)
       .single();
 
@@ -328,26 +320,6 @@ export default function TournamentDetailPage() {
       setCarpoolPublic((carpoolRes.data ?? []) as CarpoolPublic[]);
     } else {
       setCarpoolPublic([]);
-    }
-
-    const prizeRes = await supabase
-      .from("tournament_prize_supports")
-      .select("id,user_id,item_name,note,created_at,profiles(nickname)")
-      .eq("tournament_id", tournamentId)
-      .order("created_at", { ascending: true });
-
-    if (!prizeRes.error) {
-      const mapped = (prizeRes.data ?? []).map((row: any) => ({
-        id: row.id,
-        supporter_id: row.user_id,
-        supporter_name: row.profiles?.nickname ?? null,
-        item_name: row.item_name,
-        note: row.note ?? null,
-        created_at: row.created_at,
-      }));
-      setPrizes(mapped as PrizeSupport[]);
-    } else {
-      setPrizes([]);
     }
 
     // Load tournament extras (활동)
@@ -593,6 +565,17 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    let supporterNickname: string | null = null;
+    const profileRes = await supabase
+      .from("profiles")
+      .select("nickname")
+      .eq("id", uid)
+      .single();
+
+    if (!profileRes.error) {
+      supporterNickname = profileRes.data?.nickname ?? null;
+    }
+
     const { error } = await supabase
       .from("tournament_prize_supports")
       .insert({
@@ -600,6 +583,7 @@ export default function TournamentDetailPage() {
         user_id: uid,
         item_name: item,
         note: prizeNote.trim() || null,
+        supporter_nickname: supporterNickname,
       });
 
     if (error) {
@@ -812,6 +796,7 @@ export default function TournamentDetailPage() {
 
   const formatStatus = (status: Registration["status"]) =>
     formatRegistrationStatus(status);
+  const applicantCount = regs.filter((r) => r.status === "applied").length;
 
   return (
     <main className="min-h-screen bg-slate-50/70">
@@ -832,9 +817,7 @@ export default function TournamentDetailPage() {
                     {formatTournamentStatus(t.status)}
                   </Badge>
                 </CardTitle>
-                <CardDescription>
-                  {t.event_date} · {t.course_name ?? "-"} · {t.location ?? "-"}
-                </CardDescription>
+                <CardDescription>대회 정보 요약</CardDescription>
                 <div className="mt-3 flex justify-center">
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${tournamentId}/participants`}>
@@ -843,11 +826,16 @@ export default function TournamentDetailPage() {
                   </Button>
                 </div>
               </CardHeader>
-              {t.notes && (
-                <CardContent>
-                  <p className="text-sm text-slate-600">{t.notes}</p>
-                </CardContent>
-              )}
+              <CardContent>
+                <div className="grid gap-1 text-sm text-slate-600">
+                  <div>일자: {t.event_date}</div>
+                  <div>코스: {t.course_name ?? "-"}</div>
+                  <div>지역: {t.location ?? "-"}</div>
+                  <div>첫 티오프: {t.tee_time ?? "-"}</div>
+                  <div>신청자 수: {applicantCount}명</div>
+                  <div>메모: {t.notes ?? "-"}</div>
+                </div>
+              </CardContent>
             </Card>
 
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -1196,67 +1184,33 @@ export default function TournamentDetailPage() {
             {user && (
               <Card className="border-slate-200/70">
                 <CardHeader>
-                  <CardTitle>경품 지원 현황</CardTitle>
+                  <CardTitle>경품 지원하기</CardTitle>
                   <CardDescription>
-                    대회를 위해 경품을 지원해주신 분들입니다.
+                    경품 지원은 이 화면에서 등록합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {prizes.length === 0 ? (
-                    <p className="text-sm text-slate-500">
-                      아직 등록된 경품이 없습니다.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto -mx-6">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                          <TableHead>지원자</TableHead>
-                          <TableHead>경품명</TableHead>
-                          <TableHead>비고</TableHead>
-                          <TableHead>등록일</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {prizes.map((prize) => (
-                          <TableRow key={prize.id}>
-                            <TableCell>{prize.supporter_name ?? "익명"}</TableCell>
-                            <TableCell>{prize.item_name}</TableCell>
-                            <TableCell>{prize.note ?? "-"}</TableCell>
-                            <TableCell>
-                              {new Date(prize.created_at).toLocaleDateString()}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                  <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">경품명</label>
+                      <Input
+                        value={prizeItem}
+                        onChange={(e) => setPrizeItem(e.target.value)}
+                        placeholder="예: 골프공 1박스"
+                      />
                     </div>
-                  )}
-
-                  <div className="border-t pt-4 space-y-3">
-                    <h3 className="font-medium text-sm">경품 지원하기</h3>
-                    <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">경품명</label>
-                        <Input
-                          value={prizeItem}
-                          onChange={(e) => setPrizeItem(e.target.value)}
-                          placeholder="예: 골프공 1박스"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">비고</label>
-                        <Input
-                          value={prizeNote}
-                          onChange={(e) => setPrizeNote(e.target.value)}
-                          placeholder="선택사항"
-                        />
-                      </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">비고</label>
+                      <Input
+                        value={prizeNote}
+                        onChange={(e) => setPrizeNote(e.target.value)}
+                        placeholder="선택사항"
+                      />
                     </div>
-                    <Button onClick={addPrizeSupport} size="sm">
-                      경품 등록
-                    </Button>
                   </div>
+                  <Button onClick={addPrizeSupport} size="sm">
+                    경품 등록
+                  </Button>
                 </CardContent>
               </Card>
             )}
@@ -1306,17 +1260,6 @@ export default function TournamentDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200/70">
-              <CardHeader>
-                <CardTitle>조편성</CardTitle>
-                <CardDescription>공개된 조편성을 확인하세요.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="outline">
-                  <Link href={`/t/${tournamentId}/groups`}>조편성 보기</Link>
-                </Button>
-              </CardContent>
-            </Card>
 
             {sideEvents.length > 0 && (
               <div className="space-y-4">
