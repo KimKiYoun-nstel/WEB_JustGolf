@@ -77,7 +77,7 @@ export default function TournamentParticipantsPage() {
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
   const supabase = createClient();
 
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [t, setT] = useState<Tournament | null>(null);
   const [rows, setRows] = useState<Registration[]>([]);
   const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
@@ -196,14 +196,24 @@ export default function TournamentParticipantsPage() {
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
+    
+    // Auth 로딩이 끝날 때까지 대기
+    if (authLoading) return;
+
+    // 로그인하지 않았으면 로그인 페이지로
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournamentId, user?.id]);
+  }, [tournamentId, user?.id, authLoading]);
 
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
-        {loading && (
+        {(loading || authLoading) && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
@@ -211,7 +221,18 @@ export default function TournamentParticipantsPage() {
           </Card>
         )}
 
-        {!loading && !t && (
+        {!authLoading && !user && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="py-10">
+              <p className="text-sm text-red-700 mb-4">이 페이지는 로그인이 필요합니다.</p>
+              <Button asChild variant="default">
+                <Link href="/login">로그인하기</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !t && user && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">대회를 찾을 수 없습니다.</p>
@@ -219,7 +240,7 @@ export default function TournamentParticipantsPage() {
           </Card>
         )}
 
-        {!loading && t && (
+        {!loading && t && user && (
           <>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
