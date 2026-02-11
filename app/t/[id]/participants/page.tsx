@@ -33,7 +33,8 @@ type Tournament = {
 
 type Registration = {
   id: number;
-  user_id: string;
+  user_id: string | null;              // NULL이면 제3자
+  registering_user_id: string;         // 실제 신청한 회원
   nickname: string;
   status: string;
   memo: string | null;
@@ -106,7 +107,7 @@ export default function TournamentParticipantsPage() {
     const rRes = await supabase
       .from("registrations")
       .select(
-        "id,user_id,nickname,status,memo,created_at,"
+        "id,user_id,registering_user_id,nickname,status,memo,created_at,"
           + "tournament_meal_options(menu_name),"
           + "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes),"
           + "registration_activity_selections(selected,tournament_extras(activity_name))"
@@ -129,6 +130,7 @@ export default function TournamentParticipantsPage() {
       return {
       id: row.id,
       user_id: row.user_id,
+      registering_user_id: row.registering_user_id,
       nickname: row.nickname,
       status: row.status,
       memo: row.memo ?? null,
@@ -257,6 +259,7 @@ export default function TournamentParticipantsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="whitespace-nowrap">닉네임</TableHead>
+                          <TableHead className="whitespace-nowrap">구분</TableHead>
                           <TableHead className="whitespace-nowrap">상태</TableHead>
                           <TableHead className="whitespace-nowrap">식사</TableHead>
                           <TableHead className="whitespace-nowrap">활동</TableHead>
@@ -277,6 +280,17 @@ export default function TournamentParticipantsPage() {
                                   <Badge variant="outline">나</Badge>
                                 ) : null}
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              {r.user_id ? (
+                                <Badge variant="outline" className="bg-slate-50 text-slate-700">
+                                  회원
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                  제3자
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge variant="secondary" className="capitalize">

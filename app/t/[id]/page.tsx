@@ -39,7 +39,8 @@ type Tournament = {
 
 type Registration = {
   id: number;
-  user_id: string;
+  user_id: string | null;                     // NULL이면 제3자
+  registering_user_id: string;                 // 실제 신청한 회원
   nickname: string;
   status: "applied" | "approved" | "waitlisted" | "canceled" | "undecided";
   memo: string | null;
@@ -200,7 +201,7 @@ export default function TournamentDetailPage() {
 
     const rRes = await supabase
       .from("registrations")
-      .select("id,user_id,nickname,status,memo,meal_option_id,relation")
+      .select("id,user_id,registering_user_id,nickname,status,memo,meal_option_id,relation")
       .eq("tournament_id", tournamentId)
       .order("id", { ascending: true });
 
@@ -208,13 +209,14 @@ export default function TournamentDetailPage() {
       setMsg(`신청 현황 조회 실패: ${friendlyError(rRes.error)}`);
     } else {
       const regList = (rRes.data ?? []) as Registration[];
-      const myRegs = uid ? regList.filter((r) => r.user_id === uid) : [];
+      // 내가 등록한 모든 참가자 (본인 + 제3자)
+      const myRegs = uid ? regList.filter((r) => r.registering_user_id === uid) : [];
       const activeMyRegs = myRegs.filter((r) => r.status !== "canceled");
+      
+      // 본인 등록 찾기 (user_id === uid)
       const preferredMain =
-        activeMyRegs.find((r) => (r.relation ?? "").trim() === "본인") ??
-        activeMyRegs[0] ??
-        myRegs.find((r) => (r.relation ?? "").trim() === "본인") ??
-        myRegs[0];
+        activeMyRegs.find((r) => r.user_id === uid) ??
+        myRegs.find((r) => r.user_id === uid);
 
       mainRegIdForExtras = preferredMain?.id ?? null;
 
@@ -419,6 +421,7 @@ export default function TournamentDetailPage() {
         .insert({
           tournament_id: tournamentId,
           user_id: uid,
+          registering_user_id: uid,        // 본인 신청
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
@@ -491,7 +494,7 @@ export default function TournamentDetailPage() {
 
     const name = extraName.trim();
     if (!name) {
-      setMsg("추가 참가자 이름을 입력해줘.");
+      setMsg("닉네임을 입력해주세요.");
       return;
     }
 
@@ -502,7 +505,8 @@ export default function TournamentDetailPage() {
       .from("registrations")
       .insert({
         tournament_id: tournamentId,
-        user_id: uid,
+        user_id: null,                    // 제3자는 NULL
+        registering_user_id: uid,         // 실제 신청한 회원
         nickname: name,
         relation: rel,
         memo: extraMemo.trim() || null,
@@ -531,9 +535,10 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    const target = regs.find((r) => r.id === registrationId && r.user_id === uid);
+    // 본인 또는 내가 등록한 제3자인지 확인
+    const target = regs.find((r) => r.id === registrationId && r.registering_user_id === uid);
     if (!target) {
-      setMsg("참가자 정보를 찾을 수 없습니다.");
+      setMsg("취소 권한이 없습니다.");
       return;
     }
 
@@ -1093,14 +1098,17 @@ export default function TournamentDetailPage() {
                     </div>
 
                     <div className="border-t pt-4 space-y-3">
-                      <h3 className="font-medium text-sm">추가 참가자 등록</h3>
+                      <h3 className="font-medium text-sm">추가 참가자 등록 (제3자)</h3>
+                      <p className="text-xs text-slate-500">
+                        본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
+                      </p>
                       <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
                         <div className="space-y-1">
                           <label className="text-xs font-medium">닉네임</label>
                           <Input
                             value={extraName}
                             onChange={(e) => setExtraName(e.target.value)}
-                            placeholder="참가자 이름"
+                            placeholder="예: 홍길동"
                           />
                         </div>
                         <div className="space-y-1">
