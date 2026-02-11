@@ -155,6 +155,38 @@ export default function BoardPage() {
     }
   };
 
+  const deleteFeedback = async (feedbackId: number) => {
+    if (!user?.id) {
+      setMsg("로그인이 필요합니다.");
+      return;
+    }
+
+    const feedback = feedbacks.find((fb) => fb.id === feedbackId);
+    if (!feedback) {
+      setMsg("피드백을 찾을 수 없습니다.");
+      return;
+    }
+
+    // 작성자 또는 관리자만 삭제 가능한지는 RLS에서 확인됨
+    if (!confirm(`"${feedback.title}" 피드백을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    const supabase = createClient();
+    setMsg("");
+    const { error } = await supabase
+      .from("feedbacks")
+      .delete()
+      .eq("id", feedbackId);
+
+    if (error) {
+      setMsg(`삭제 실패: ${error.message}`);
+    } else {
+      setMsg("✅ 피드백이 삭제되었습니다.");
+      await loadFeedbacks();
+    }
+  };
+
   const filteredFeedbacks = feedbacks.filter((fb) => {
     if (filter === "all") return true;
     return fb.category === filter;
@@ -309,6 +341,15 @@ export default function BoardPage() {
                       <Badge variant={getStatusVariant(fb.status)}>
                         {getStatusLabel(fb.status)}
                       </Badge>
+                      {user?.id === fb.user_id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => deleteFeedback(fb.id)}
+                        >
+                          삭제
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>

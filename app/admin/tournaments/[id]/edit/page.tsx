@@ -179,6 +179,34 @@ export default function AdminTournamentEditPage() {
     else setMsg("복제는 되었지만 이동할 수 없어요.");
   };
 
+  const deleteTournament = async () => {
+    if (!confirm(`"${title}" 대회를 삭제하시겠습니까?\n(draft 상태의 대회만 삭제할 수 있습니다)`)) {
+      return;
+    }
+
+    if (status !== "draft") {
+      setMsg("작성 중인 대회만 삭제할 수 있습니다.");
+      return;
+    }
+
+    const supabase = createClient();
+    setMsg("");
+    const { error } = await supabase
+      .from("tournaments")
+      .update({ status: "deleted" })
+      .eq("id", tournamentId);
+
+    if (error) {
+      setMsg(`삭제 실패: ${error.message}`);
+      return;
+    }
+
+    setMsg("✅ 대회가 삭제되었습니다.");
+    setTimeout(() => {
+      router.push("/admin/tournaments");
+    }, 1000);
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70">
@@ -295,6 +323,11 @@ export default function AdminTournamentEditPage() {
             <Button onClick={duplicate} variant="outline" className="w-full sm:w-auto">
               이 대회 복제
             </Button>
+            {status === "draft" && (
+              <Button onClick={deleteTournament} variant="destructive" className="w-full sm:w-auto">
+                삭제
+              </Button>
+            )}
           </div>
 
           {msg && <p className="text-sm text-slate-600">{msg}</p>}

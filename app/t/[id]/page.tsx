@@ -371,6 +371,23 @@ export default function TournamentDetailPage() {
       setMsg("관리자 승인 대기 상태입니다. 승인 후 신청할 수 있어요.");
       return;
     }
+    
+    // 대회 상태 확인
+    if (!t) {
+      setMsg("대회 정보를 찾을 수 없습니다.");
+      return;
+    }
+    if (t.status !== "open") {
+      const statusLabel = 
+        t.status === "draft" ? "아직 모집을 시작하지 않은" :
+        t.status === "closed" ? "모집을 마감한" :
+        t.status === "done" ? "완료된" :
+        t.status === "deleted" ? "삭제된" :
+        "";
+      setMsg(`${statusLabel} 대회입니다. 신청할 수 없습니다.`);
+      return;
+    }
+    
     const nick = profileNickname.trim();
     if (!nick) {
       setMsg("프로필 닉네임이 설정되지 않았습니다. 프로필 페이지에서 설정해주세요.");
@@ -804,6 +821,16 @@ export default function TournamentDetailPage() {
     const uid = user?.id;
     if (!uid) {
       setMsg("로그인 필요");
+      return;
+    }
+
+    // 대회 상태 확인 (open 상태일 때만 수정 가능)
+    if (!t) {
+      setMsg("대회 정보를 찾을 수 없습니다.");
+      return;
+    }
+    if (t.status !== "open") {
+      setMsg("모집 중인 대회만 정보를 수정할 수 있습니다.");
       return;
     }
 
