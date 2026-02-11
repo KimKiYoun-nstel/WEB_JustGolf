@@ -36,6 +36,8 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
+  const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
 
   const load = async () => {
     setMsg("");
@@ -55,6 +57,24 @@ export default function AdminUsersPage() {
 
     setRows((data ?? []) as ProfileRow[]);
     setLoading(false);
+  };
+
+  const loadSettings = async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "approval_required")
+      .single();
+
+    if (error) {
+      setApprovalRequired(true);
+      setSettingsLoading(false);
+      return;
+    }
+
+    setApprovalRequired(data?.value ?? true);
+    setSettingsLoading(false);
   };
 
   useEffect(() => {
@@ -78,6 +98,7 @@ export default function AdminUsersPage() {
         return;
       }
 
+      await loadSettings();
       await load();
     };
 
@@ -119,6 +140,38 @@ export default function AdminUsersPage() {
     await load();
   };
 
+  const toggleApprovalRequired = async () => {
+    if (approvalRequired === null) return;
+    const nextValue = !approvalRequired;
+    setMsg("");
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert({ key: "approval_required", value: nextValue }, { onConflict: "key" });
+
+    if (error) {
+      setMsg(`설정 변경 실패: ${error.message}`);
+      return;
+    }
+
+    if (nextValue === false) {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ is_approved: true })
+        .eq("is_approved", false);
+
+      if (updateError) {
+        setMsg(`자동 승인 처리 실패: ${updateError.message}`);
+        return;
+      }
+    }
+
+    setApprovalRequired(nextValue);
+    setMsg(nextValue ? "승인 기능이 ON으로 변경되었습니다." : "승인 기능이 OFF로 변경되었습니다.");
+    await load();
+  };
+
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto max-w-5xl px-6 py-10">
@@ -150,6 +203,22 @@ export default function AdminUsersPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-slate-800">가입 승인</p>
+                  <p className="text-xs text-slate-500">
+                    {approvalRequired ? "승인 필요: ON" : "승인 필요: OFF (자동 승인)"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={approvalRequired ? "outline" : "default"}
+                  onClick={toggleApprovalRequired}
+                  disabled={settingsLoading}
+                >
+                  {approvalRequired ? "자동 승인 켜기" : "자동 승인 끄기"}
+                </Button>
+              </div>
               {msg && <p className="text-sm text-red-600">{msg}</p>}
 
               <Table>

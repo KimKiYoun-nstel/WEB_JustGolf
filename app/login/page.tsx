@@ -19,6 +19,7 @@ function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
   const supabase = createClient();
 
   // 이미 로그인하면 자동으로 /start로 리다이렉트
@@ -42,6 +43,25 @@ function LoginForm() {
       setMsg(urlMessage);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const loadApprovalSetting = async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "approval_required")
+        .single();
+
+      if (error) {
+        setApprovalRequired(true);
+        return;
+      }
+
+      setApprovalRequired(data?.value ?? true);
+    };
+
+    loadApprovalSetting();
+  }, [supabase]);
 
   const signUp = async () => {
     setMsg("");
@@ -96,14 +116,33 @@ function LoginForm() {
         lastError = pRes.error;
       }
 
+      const approvalRequiredValue = approvalRequired ?? true;
+
       if (!profileCheck) {
         // 5회 재시도 후에도 실패했으면 생성 대기 중일 가능성
-        setMsg("회원가입 완료되었습니다. 관리자 승인 후 로그인해주세요.");
+        setMsg(
+          approvalRequiredValue
+            ? "회원가입 완료되었습니다. 관리자 승인 후 로그인해주세요."
+            : "회원가입 완료되었습니다. 바로 로그인할 수 있습니다."
+        );
         setLoading(false);
         return;
       }
 
-      setMsg(`회원가입 완료! ${profileCheck.is_approved ? '로그인할 수 있습니다.' : '관리자 승인 후 로그인할 수 있습니다.'}`);
+      if (!approvalRequiredValue && profileCheck.is_approved === false) {
+        await supabase
+          .from("profiles")
+          .update({ is_approved: true })
+          .eq("id", data.user.id);
+      }
+
+      setMsg(
+        `회원가입 완료! ${
+          approvalRequiredValue
+            ? (profileCheck.is_approved ? "로그인할 수 있습니다." : "관리자 승인 후 로그인할 수 있습니다.")
+            : "로그인할 수 있습니다."
+        }`
+      );
       setLoading(false);
     } catch (err) {
       const errorMsg = getUserFriendlyError(err, "signUp");
