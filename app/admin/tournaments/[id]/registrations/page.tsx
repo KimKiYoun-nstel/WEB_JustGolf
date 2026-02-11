@@ -20,7 +20,9 @@ import {
 
 type Registration = {
   id: number;
-  user_id: string;
+  user_id: string | null;                // NULL이면 제3자
+  registering_user_id: string;           // 실제 등록한 회원
+  registering_user_nickname: string | null; // 등록자 닉네임
   nickname: string;
   status: "applied" | "approved" | "waitlisted" | "canceled";
   memo: string | null;
@@ -60,6 +62,7 @@ export default function AdminRegistrationsPage() {
       .select(`
         id,
         user_id,
+        registering_user_id,
         nickname,
         status,
         memo,
@@ -77,10 +80,26 @@ export default function AdminRegistrationsPage() {
       return;
     }
 
-    // Transform data to include meal_name
+    // 등록자 닉네임 조회 (profiles)
+    const registeringUserIds = [...new Set(
+      (data ?? []).map((row: any) => row.registering_user_id).filter(Boolean)
+    )];
+    
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, nickname")
+      .in("id", registeringUserIds);
+    
+    const profileMap = new Map(
+      (profiles ?? []).map((p: any) => [p.id, p.nickname])
+    );
+
+    // Transform data to include meal_name and registering_user_nickname
     const transformed = (data ?? []).map((row: any) => ({
       id: row.id,
       user_id: row.user_id,
+      registering_user_id: row.registering_user_id,
+      registering_user_nickname: profileMap.get(row.registering_user_id) ?? null,
       nickname: row.nickname,
       status: row.status,
       memo: row.memo,
@@ -183,6 +202,8 @@ export default function AdminRegistrationsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>닉네임</TableHead>
+                <TableHead>구분</TableHead>
+                <TableHead>등록자</TableHead>
                 <TableHead>상태</TableHead>
                 <TableHead>식사 메뉴</TableHead>
                 <TableHead>카풀</TableHead>
@@ -196,6 +217,20 @@ export default function AdminRegistrationsPage() {
               {rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">{row.nickname}</TableCell>
+                  <TableCell>
+                    {row.user_id ? (
+                      <Badge variant="outline" className="bg-slate-50 text-slate-700">
+                        회원
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        제3자
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {row.registering_user_nickname ?? "-"}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="capitalize">
                       {formatRegistrationStatus(row.status)}

@@ -792,11 +792,12 @@ export default function TournamentDetailPage() {
     }
   };
 
+  // 내가 등록한 모든 참가자 (본인 + 제3자)
   const myParticipantList = regs.filter(
-    (r) => r.user_id === me && r.id !== mainRegId
+    (r) => r.registering_user_id === user?.id
   );
   const hasActiveRegistration = regs.some(
-    (r) => r.user_id === me && r.status !== "canceled"
+    (r) => r.registering_user_id === user?.id && r.status !== "canceled"
   );
 
   const formatStatus = (status: Registration["status"]) =>
@@ -1053,6 +1054,7 @@ export default function TournamentDetailPage() {
                 </CardContent>
               </Card>
 
+              {/* 내 참가자 목록 (등록한 참가자가 있을 때만 표시) */}
               {user && myParticipantList.length > 0 && (
                 <Card className="border-slate-200/70">
                   <CardHeader>
@@ -1061,7 +1063,7 @@ export default function TournamentDetailPage() {
                       내 계정으로 신청한 모든 참가자입니다.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent>
                     <div className="overflow-x-auto -mx-6">
                       <Table>
                         <TableHeader>
@@ -1072,81 +1074,88 @@ export default function TournamentDetailPage() {
                             <TableHead>작업</TableHead>
                           </TableRow>
                         </TableHeader>
-                      <TableBody>
-                        {myParticipantList.map((p) => (
-                          <TableRow key={p.id}>
-                            <TableCell>{p.nickname}</TableCell>
-                            <TableCell>{p.relation ?? "-"}</TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{formatStatus(p.status)}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              {p.status !== "canceled" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => cancelParticipant(p.id)}
-                                >
-                                  취소
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        <TableBody>
+                          {myParticipantList.map((p) => (
+                            <TableRow key={p.id}>
+                              <TableCell>{p.nickname}</TableCell>
+                              <TableCell>{p.relation ?? "-"}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">{formatStatus(p.status)}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                {p.status !== "canceled" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => cancelParticipant(p.id)}
+                                  >
+                                    취소
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                    <div className="border-t pt-4 space-y-3">
-                      <h3 className="font-medium text-sm">추가 참가자 등록 (제3자)</h3>
-                      <p className="text-xs text-slate-500">
-                        본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
-                      </p>
-                      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">닉네임</label>
-                          <Input
-                            value={extraName}
-                            onChange={(e) => setExtraName(e.target.value)}
-                            placeholder="예: 홍길동"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">관계</label>
-                          <Input
-                            value={extraRelation}
-                            onChange={(e) => setExtraRelation(e.target.value)}
-                            placeholder="예: 가족, 지인"
-                          />
-                        </div>
+              {/* 제3자 등록 (로그인만 하면 항상 표시) */}
+              {user && (
+                <Card className="border-slate-200/70">
+                  <CardHeader>
+                    <CardTitle>추가 참가자 등록 (제3자)</CardTitle>
+                    <CardDescription>
+                      본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">닉네임</label>
+                        <Input
+                          value={extraName}
+                          onChange={(e) => setExtraName(e.target.value)}
+                          placeholder="예: 홍길동"
+                        />
                       </div>
-                      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">상태</label>
-                          <select
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                            value={extraStatus}
-                            onChange={(e) =>
-                              setExtraStatus(e.target.value as Registration["status"])
-                            }
-                          >
-                            <option value="applied">신청</option>
-                            <option value="undecided">미정</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">메모</label>
-                          <Input
-                            value={extraMemo}
-                            onChange={(e) => setExtraMemo(e.target.value)}
-                            placeholder="선택사항"
-                          />
-                        </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">관계</label>
+                        <Input
+                          value={extraRelation}
+                          onChange={(e) => setExtraRelation(e.target.value)}
+                          placeholder="예: 가족, 지인"
+                        />
                       </div>
-                      <Button onClick={addParticipant} size="sm">
-                        추가 참가자 등록
-                      </Button>
                     </div>
+                    <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">상태</label>
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                          value={extraStatus}
+                          onChange={(e) =>
+                            setExtraStatus(e.target.value as Registration["status"])
+                          }
+                        >
+                          <option value="applied">신청</option>
+                          <option value="undecided">미정</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">메모</label>
+                        <Input
+                          value={extraMemo}
+                          onChange={(e) => setExtraMemo(e.target.value)}
+                          placeholder="선택사항"
+                        />
+                      </div>
+                    </div>
+                    <Button onClick={addParticipant} size="sm">
+                      추가 참가자 등록
+                    </Button>
                   </CardContent>
                 </Card>
               )}
