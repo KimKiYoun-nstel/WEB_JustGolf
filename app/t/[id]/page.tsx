@@ -109,6 +109,13 @@ type TournamentExtra = {
   display_order: number;
 };
 
+type PrizeSupport = {
+  id: number;
+  item_name: string;
+  note: string | null;
+  created_at: string;
+};
+
 
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
@@ -151,6 +158,8 @@ export default function TournamentDetailPage() {
   const [extraActivityIds, setExtraActivityIds] = useState<number[]>([]);
   const [prizeItem, setPrizeItem] = useState("");
   const [prizeNote, setPrizeNote] = useState("");
+  const [prizeSupports, setPrizeSupports] = useState<PrizeSupport[]>([]);
+  const [editingPrizeId, setEditingPrizeId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [editingParticipant, setEditingParticipant] = useState<Registration | null>(null);
@@ -349,6 +358,23 @@ export default function TournamentDetailPage() {
       }
     } else {
       setSelectedExtras([]);
+    }
+
+    if (uid) {
+      const prizeRes = await supabase
+        .from("tournament_prize_supports")
+        .select("id,item_name,note,created_at")
+        .eq("tournament_id", tournamentId)
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false });
+
+      if (!prizeRes.error) {
+        setPrizeSupports((prizeRes.data ?? []) as PrizeSupport[]);
+      } else {
+        setPrizeSupports([]);
+      }
+    } else {
+      setPrizeSupports([]);
     }
   };
 
@@ -732,6 +758,28 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    if (editingPrizeId) {
+      const { error } = await supabase
+        .from("tournament_prize_supports")
+        .update({
+          item_name: item,
+          note: prizeNote.trim() || null,
+        })
+        .eq("id", editingPrizeId);
+
+      if (error) {
+        setMsg(`경품 지원 수정 실패: ${friendlyError(error)}`);
+        return;
+      }
+
+      setEditingPrizeId(null);
+      setPrizeItem("");
+      setPrizeNote("");
+      setMsg("경품 지원이 수정되었습니다.");
+      await refresh();
+      return;
+    }
+
     let supporterNickname: string | null = null;
     const profileRes = await supabase
       .from("profiles")
@@ -761,6 +809,49 @@ export default function TournamentDetailPage() {
     setPrizeItem("");
     setPrizeNote("");
     setMsg("경품 지원이 등록되었습니다.");
+    await refresh();
+  };
+
+  const startEditPrizeSupport = (support: PrizeSupport) => {
+    setEditingPrizeId(support.id);
+    setPrizeItem(support.item_name);
+    setPrizeNote(support.note ?? "");
+  };
+
+  const cancelEditPrizeSupport = () => {
+    setEditingPrizeId(null);
+    setPrizeItem("");
+    setPrizeNote("");
+  };
+
+  const deletePrizeSupport = async (supportId: number, itemName: string) => {
+    const supabase = createClient();
+    setMsg("");
+    const uid = user?.id;
+    if (!uid) {
+      setMsg("경품 지원을 삭제하려면 로그인 필요");
+      return;
+    }
+
+    if (!confirm(`"${itemName}" 경품 지원을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("tournament_prize_supports")
+      .delete()
+      .eq("id", supportId);
+
+    if (error) {
+      setMsg(`경품 지원 삭제 실패: ${friendlyError(error)}`);
+      return;
+    }
+
+    if (editingPrizeId === supportId) {
+      cancelEditPrizeSupport();
+    }
+
+    setMsg("✅ 경품 지원이 삭제되었습니다.");
     await refresh();
   };
 
@@ -1240,32 +1331,32 @@ export default function TournamentDetailPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto -mx-6">
+                    <div className="overflow-x-auto rounded-md border border-slate-200">
                       <Table>
                         <TableHeader>
-                          <TableRow>
-                            <TableHead>닉네임</TableHead>
-                            <TableHead>관계</TableHead>
-                            <TableHead>상태</TableHead>
-                            <TableHead>작업</TableHead>
+                          <TableRow className="bg-slate-50">
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">닉네임</TableHead>
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">관계</TableHead>
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center">상태</TableHead>
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-right w-[160px]">액션</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {myParticipantList.map((p) => (
                             <TableRow key={p.id}>
-                              <TableCell>{p.nickname}</TableCell>
-                              <TableCell>{p.relation ?? "-"}</TableCell>
-                              <TableCell>
+                              <TableCell className="px-4">{p.nickname}</TableCell>
+                              <TableCell className="px-4">{p.relation ?? "-"}</TableCell>
+                              <TableCell className="px-4 text-center align-middle">
                                 <Badge variant={p.status === "approved" ? "default" : "outline"}>
                                   {formatStatus(p.status)}
                                 </Badge>
                               </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
+                              <TableCell className="px-4 text-right align-middle whitespace-nowrap w-[160px]">
+                                <div className="inline-flex items-center justify-end gap-2 w-full">
                                   {p.user_id === null && (
                                     <Button
                                       size="sm"
-                                      variant="ghost"
+                                      variant="outline"
                                       onClick={() => startEditParticipant(p.id)}
                                       disabled={!!loadingAction}
                                     >
@@ -1536,9 +1627,53 @@ export default function TournamentDetailPage() {
                       />
                     </div>
                   </div>
-                  <Button onClick={addPrizeSupport} size="sm">
-                    경품 등록
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={addPrizeSupport} size="sm">
+                      {editingPrizeId ? "경품 수정" : "경품 등록"}
+                    </Button>
+                    {editingPrizeId && (
+                      <Button onClick={cancelEditPrizeSupport} size="sm" variant="outline">
+                        취소
+                      </Button>
+                    )}
+                  </div>
+
+                  {prizeSupports.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-slate-700">내 경품 지원</p>
+                      <ul className="space-y-2">
+                        {prizeSupports.map((support) => (
+                          <li
+                            key={support.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2"
+                          >
+                            <div className="text-sm">
+                              <span className="font-medium">{support.item_name}</span>
+                              {support.note && (
+                                <span className="text-slate-500"> · {support.note}</span>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startEditPrizeSupport(support)}
+                              >
+                                수정
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => deletePrizeSupport(support.id, support.item_name)}
+                              >
+                                삭제
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

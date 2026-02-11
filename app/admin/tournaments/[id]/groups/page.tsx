@@ -337,7 +337,7 @@ export default function AdminTournamentGroupsPage() {
             <Button variant="outline" onClick={() => setAllPublish(false)}>
               전체 비공개
             </Button>
-            <Button asChild variant="ghost">
+            <Button asChild variant="outline">
               <Link href={`/t/${tournamentId}/groups`}>공개 보기</Link>
             </Button>
           </div>

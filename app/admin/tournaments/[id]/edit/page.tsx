@@ -10,7 +10,7 @@ import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
 import { Input } from "../../../../../components/ui/input";
 
-type Status = "draft" | "open" | "closed" | "done";
+type Status = "draft" | "open" | "closed" | "done" | "deleted";
 
 type Tournament = {
   id: number;
@@ -180,16 +180,31 @@ export default function AdminTournamentEditPage() {
   };
 
   const deleteTournament = async () => {
-    if (!confirm(`"${title}" 대회를 삭제하시겠습니까?\n(draft 상태의 대회만 삭제할 수 있습니다)`)) {
-      return;
-    }
-
-    if (status !== "draft") {
-      setMsg("작성 중인 대회만 삭제할 수 있습니다.");
+    if (status === "deleted") {
+      setMsg("이미 삭제된 대회입니다.");
       return;
     }
 
     const supabase = createClient();
+    const { count: registrationCount, error: countError } = await supabase
+      .from("registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId);
+
+    if (countError) {
+      setMsg(`삭제 전 확인 실패: ${countError.message}`);
+      return;
+    }
+
+    const confirmMessage =
+      `"${title}" 대회를 삭제하시겠습니까?\n\n` +
+      `현재 신청자: ${registrationCount ?? 0}명\n` +
+      "삭제하면 대회는 숨김 처리되며 복구 가능합니다.";
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
     setMsg("");
     const { error } = await supabase
       .from("tournaments")
@@ -323,7 +338,7 @@ export default function AdminTournamentEditPage() {
             <Button onClick={duplicate} variant="outline" className="w-full sm:w-auto">
               이 대회 복제
             </Button>
-            {status === "draft" && (
+            {status !== "deleted" && (
               <Button onClick={deleteTournament} variant="destructive" className="w-full sm:w-auto">
                 삭제
               </Button>
