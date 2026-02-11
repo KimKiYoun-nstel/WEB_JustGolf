@@ -69,12 +69,36 @@ function LoginForm() {
     
     try {
       setMsg("회원가입 요청 중...");
+
+      const nick = nickname.trim();
+      if (!nick) {
+        setMsg("닉네임을 입력해주세요.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: available, error: checkError } = await supabase.rpc(
+        "is_nickname_available",
+        { p_nickname: nick, p_user_id: null }
+      );
+
+      if (checkError) {
+        setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!available) {
+        setMsg("이미 사용 중인 닉네임입니다.");
+        setLoading(false);
+        return;
+      }
       
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { nickname },
+          data: { nickname: nick },
         },
       });
 

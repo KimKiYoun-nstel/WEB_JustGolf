@@ -555,6 +555,13 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    const nameLower = name.toLowerCase();
+    const duplicate = regs.find((r) => r.nickname.trim().toLowerCase() === nameLower);
+    if (duplicate) {
+      setMsg("이미 사용 중인 닉네임입니다.");
+      return;
+    }
+
     const rel = extraRelation.trim() || null;
     const status = extraStatus === "canceled" ? "applied" : extraStatus;
 
@@ -691,6 +698,15 @@ export default function TournamentDetailPage() {
     const name = editName.trim();
     if (!name) {
       setMsg("닉네임을 입력해주세요.");
+      return;
+    }
+
+    const nameLower = name.toLowerCase();
+    const duplicate = regs.find(
+      (r) => r.id !== editingParticipant.id && r.nickname.trim().toLowerCase() === nameLower
+    );
+    if (duplicate) {
+      setMsg("이미 사용 중인 닉네임입니다.");
       return;
     }
 

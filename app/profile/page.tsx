@@ -19,6 +19,7 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [nickname, setNickname] = useState("");
+  const [originalNickname, setOriginalNickname] = useState("");
   const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -56,6 +57,7 @@ export default function ProfilePage() {
       setMsg(`프로필 조회 실패: ${error.message}`);
     } else if (data) {
       setNickname(data.nickname ?? "");
+      setOriginalNickname(data.nickname ?? "");
     }
 
     setIsLoadingData(false);
@@ -75,7 +77,27 @@ export default function ProfilePage() {
       return;
     }
 
+    if (nick === originalNickname) {
+      setMsg("현재 닉네임과 동일합니다.");
+      return;
+    }
+
     const supabase = createClient();
+    const { data: available, error: checkError } = await supabase.rpc(
+      "is_nickname_available",
+      { p_nickname: nick, p_user_id: user.id }
+    );
+
+    if (checkError) {
+      setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
+      return;
+    }
+
+    if (!available) {
+      setMsg("이미 사용 중인 닉네임입니다.");
+      return;
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({ nickname: nick })
@@ -85,6 +107,7 @@ export default function ProfilePage() {
       setMsg(`닉네임 변경 실패: ${error.message}`);
     } else {
       setMsg("닉네임이 변경되었습니다");
+      setOriginalNickname(nick);
     }
   };
 
