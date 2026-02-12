@@ -258,7 +258,7 @@ export default function AdminUsersPage() {
                     <TableHead>권한</TableHead>
                     <TableHead>승인 상태</TableHead>
                     <TableHead>가입일</TableHead>
-                    <TableHead className="text-right">작업</TableHead>
+                    <TableHead className="text-center">작업</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -289,8 +289,8 @@ export default function AdminUsersPage() {
                       <TableCell className="text-sm text-slate-600">
                         {new Date(row.created_at).toLocaleString("ko-KR")}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-2">
                           <Button asChild size="sm" variant="outline">
                             <Link href={`/admin/users/${row.id}`}>상세보기</Link>
                           </Button>

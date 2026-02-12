@@ -1354,7 +1354,7 @@ export default function TournamentDetailPage() {
                             <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">닉네임</TableHead>
                             <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">관계</TableHead>
                             <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center">상태</TableHead>
-                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-right w-[160px]">액션</TableHead>
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center w-[160px]">액션</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1367,8 +1367,8 @@ export default function TournamentDetailPage() {
                                   {formatStatus(p.status)}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="px-4 text-right align-middle whitespace-nowrap w-[160px]">
-                                <div className="inline-flex items-center justify-end gap-2 w-full">
+                              <TableCell className="px-4 text-center align-middle whitespace-nowrap w-[160px]">
+                                <div className="inline-flex items-center justify-center gap-2 w-full">
                                   {p.user_id === null && (
                                     <Button
                                       size="sm"
@@ -1657,37 +1657,45 @@ export default function TournamentDetailPage() {
                   {prizeSupports.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-slate-700">내 경품 지원</p>
-                      <ul className="space-y-2">
-                        {prizeSupports.map((support) => (
-                          <li
-                            key={support.id}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2"
-                          >
-                            <div className="text-sm">
-                              <span className="font-medium">{support.item_name}</span>
-                              {support.note && (
-                                <span className="text-slate-500"> · {support.note}</span>
-                              )}
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => startEditPrizeSupport(support)}
-                              >
-                                수정
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => deletePrizeSupport(support.id, support.item_name)}
-                              >
-                                삭제
-                              </Button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>경품명</TableHead>
+                            <TableHead>비고</TableHead>
+                            <TableHead>작업</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {prizeSupports.map((support) => (
+                            <TableRow key={support.id}>
+                              <TableCell className="font-medium">
+                                {support.item_name}
+                              </TableCell>
+                              <TableCell className="text-sm text-slate-600">
+                                {support.note || "-"}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex justify-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => startEditPrizeSupport(support)}
+                                  >
+                                    수정
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => deletePrizeSupport(support.id, support.item_name)}
+                                  >
+                                    삭제
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </CardContent>
@@ -1705,36 +1713,43 @@ export default function TournamentDetailPage() {
                     공개된 파일이 없습니다.
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {files.map((file) => {
-                      const { data } = supabase.storage
-                        .from(TOURNAMENT_FILES_BUCKET)
-                        .getPublicUrl(file.storage_path);
-                      return (
-                        <li
-                          key={file.id}
-                          className="flex flex-wrap items-center justify-between gap-2"
-                        >
-                          <div className="text-sm">
-                            <span className="font-medium">{file.file_name}</span>
-                            <span className="text-slate-500">
-                              {" "}
-                              · {file.file_type}
-                            </span>
-                          </div>
-                          <Button asChild size="sm" variant="outline">
-                            <a
-                              href={data.publicUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              열기
-                            </a>
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>파일명</TableHead>
+                        <TableHead>유형</TableHead>
+                        <TableHead>열기</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {files.map((file) => {
+                        const { data } = supabase.storage
+                          .from(TOURNAMENT_FILES_BUCKET)
+                          .getPublicUrl(file.storage_path);
+                        return (
+                          <TableRow key={file.id}>
+                            <TableCell className="font-medium">
+                              {file.file_name}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {file.file_type}
+                            </TableCell>
+                            <TableCell>
+                              <Button asChild size="sm" variant="outline">
+                                <a
+                                  href={data.publicUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  열기
+                                </a>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>

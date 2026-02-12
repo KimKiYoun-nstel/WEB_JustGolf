@@ -312,7 +312,7 @@ export default function ManagerSetupPage() {
                     <TableRow>
                       <TableHead>닉네임</TableHead>
                       <TableHead>이메일</TableHead>
-                      <TableHead className="text-right">작업</TableHead>
+                      <TableHead className="text-center">작업</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -324,7 +324,7 @@ export default function ManagerSetupPage() {
                         <TableCell className="text-sm text-slate-600">
                           {profile.email ?? "-"}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-center">
                           <Button
                             onClick={() => grantPermission(profile.id)}
                             size="sm"
@@ -362,7 +362,7 @@ export default function ManagerSetupPage() {
                     <TableHead>닉네임</TableHead>
                     <TableHead>권한</TableHead>
                     <TableHead>부여일시</TableHead>
-                    <TableHead className="text-right">작업</TableHead>
+                    <TableHead className="text-center">작업</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -375,7 +375,7 @@ export default function ManagerSetupPage() {
                       <TableCell className="text-sm text-slate-600">
                         {new Date(mgr.granted_at).toLocaleString("ko-KR")}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <Button
                           onClick={() => revokePermission(mgr.id)}
                           size="sm"

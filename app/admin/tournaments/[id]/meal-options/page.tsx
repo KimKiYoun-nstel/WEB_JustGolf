@@ -254,7 +254,7 @@ export default function AdminMealOptionsPage() {
                     <TableHead className="w-16">순서</TableHead>
                     <TableHead>메뉴명</TableHead>
                     <TableHead className="w-24">상태</TableHead>
-                    <TableHead className="w-48 text-right">관리</TableHead>
+                    <TableHead className="w-48 text-center">관리</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -267,8 +267,8 @@ export default function AdminMealOptionsPage() {
                           {opt.is_active ? "활성" : "비활성"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-1">
                           <Button
                             size="sm"
                             variant="outline"

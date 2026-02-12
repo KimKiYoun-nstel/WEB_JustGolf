@@ -324,7 +324,7 @@ export default function TournamentExtrasPage() {
                     <TableHead>순서</TableHead>
                     <TableHead>활동명</TableHead>
                     <TableHead>설명</TableHead>
-                    <TableHead className="text-right">작업</TableHead>
+                    <TableHead className="text-center">작업</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -335,8 +335,8 @@ export default function TournamentExtrasPage() {
                       <TableCell className="text-sm text-slate-600">
                         {extra.description || "-"}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-2">
                           <Button
                             onClick={() => moveUp(extra.id)}
                             size="sm"
