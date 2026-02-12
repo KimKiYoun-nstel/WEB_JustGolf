@@ -29,9 +29,9 @@ const STATE_COOKIE = "kakao_oidc_state";
 const COOKIE_MAX_AGE = 60 * 10; // 10 minutes
 const secure = process.env.NODE_ENV === "production";
 
-const KAKAO_ERROR_MESSAGE = "??? ??? ??? ??????.";
-const KAKAO_STATE_ERROR_MESSAGE = "??? ??? ?? ??? ??????.";
-const KAKAO_TOKEN_ERROR_MESSAGE = "??? ??? ?? ??? ??????.";
+const KAKAO_ERROR_MESSAGE = "카카오 로그인 처리에 실패했습니다.";
+const KAKAO_STATE_ERROR_MESSAGE = "카카오 로그인 요청 검증에 실패했습니다.";
+const KAKAO_TOKEN_ERROR_MESSAGE = "카카오 로그인 토큰 교환에 실패했습니다.";
 
 const buildRedirectUri = (request: NextRequest) => {
   return (
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     await writeErrorLog({
       category: "auth",
       action: "kakao_callback",
-      message: "??? callback state/code ?? ??",
+      message: "카카오 callback state/code 검증 실패",
       errorCode: "state_mismatch",
       path: request.nextUrl.pathname,
       ip,
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
     await writeErrorLog({
       category: "auth",
       action: "kakao_callback",
-      message: "??? callback ?? ??: KAKAO_CLIENT_ID ??",
+      message: "카카오 callback 처리 실패: KAKAO_CLIENT_ID 누락",
       errorCode: "missing_client_id",
       path: request.nextUrl.pathname,
       ip,
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
     await writeErrorLog({
       category: "auth",
       action: "kakao_callback",
-      message: "??? ?? ?? ??",
+      message: "카카오 토큰 교환 실패",
       errorCode: tokenData.error ?? `http_${tokenResponse.status}`,
       path: request.nextUrl.pathname,
       ip,
@@ -229,7 +229,7 @@ export async function GET(request: NextRequest) {
     await writeErrorLog({
       category: "auth",
       action: "kakao_callback",
-      message: "??? ??? ?? ? ??? ID ??",
+      message: "카카오 로그인 성공 후 사용자 ID 누락",
       errorCode: "missing_user_id",
       path: request.nextUrl.pathname,
       ip,

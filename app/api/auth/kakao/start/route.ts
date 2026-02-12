@@ -29,14 +29,14 @@ export async function GET(request: NextRequest) {
     await writeErrorLog({
       category: "auth",
       action: "kakao_login_submit",
-      message: "??? ??? ?? ??: KAKAO_CLIENT_ID? ????.",
+      message: "카카오 로그인 설정 누락: KAKAO_CLIENT_ID가 없습니다.",
       path: request.nextUrl.pathname,
       ip,
       userAgent,
     });
 
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("message", "??? ??? ??? ?????.");
+    loginUrl.searchParams.set("message", "카카오 로그인 설정이 필요합니다.");
     return NextResponse.redirect(loginUrl);
   }
 

@@ -64,7 +64,7 @@ export default function ProfilePage() {
       .single();
 
     if (error) {
-      setMsg(`??? ?? ??: ${error.message}`);
+      setMsg(`프로필 조회 실패: ${error.message}`);
     } else if (data) {
       const nextNickname = data.nickname ?? "";
       const nextFullName = data.full_name ?? "";
@@ -82,7 +82,7 @@ export default function ProfilePage() {
     setMsg("");
 
     if (!user) {
-      setMsg("???? ?????.");
+      setMsg("로그인이 필요합니다.");
       return;
     }
 
@@ -90,7 +90,7 @@ export default function ProfilePage() {
     const nextPhone = phone.trim();
 
     if (nextFullName === originalFullName && nextPhone === originalPhone) {
-      setMsg("??? ??? ????.");
+      setMsg("변경된 내용이 없습니다.");
       return;
     }
 
@@ -107,7 +107,7 @@ export default function ProfilePage() {
       .eq("id", user.id);
 
     if (profileError) {
-      setMsg(`??? ?? ?? ??: ${profileError.message}`);
+      setMsg(`프로필 정보 저장 실패: ${profileError.message}`);
       setIsSavingProfile(false);
       return;
     }
@@ -121,14 +121,14 @@ export default function ProfilePage() {
     });
 
     if (metadataError) {
-      setMsg(`??? ????? ?? ??: ${metadataError.message}`);
+      setMsg(`사용자 메타데이터 저장 실패: ${metadataError.message}`);
       setIsSavingProfile(false);
       return;
     }
 
     setOriginalFullName(nextFullName);
     setOriginalPhone(nextPhone);
-    setMsg("??? ????? ???????.");
+    setMsg("이름과 전화번호가 저장되었습니다.");
     setIsSavingProfile(false);
   };
 
@@ -136,18 +136,18 @@ export default function ProfilePage() {
     setMsg("");
 
     if (!user) {
-      setMsg("???? ?????.");
+      setMsg("로그인이 필요합니다.");
       return;
     }
 
     const nick = nickname.trim();
     if (!nick) {
-      setMsg("???? ??????.");
+      setMsg("닉네임을 입력해주세요.");
       return;
     }
 
     if (nick === originalNickname) {
-      setMsg("?? ???? ?????.");
+      setMsg("현재 닉네임과 동일합니다.");
       return;
     }
 
@@ -160,13 +160,13 @@ export default function ProfilePage() {
     );
 
     if (checkError) {
-      setMsg(`??? ?? ?? ??: ${checkError.message}`);
+      setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
       setIsSavingNickname(false);
       return;
     }
 
     if (!available) {
-      setMsg("?? ?? ?? ??????.");
+      setMsg("이미 사용 중인 닉네임입니다.");
       setIsSavingNickname(false);
       return;
     }
@@ -177,13 +177,13 @@ export default function ProfilePage() {
       .eq("id", user.id);
 
     if (error) {
-      setMsg(`??? ?? ??: ${error.message}`);
+      setMsg(`닉네임 변경 실패: ${error.message}`);
       setIsSavingNickname(false);
       return;
     }
 
     setOriginalNickname(nick);
-    setMsg("???? ???????.");
+    setMsg("닉네임이 변경되었습니다.");
     setIsSavingNickname(false);
   };
 
@@ -191,22 +191,22 @@ export default function ProfilePage() {
     setMsg("");
 
     if (!user) {
-      setMsg("???? ?????.");
+      setMsg("로그인이 필요합니다.");
       return;
     }
 
     if (!newPassword.trim()) {
-      setMsg("? ????? ??????.");
+      setMsg("새 비밀번호를 입력해주세요.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setMsg("????? ???? ????.");
+      setMsg("비밀번호가 일치하지 않습니다.");
       return;
     }
 
     if (newPassword.length < 6) {
-      setMsg("????? ?? 6? ????? ???.");
+      setMsg("비밀번호는 최소 6자 이상이어야 합니다.");
       return;
     }
 
@@ -218,12 +218,12 @@ export default function ProfilePage() {
     });
 
     if (error) {
-      setMsg(`???? ?? ??: ${error.message}`);
+      setMsg(`비밀번호 변경 실패: ${error.message}`);
       setIsSavingPassword(false);
       return;
     }
 
-    setMsg("????? ???????.");
+    setMsg("비밀번호가 변경되었습니다.");
     setNewPassword("");
     setConfirmPassword("");
     setIsSavingPassword(false);
@@ -235,7 +235,7 @@ export default function ProfilePage() {
         <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-10">
           <Card>
             <CardContent className="py-10">
-              <p className="text-sm text-slate-500">?? ?...</p>
+              <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
           </Card>
         </div>
@@ -251,11 +251,11 @@ export default function ProfilePage() {
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-10">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-slate-900">? ???</h1>
+          <h1 className="text-3xl font-semibold text-slate-900">내 프로필</h1>
           <p className="text-sm text-slate-500">
             {authProvider === "kakao"
-              ? "??? ???? ??? ????. ??? ??? ??? ? ????."
-              : "??? ???? ??? ????. ??? ??? ??? ? ????."}
+              ? "카카오 계정으로 로그인 중입니다. 프로필 정보를 수정할 수 있습니다."
+              : "이메일 계정으로 로그인 중입니다. 프로필 정보를 수정할 수 있습니다."}
           </p>
         </div>
 
@@ -267,31 +267,33 @@ export default function ProfilePage() {
 
         <Card className="border-slate-200/70">
           <CardHeader>
-            <CardTitle>???</CardTitle>
-            <CardDescription>??? ?? ???? ? ???? ??? ? ????.</CardDescription>
+            <CardTitle>이메일</CardTitle>
+            <CardDescription>
+              로그인 계정 이메일은 이 화면에서 변경할 수 없습니다.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Input value={email || "????? ???? ??"} disabled />
+            <Input value={email || "카카오에서 제공하지 않음"} disabled />
           </CardContent>
         </Card>
 
         <Card className="border-slate-200/70">
           <CardHeader>
-            <CardTitle>?? ??</CardTitle>
-            <CardDescription>??? ????? ??? ? ????.</CardDescription>
+            <CardTitle>기본 정보</CardTitle>
+            <CardDescription>이름과 전화번호를 수정할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">??</label>
+              <label className="text-sm font-medium">이름</label>
               <Input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="??? ?????"
+                placeholder="이름을 입력하세요"
                 disabled={isSavingProfile}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">????</label>
+              <label className="text-sm font-medium">전화번호</label>
               <Input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -300,25 +302,25 @@ export default function ProfilePage() {
               />
             </div>
             <Button onClick={updateProfileInfo} disabled={isSavingProfile}>
-              {isSavingProfile ? "?? ?..." : "?? ?? ??"}
+              {isSavingProfile ? "저장 중..." : "기본 정보 저장"}
             </Button>
           </CardContent>
         </Card>
 
         <Card className="border-slate-200/70">
           <CardHeader>
-            <CardTitle>???</CardTitle>
-            <CardDescription>????? ???? ?????.</CardDescription>
+            <CardTitle>닉네임</CardTitle>
+            <CardDescription>서비스에 표시되는 이름입니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="???? ?????"
+              placeholder="닉네임을 입력하세요"
               disabled={isSavingNickname}
             />
             <Button onClick={updateNickname} disabled={isSavingNickname}>
-              {isSavingNickname ? "?? ?..." : "??? ??"}
+              {isSavingNickname ? "변경 중..." : "닉네임 변경"}
             </Button>
           </CardContent>
         </Card>
@@ -326,45 +328,45 @@ export default function ProfilePage() {
         {authProvider === "email" ? (
           <Card className="border-slate-200/70">
             <CardHeader>
-              <CardTitle>???? ??</CardTitle>
+              <CardTitle>비밀번호 변경</CardTitle>
               <CardDescription>
-                ? ????? ?? 6? ????? ???.
+                새 비밀번호는 최소 6자 이상이어야 합니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">? ????</label>
+                <label className="text-sm font-medium">새 비밀번호</label>
                 <Input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="? ????"
+                  placeholder="새 비밀번호"
                   disabled={isSavingPassword}
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">???? ??</label>
+                <label className="text-sm font-medium">비밀번호 확인</label>
                 <Input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="???? ??"
+                  placeholder="비밀번호 확인"
                   disabled={isSavingPassword}
                 />
               </div>
 
               <Button onClick={updatePassword} disabled={isSavingPassword}>
-                {isSavingPassword ? "?? ?..." : "???? ??"}
+                {isSavingPassword ? "변경 중..." : "비밀번호 변경"}
               </Button>
             </CardContent>
           </Card>
         ) : (
           <Card className="border-slate-200/70">
             <CardHeader>
-              <CardTitle>???? ??</CardTitle>
+              <CardTitle>비밀번호 변경</CardTitle>
               <CardDescription>
-                ??? ??? ???? ??? ???? ????? ?????.
+                카카오 로그인 사용자는 카카오 계정에서 비밀번호를 관리합니다.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -372,10 +374,10 @@ export default function ProfilePage() {
 
         <div className="flex gap-2">
           <Button onClick={() => router.back()} variant="outline">
-            ????
+            돌아가기
           </Button>
           <Button onClick={() => router.push("/")} variant="secondary">
-            ???
+            홈으로
           </Button>
         </div>
       </div>
