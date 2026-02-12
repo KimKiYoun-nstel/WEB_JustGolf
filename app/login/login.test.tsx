@@ -10,15 +10,17 @@ const mockFrom = vi.fn();
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockSingle = vi.fn();
-const mockInsert = vi.fn();
+const mockRpc = vi.fn();
+const mockUpdate = vi.fn();
 
-vi.mock('../../lib/supabaseClient', () => ({
-  supabase: {
+vi.mock('../../lib/supabaseClient', () => {
+  const client = {
     auth: {
       signInWithPassword: (...args: any[]) => mockSignInWithPassword(...args),
       signUp: (...args: any[]) => mockSignUp(...args),
       signOut: vi.fn(),
     },
+    rpc: (...args: any[]) => mockRpc(...args),
     from: (...args: any[]) => {
       mockFrom(...args);
       return {
@@ -33,14 +35,24 @@ vi.mock('../../lib/supabaseClient', () => ({
             },
           };
         },
-        insert: (...insertArgs: any[]) => {
-          mockInsert(...insertArgs);
-          return Promise.resolve({ data: null, error: null });
+        update: (...updateArgs: any[]) => {
+          mockUpdate(...updateArgs);
+          return {
+            eq: (...eqArgs: any[]) => {
+              mockEq(...eqArgs);
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
         },
       };
     },
-  },
-}));
+  };
+
+  return {
+    createClient: () => client,
+    supabase: client,
+  };
+});
 
 // Mock auth hook
 vi.mock('../../lib/auth', () => ({
@@ -55,6 +67,9 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => ({
     get: () => null,
   }),
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
 }));
 
 describe('Login Page', () => {
@@ -68,6 +83,8 @@ describe('Login Page', () => {
       key: vi.fn(),
       length: 0,
     } as any;
+    mockRpc.mockResolvedValue({ data: true, error: null });
+    mockSingle.mockResolvedValue({ data: { value: true }, error: null });
   });
 
   describe('회원가입', () => {
@@ -84,8 +101,17 @@ describe('Login Page', () => {
         error: null,
       });
 
-      mockInsert.mockResolvedValue({
-        data: null,
+      mockRpc.mockResolvedValue({
+        data: true,
+        error: null,
+      });
+
+      mockSingle.mockResolvedValue({
+        data: {
+          id: 'test-user-id',
+          nickname: '테스터',
+          is_approved: false,
+        },
         error: null,
       });
 
@@ -112,15 +138,14 @@ describe('Login Page', () => {
       });
 
       await waitFor(() => {
-        expect(mockInsert).toHaveBeenCalledWith({
-          id: 'test-user-id',
-          nickname: '테스터',
-          email: 'newuser@test.com',
-          is_approved: false,
+        expect(mockRpc).toHaveBeenCalledWith('is_nickname_available', {
+          p_nickname: '테스터',
+          p_user_id: null,
         });
       });
 
       await waitFor(() => {
+        expect(screen.getByText(/회원가입 완료/)).toBeInTheDocument();
         expect(screen.getByText(/관리자 승인 후 로그인/)).toBeInTheDocument();
       });
     });
@@ -131,6 +156,10 @@ describe('Login Page', () => {
       mockSignUp.mockResolvedValue({
         data: null,
         error: { message: 'User already registered' },
+      });
+      mockRpc.mockResolvedValue({
+        data: true,
+        error: null,
       });
 
       render(<LoginPage />);
@@ -202,7 +231,7 @@ describe('Login Page', () => {
       });
     });
 
-    it('미승인 일반 사용자는 로그인할 수 없어야 한다', async () => {
+    it('미승인 사용자도 로그인 성공 메시지를 표시한다', async () => {
       const user = userEvent.setup();
       
       mockSignInWithPassword.mockResolvedValue({
@@ -237,7 +266,7 @@ describe('Login Page', () => {
       await user.click(loginButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/관리자 승인 대기/)).toBeInTheDocument();
+        expect(screen.getByText(/로그인 성공/)).toBeInTheDocument();
       });
     });
 
@@ -290,6 +319,10 @@ describe('Login Page', () => {
         data: null,
         error: { message: 'Invalid login credentials' },
       });
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ exists: true, profileExists: false }),
+      });
 
       render(<LoginPage />);
 
@@ -302,7 +335,63 @@ describe('Login Page', () => {
       await user.click(loginButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/로그인 실패.*Invalid login credentials/)).toBeInTheDocument();
+        expect(screen.getByText(/로그인 실패: 비밀번호가 틀렸습니다\./)).toBeInTheDocument();
+      });
+    });
+
+    it('존재하지 않는 이메일로 로그인 시 계정 없음 메시지를 표시해야 한다', async () => {
+      const user = userEvent.setup();
+
+      mockSignInWithPassword.mockResolvedValue({
+        data: null,
+        error: { message: 'Invalid login credentials' },
+      });
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ exists: false, profileExists: false }),
+      });
+
+      render(<LoginPage />);
+
+      const emailInput = screen.getByPlaceholderText('example@company.com');
+      const passwordInput = screen.getAllByDisplayValue('')[1];
+      const loginButton = screen.getByText('로그인');
+
+      await user.type(emailInput, 'unknown@test.com');
+      await user.type(passwordInput, 'wrongpassword');
+      await user.click(loginButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/로그인 실패: 존재하지 않는 계정입니다\./)).toBeInTheDocument();
+      });
+    });
+
+    it('프로필만 존재하는 계정은 상태 오류 메시지를 표시해야 한다', async () => {
+      const user = userEvent.setup();
+
+      mockSignInWithPassword.mockResolvedValue({
+        data: null,
+        error: { message: 'Invalid login credentials' },
+      });
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ exists: false, profileExists: true }),
+      });
+
+      render(<LoginPage />);
+
+      const emailInput = screen.getByPlaceholderText('example@company.com');
+      const passwordInput = screen.getAllByDisplayValue('')[1];
+      const loginButton = screen.getByText('로그인');
+
+      await user.type(emailInput, 'profileonly@test.com');
+      await user.type(passwordInput, 'wrongpassword');
+      await user.click(loginButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/계정 상태에 문제가 있습니다/)
+        ).toBeInTheDocument();
       });
     });
   });

@@ -175,6 +175,28 @@ function LoginForm() {
     }
   };
 
+  const checkEmailExists = async (emailToCheck: string) => {
+    if (!emailToCheck) return null;
+
+    try {
+      const response = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailToCheck }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return null;
+
+      return {
+        exists: Boolean(data?.exists),
+        profileExists: Boolean(data?.profileExists),
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const signIn = async () => {
     setMsg("");
     setLoading(true);
@@ -188,8 +210,32 @@ function LoginForm() {
       });
       
       if (error) {
-        const errorMsg = getUserFriendlyError(error, "signIn");
-        setMsg(`로그인 실패: ${errorMsg}`);
+        const rawMessage = error?.message ?? "";
+
+        if (rawMessage.includes("Invalid login credentials")) {
+          const emailCheck = await checkEmailExists(email.trim());
+
+          if (emailCheck?.exists === true) {
+            setMsg("로그인 실패: 비밀번호가 틀렸습니다.");
+          } else if (emailCheck?.exists === false) {
+            if (emailCheck.profileExists) {
+              setMsg(
+                "로그인 실패: 계정 상태에 문제가 있습니다. 관리자에게 문의해주세요."
+              );
+            } else {
+              setMsg("로그인 실패: 존재하지 않는 계정입니다.");
+            }
+          } else {
+            const errorMsg = getUserFriendlyError(error, "signIn");
+            setMsg(`로그인 실패: ${errorMsg}`);
+          }
+        } else if (rawMessage.toLowerCase().includes("email not confirmed")) {
+          setMsg("로그인 실패: 이메일 인증이 필요합니다.");
+        } else {
+          const errorMsg = getUserFriendlyError(error, "signIn");
+          setMsg(`로그인 실패: ${errorMsg}`);
+        }
+
         setLoading(false);
         return;
       }

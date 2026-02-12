@@ -34,14 +34,14 @@ export default function AdminHomePage() {
 
           <Card className="border-slate-200/70">
             <CardHeader>
-              <CardTitle className="text-lg">✅ 회원 승인</CardTitle>
+              <CardTitle className="text-lg">✅ 회원 관리</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-slate-600">
-                신규 가입자의 계정을 승인하거나 보류합니다.
+                회원 승인, 권한, 비밀번호 초기화 등을 관리합니다.
               </p>
               <Button asChild className="w-full" variant="outline">
-                <Link href="/admin/users">회원 승인하기</Link>
+                <Link href="/admin/users">회원 관리하기</Link>
               </Button>
             </CardContent>
           </Card>
@@ -100,9 +100,9 @@ export default function AdminHomePage() {
               </p>
             </div>
             <div>
-              <p className="font-semibold">3️⃣ 회원 승인</p>
+              <p className="font-semibold">3️⃣ 회원 관리</p>
               <p className="ml-4 text-slate-600">
-                신규 가입자를 승인 → 이후부터 대회 참가 신청 가능
+                승인/권한/비밀번호 초기화 등 계정 관리 작업 수행
               </p>
             </div>
             <div>

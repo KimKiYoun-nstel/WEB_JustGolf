@@ -1,11 +1,10 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
- * PATCH /api/admin/users/[id]/approve
- * 사용자 계정 승인 (관리자만 접근 가능)
- * Service Role Key로 프로필 업데이트
+ * PATCH /api/admin/users/[id]/reset-password
+ * 관리자용 비밀번호 강제 설정
  */
 export async function PATCH(
   request: NextRequest,
@@ -14,10 +13,15 @@ export async function PATCH(
   try {
     const { id: userId } = await params;
     const body = await request.json().catch(() => null);
-    const approved =
-      body && typeof body.approved === "boolean" ? body.approved : true;
+    const password = body?.password;
 
-    // 1. 요청자가 관리자인지 확인
+    if (!password || typeof password !== "string") {
+      return NextResponse.json(
+        { error: "password가 필요합니다." },
+        { status: 400 }
+      );
+    }
+
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,21 +47,19 @@ export async function PATCH(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: '인증 필요' }, { status: 401 });
+      return NextResponse.json({ error: "인증 필요" }, { status: 401 });
     }
 
-    // 2. 요청자의 관리자 권한 확인
     const { data: requesterProfile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
       .single();
 
     if (!requesterProfile?.is_admin) {
-      return NextResponse.json({ error: '관리자 권한 필요' }, { status: 403 });
+      return NextResponse.json({ error: "관리자 권한 필요" }, { status: 403 });
     }
 
-    // 3. Service Role Key로 사용자 승인 처리
     const supabaseAdmin = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -71,31 +73,22 @@ export async function PATCH(
       }
     );
 
-    const { data: updatedProfile, error } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        is_approved: approved,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId)
-      .select()
-      .single();
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password,
+    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(
-      {
-        message: approved ? '사용자 승인 완료' : '사용자 승인 해제 완료',
-        profile: updatedProfile,
-      },
+      { message: "비밀번호가 초기화되었습니다." },
       { status: 200 }
     );
   } catch (error) {
-    console.error('API Error:', error);
+    console.error("API Error:", error);
     return NextResponse.json(
-      { error: '서버 오류 발생' },
+      { error: "서버 오류가 발생했습니다." },
       { status: 500 }
     );
   }
