@@ -85,6 +85,9 @@ export default function TournamentParticipantsPage() {
   const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const hasMyActiveRegistration = rows.some(
+    (r) => r.user_id === user?.id && r.status !== "canceled"
+  );
 
   const fetchData = async () => {
     setLoading(true);
@@ -121,11 +124,34 @@ export default function TournamentParticipantsPage() {
       return;
     }
 
-    const transformed = (rRes.data ?? []).map((row: any) => {
+    type RegistrationRow = {
+      id: number;
+      user_id: string | null;
+      registering_user_id: string;
+      nickname: string;
+      status: string;
+      memo: string | null;
+      created_at: string;
+      tournament_meal_options?: { menu_name?: string | null } | null;
+      registration_extras?: {
+        carpool_available?: boolean | null;
+        carpool_seats?: number | null;
+        transportation?: string | null;
+        departure_location?: string | null;
+        notes?: string | null;
+      } | null;
+      registration_activity_selections?: Array<{
+        selected?: boolean | null;
+        tournament_extras?: { activity_name?: string | null } | null;
+      }> | null;
+    };
+
+    const registrationRows = (rRes.data ?? []) as unknown as RegistrationRow[];
+    const transformed = registrationRows.map((row) => {
       const activities = (row.registration_activity_selections ?? [])
-        .filter((sel: any) => sel?.selected)
-        .map((sel: any) => sel?.tournament_extras?.activity_name)
-        .filter((name: string | null) => Boolean(name));
+        .filter((sel) => sel?.selected)
+        .map((sel) => sel?.tournament_extras?.activity_name)
+        .filter((name: string | null | undefined) => Boolean(name));
 
       return {
       id: row.id,
@@ -181,7 +207,14 @@ export default function TournamentParticipantsPage() {
       .order("created_at", { ascending: true });
 
     if (!prizeRes.error) {
-      const mapped = (prizeRes.data ?? []).map((row: any) => ({
+      type PrizeRow = {
+        id: number;
+        supporter_nickname?: string | null;
+        item_name: string;
+        note?: string | null;
+        created_at: string;
+      };
+      const mapped = ((prizeRes.data ?? []) as unknown as PrizeRow[]).map((row) => ({
         id: row.id,
         supporter_name: row.supporter_nickname ?? null,
         item_name: row.item_name,
@@ -491,7 +524,9 @@ export default function TournamentParticipantsPage() {
             <div className="flex gap-2">
               {user && (
                 <Button asChild>
-                  <Link href={`/t/${tournamentId}`}>참가 정보 수정</Link>
+                  <Link href={`/t/${tournamentId}`}>
+                    {hasMyActiveRegistration ? "참가 정보 수정" : "참가 신청"}
+                  </Link>
                 </Button>
               )}
               <Button asChild variant="outline">

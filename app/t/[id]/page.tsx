@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
@@ -72,7 +72,8 @@ type SideEvent = {
 
 type SideEventRegistration = {
   id: number;
-  user_id: string;
+  registration_id: number;
+  user_id: string | null;
   nickname: string;
   status: "applied" | "confirmed" | "waitlisted" | "canceled";
   memo: string | null;
@@ -95,18 +96,15 @@ type RegistrationExtras = {
   notes: string | null;
 };
 
-type CarpoolPublic = {
-  registration_id: number;
-  nickname: string;
-  carpool_available: boolean;
-  carpool_seats: number | null;
-};
-
 type TournamentExtra = {
   id: number;
   activity_name: string;
   description: string | null;
   display_order: number;
+};
+
+type ActivitySelection = {
+  extra_id: number;
 };
 
 type PrizeSupport = {
@@ -120,11 +118,9 @@ type PrizeSupport = {
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
-  const router = useRouter();
   const supabase = createClient();
 
   const { user, loading } = useAuth();
-  const [me, setMe] = useState<string>("");
   const [t, setT] = useState<Tournament | null>(null);
   const [regs, setRegs] = useState<Registration[]>([]);
   const [files, setFiles] = useState<TournamentFile[]>([]);
@@ -135,8 +131,6 @@ export default function TournamentDetailPage() {
   const [mealOptions, setMealOptions] = useState<MealOption[]>([]);
   const [tournamentExtras, setTournamentExtras] = useState<TournamentExtra[]>([]);
   const [selectedExtras, setSelectedExtras] = useState<number[]>([]);
-  const [nickname, setNickname] = useState("");
-  const [relation, setRelation] = useState("본인");
   const [profileNickname, setProfileNickname] = useState("");
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [memo, setMemo] = useState("");
@@ -150,6 +144,8 @@ export default function TournamentDetailPage() {
   const [extraNotes, setExtraNotes] = useState("");
   const [sideEventMealSelections, setSideEventMealSelections] = useState<Map<number, boolean | null>>(new Map());
   const [sideEventLodgingSelections, setSideEventLodgingSelections] = useState<Map<number, boolean | null>>(new Map());
+  const [sideEventTargetRegistrationIds, setSideEventTargetRegistrationIds] =
+    useState<Map<number, number | null>>(new Map());
   const [extraName, setExtraName] = useState("");
   const [extraRelation, setExtraRelation] = useState("");
   const [extraStatus, setExtraStatus] = useState<Registration["status"]>("applied");
@@ -168,6 +164,9 @@ export default function TournamentDetailPage() {
   const [editMemo, setEditMemo] = useState("");
   const [editMealId, setEditMealId] = useState<number | null>(null);
   const [editActivityIds, setEditActivityIds] = useState<number[]>([]);
+  const [isApplySheetOpen, setIsApplySheetOpen] = useState(false);
+  const [isAddParticipantSheetOpen, setIsAddParticipantSheetOpen] =
+    useState(false);
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 신청했습니다.";
@@ -182,7 +181,6 @@ export default function TournamentDetailPage() {
     const supabase = createClient();
     setMsg("");
     const uid = user?.id ?? "";
-    setMe(uid);
 
     if (uid) {
       const pRes = await supabase
@@ -215,6 +213,7 @@ export default function TournamentDetailPage() {
     setT(tRes.data as Tournament);
 
     let mainRegIdForExtras: number | null = null;
+    let activeMyRegIds: number[] = [];
 
     const rRes = await supabase
       .from("registrations")
@@ -229,6 +228,7 @@ export default function TournamentDetailPage() {
       // 내가 등록한 모든 참가자 (본인 + 제3자)
       const myRegs = uid ? regList.filter((r) => r.registering_user_id === uid) : [];
       const activeMyRegs = myRegs.filter((r) => r.status !== "canceled");
+      activeMyRegIds = activeMyRegs.map((r) => r.id);
       
       // 본인 등록 찾기 (user_id === uid)
       const preferredMain =
@@ -239,7 +239,6 @@ export default function TournamentDetailPage() {
 
       setMainRegId(preferredMain?.id ?? null);
       setMainStatus(preferredMain?.status ?? "applied");
-      setRelation(preferredMain?.relation ?? "본인");
 
       if (preferredMain) {
         // 본인 신청 정보 로드
@@ -305,18 +304,39 @@ export default function TournamentDetailPage() {
 
       // Load registrations for each side event
       const seRegMap = new Map<number, SideEventRegistration[]>();
+      const defaultTargetRegId = mainRegIdForExtras ?? activeMyRegIds[0] ?? null;
+      const nextTargetMap = new Map<number, number | null>();
+      const nextMealMap = new Map<number, boolean | null>();
+      const nextLodgingMap = new Map<number, boolean | null>();
       for (const se of (seRes.data ?? []) as SideEvent[]) {
         const serRes = await supabase
           .from("side_event_registrations")
-          .select("id,user_id,nickname,status,memo,meal_selected,lodging_selected")
+          .select("id,registration_id,user_id,nickname,status,memo,meal_selected,lodging_selected")
           .eq("side_event_id", se.id)
           .order("id", { ascending: true });
 
         if (!serRes.error) {
-          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
+          const seRows = (serRes.data ?? []) as SideEventRegistration[];
+          seRegMap.set(se.id, seRows);
+
+          const prevTargetRegId = sideEventTargetRegistrationIds.get(se.id) ?? null;
+          const resolvedTargetRegId =
+            prevTargetRegId && activeMyRegIds.includes(prevTargetRegId)
+              ? prevTargetRegId
+              : defaultTargetRegId;
+
+          nextTargetMap.set(se.id, resolvedTargetRegId);
+          const myDefaultSideReg = resolvedTargetRegId
+            ? seRows.find((row) => row.registration_id === resolvedTargetRegId)
+            : undefined;
+          nextMealMap.set(se.id, myDefaultSideReg?.meal_selected ?? null);
+          nextLodgingMap.set(se.id, myDefaultSideReg?.lodging_selected ?? null);
         }
       }
       setSideEventRegs(seRegMap);
+      setSideEventTargetRegistrationIds(nextTargetMap);
+      setSideEventMealSelections(nextMealMap);
+      setSideEventLodgingSelections(nextLodgingMap);
     }
 
     // Load meal options for this tournament
@@ -352,7 +372,9 @@ export default function TournamentDetailPage() {
         .eq("selected", true);
 
       if (!selectedRes.error && selectedRes.data) {
-        setSelectedExtras(selectedRes.data.map((s: any) => s.extra_id));
+        setSelectedExtras(
+          (selectedRes.data as ActivitySelection[]).map((s) => s.extra_id)
+        );
       } else {
         setSelectedExtras([]);
       }
@@ -680,7 +702,9 @@ export default function TournamentDetailPage() {
       .eq("selected", true);
 
     if (!selectedRes.error && selectedRes.data) {
-      setEditActivityIds(selectedRes.data.map((s: any) => s.extra_id));
+      setEditActivityIds(
+        (selectedRes.data as ActivitySelection[]).map((s) => s.extra_id)
+      );
     } else {
       setEditActivityIds([]);
     }
@@ -973,6 +997,35 @@ export default function TournamentDetailPage() {
     await refresh();
   };
 
+  const setSideEventTargetRegistration = (
+    sideEventId: number,
+    registrationId: number | null
+  ) => {
+    setSideEventTargetRegistrationIds((prev) => {
+      const next = new Map(prev);
+      next.set(sideEventId, registrationId);
+      return next;
+    });
+
+    const existing = registrationId
+      ? (sideEventRegs.get(sideEventId) ?? []).find(
+          (r) => r.registration_id === registrationId
+        )
+      : undefined;
+
+    setSideEventMealSelections((prev) => {
+      const next = new Map(prev);
+      next.set(sideEventId, existing?.meal_selected ?? null);
+      return next;
+    });
+
+    setSideEventLodgingSelections((prev) => {
+      const next = new Map(prev);
+      next.set(sideEventId, existing?.lodging_selected ?? null);
+      return next;
+    });
+  };
+
   const applySideEvent = async (sideEventId: number) => {
     const supabase = createClient();
     setMsg("");
@@ -985,9 +1038,22 @@ export default function TournamentDetailPage() {
       setMsg("관리자 승인 대기 상태입니다. 승인 후 신청할 수 있어요.");
       return;
     }
-    const nick = nickname.trim() || profileNickname.trim();
-    if (!nick) {
-      setMsg("닉네임을 입력해줘.");
+
+    const targetRegistrationId =
+      sideEventTargetRegistrationIds.get(sideEventId) ?? null;
+    if (!targetRegistrationId) {
+      setMsg("라운드에 등록할 참가자를 먼저 선택해주세요.");
+      return;
+    }
+
+    const targetReg = regs.find(
+      (r) =>
+        r.id === targetRegistrationId &&
+        r.registering_user_id === uid &&
+        r.status !== "canceled"
+    );
+    if (!targetReg) {
+      setMsg("선택한 참가자의 참가 신청 정보를 찾을 수 없습니다.");
       return;
     }
 
@@ -995,15 +1061,17 @@ export default function TournamentDetailPage() {
     const lodgingSelected = sideEventLodgingSelections.get(sideEventId) ?? null;
 
     const existing = (sideEventRegs.get(sideEventId) ?? []).find(
-      (r) => r.user_id === uid
+      (r) => r.registration_id === targetReg.id
     );
 
     if (existing) {
       const { error } = await supabase
         .from("side_event_registrations")
         .update({
-          nickname: nick,
-          memo: memo.trim() || null,
+          registration_id: targetReg.id,
+          user_id: targetReg.user_id,
+          nickname: targetReg.nickname,
+          memo: null,
           status: "applied",
           meal_selected: mealSelected,
           lodging_selected: lodgingSelected,
@@ -1028,9 +1096,10 @@ export default function TournamentDetailPage() {
       .from("side_event_registrations")
       .insert({
         side_event_id: sideEventId,
-        user_id: uid,
-        nickname: nick,
-        memo: memo.trim() || null,
+        registration_id: targetReg.id,
+        user_id: targetReg.user_id,
+        nickname: targetReg.nickname,
+        memo: null,
         status: "applied",
         meal_selected: mealSelected,
         lodging_selected: lodgingSelected,
@@ -1052,10 +1121,17 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    const targetRegistrationId =
+      sideEventTargetRegistrationIds.get(sideEventId) ?? null;
+    if (!targetRegistrationId) {
+      setMsg("취소할 참가자를 먼저 선택해주세요.");
+      return;
+    }
+
     const regs = sideEventRegs.get(sideEventId) ?? [];
-    const mine = regs.find((r) => r.user_id === uid);
+    const mine = regs.find((r) => r.registration_id === targetRegistrationId);
     if (!mine) {
-      setMsg("이 라운드의 신청 내역이 없어.");
+      setMsg("선택한 참가자의 라운드 신청 내역이 없습니다.");
       return;
     }
 
@@ -1075,8 +1151,8 @@ export default function TournamentDetailPage() {
   const myParticipantList = regs.filter(
     (r) => r.registering_user_id === user?.id
   );
-  const hasActiveRegistration = regs.some(
-    (r) => r.registering_user_id === user?.id && r.status !== "canceled"
+  const activeMyParticipantList = myParticipantList.filter(
+    (r) => r.status !== "canceled"
   );
 
   const formatStatus = (status: Registration["status"]) =>
@@ -1124,14 +1200,54 @@ export default function TournamentDetailPage() {
             </Card>
 
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-              <Card className="border-slate-200/70">
+              <div className="flex justify-center lg:hidden">
+                <Button
+                  onClick={() => setIsApplySheetOpen(true)}
+                  className="inline-flex w-auto max-w-full px-5"
+                >
+                  참가신청 열기
+                </Button>
+              </div>
+
+              {isApplySheetOpen && (
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+                  aria-label="참가 신청 시트 닫기"
+                  onClick={() => setIsApplySheetOpen(false)}
+                />
+              )}
+
+              <Card
+                className={`border-slate-200/70 ${
+                  isApplySheetOpen
+                    ? "fixed inset-x-2 bottom-2 z-50 max-h-[88vh] overflow-hidden rounded-2xl lg:static lg:max-h-none lg:rounded-xl"
+                    : "hidden lg:block"
+                }`}
+              >
                 <CardHeader>
                   <CardTitle>참가 신청</CardTitle>
                   <CardDescription>
                     현황은 공개(A). 신청은 로그인 필요.
                   </CardDescription>
+                  <div className="lg:hidden">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsApplySheetOpen(false)}
+                    >
+                      닫기
+                    </Button>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent
+                  className={`space-y-4 overflow-x-hidden ${
+                    isApplySheetOpen
+                      ? "max-h-[calc(88vh-180px)] overflow-y-auto pb-6"
+                      : ""
+                  }`}
+                >
                   <div className="space-y-2">
                     <label className="text-sm font-medium">닉네임 (프로필)</label>
                     <Input
@@ -1231,7 +1347,7 @@ export default function TournamentDetailPage() {
                       onClick={() => setTransportation("미정")}
                       className="text-xs"
                     >
-                      "미정"으로 입력
+                      미정으로 입력
                     </Button>
                   </div>
 
@@ -1249,7 +1365,7 @@ export default function TournamentDetailPage() {
                       onClick={() => setDepartureLocation("미정")}
                       className="text-xs"
                     >
-                      "미정"으로 입력
+                      미정으로 입력
                     </Button>
                   </div>
 
@@ -1507,14 +1623,56 @@ export default function TournamentDetailPage() {
 
               {/* 제3자 등록 (로그인만 하면 항상 표시) */}
               {user && (
-                <Card className="border-slate-200/70">
-                  <CardHeader>
-                    <CardTitle>추가 참가자 등록 (제3자)</CardTitle>
-                    <CardDescription>
-                      본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
+                <>
+                  <div className="flex justify-center lg:hidden">
+                    <Button
+                      onClick={() => setIsAddParticipantSheetOpen(true)}
+                      className="inline-flex w-auto max-w-full px-5"
+                      variant="outline"
+                    >
+                      추가 참가자 등록 열기
+                    </Button>
+                  </div>
+
+                  {isAddParticipantSheetOpen && (
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+                      aria-label="추가 참가자 등록 시트 닫기"
+                      onClick={() => setIsAddParticipantSheetOpen(false)}
+                    />
+                  )}
+
+                  <Card
+                    className={`border-slate-200/70 ${
+                      isAddParticipantSheetOpen
+                        ? "fixed inset-x-2 bottom-2 z-50 max-h-[88vh] overflow-hidden rounded-2xl lg:static lg:max-h-none lg:rounded-xl"
+                        : "hidden lg:block"
+                    }`}
+                  >
+                    <CardHeader>
+                      <CardTitle>추가 참가자 등록 (제3자)</CardTitle>
+                      <CardDescription>
+                        본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
+                      </CardDescription>
+                      <div className="lg:hidden">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsAddParticipantSheetOpen(false)}
+                        >
+                          닫기
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent
+                      className={`space-y-3 overflow-x-hidden ${
+                        isAddParticipantSheetOpen
+                          ? "max-h-[calc(88vh-180px)] overflow-y-auto pb-6"
+                          : ""
+                      }`}
+                    >
                     <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                       <div className="space-y-1">
                         <label className="text-xs font-medium">닉네임</label>
@@ -1611,8 +1769,9 @@ export default function TournamentDetailPage() {
                     <Button onClick={addParticipant} size="sm" className="w-full sm:w-auto" disabled={loadingAction === 'addParticipant'}>
                       {loadingAction === 'addParticipant' ? "등록중..." : "추가 참가자 등록"}
                     </Button>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </>
               )}
             </div>
 
@@ -1762,6 +1921,16 @@ export default function TournamentDetailPage() {
                 </h2>
                 {sideEvents.map((se) => {
                   const seRegs = sideEventRegs.get(se.id) ?? [];
+                  const selectedTargetRegistrationId =
+                    sideEventTargetRegistrationIds.get(se.id) ?? null;
+                  const selectedTargetParticipant = activeMyParticipantList.find(
+                    (r) => r.id === selectedTargetRegistrationId
+                  );
+                  const selectedTargetSideReg = selectedTargetRegistrationId
+                    ? seRegs.find(
+                        (r) => r.registration_id === selectedTargetRegistrationId
+                      )
+                    : undefined;
                   return (
                     <Card key={se.id} className="border-slate-200/70">
                       <CardHeader>
@@ -1789,6 +1958,45 @@ export default function TournamentDetailPage() {
                         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
                           <div className="space-y-3">
                             <h3 className="font-medium">라운드 신청</h3>
+
+                            {activeMyParticipantList.length > 0 && (
+                              <div className="space-y-1">
+                                <label className="text-sm font-medium">
+                                  참가자 선택
+                                </label>
+                                <select
+                                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                  value={selectedTargetRegistrationId ?? ""}
+                                  onChange={(e) =>
+                                    setSideEventTargetRegistration(
+                                      se.id,
+                                      e.target.value ? Number(e.target.value) : null
+                                    )
+                                  }
+                                >
+                                  <option value="">참가자 선택</option>
+                                  {activeMyParticipantList.map((participant) => (
+                                    <option
+                                      key={participant.id}
+                                      value={participant.id}
+                                    >
+                                      {participant.nickname}
+                                      {participant.user_id === null ? " (제3자)" : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                                {selectedTargetParticipant && (
+                                  <p className="text-xs text-slate-500">
+                                    선택됨: {selectedTargetParticipant.nickname}
+                                    {selectedTargetSideReg
+                                      ? ` · 현재 라운드 상태: ${formatStatus(
+                                          selectedTargetSideReg.status as Registration["status"]
+                                        )}`
+                                      : " · 현재 라운드 신청 없음"}
+                                  </p>
+                                )}
+                              </div>
+                            )}
 
                             {/* Meal option selection */}
                             {se.meal_option_id && (

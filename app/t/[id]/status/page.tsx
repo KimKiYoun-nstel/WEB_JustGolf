@@ -49,6 +49,8 @@ type MealOption = {
 type SideEventReg = {
   id: number;
   side_event_id: number;
+  registration_id: number;
+  participant_nickname: string;
   side_event_title: string;
   round_type: string;
   status: string;
@@ -157,38 +159,81 @@ export default function MyStatusPage() {
       }
     }
 
-    // 5. 라운드 신청 현황
-    const sideRes = await supabase
-      .from("side_event_registrations")
-      .select("id,side_event_id,status,memo,meal_selected,lodging_selected")
-      .eq("user_id", user.id);
+    // 5. 라운드 신청 현황 (본인 + 내가 등록한 제3자 포함)
+    const myRegsRes = await supabase
+      .from("registrations")
+      .select("id,nickname,status")
+      .eq("tournament_id", tournamentId)
+      .eq("registering_user_id", user.id)
+      .neq("status", "canceled");
 
-    if (!sideRes.error && sideRes.data) {
-      const sideRegs = sideRes.data as any[];
-      
-      // 각 라운드의 정보를 조회
-      const enrichedRegs: SideEventReg[] = [];
-      for (const sr of sideRegs) {
-        const seRes = await supabase
-          .from("side_events")
-          .select("id,tournament_id,title,round_type")
-          .eq("id", sr.side_event_id)
-          .single();
+    if (!myRegsRes.error && myRegsRes.data) {
+      const myRegs = myRegsRes.data as Array<{
+        id: number;
+        nickname: string;
+        status: string;
+      }>;
+      const regIdList = myRegs.map((r) => r.id);
+      const regNameMap = new Map<number, string>(
+        myRegs.map((r) => [r.id, r.nickname])
+      );
 
-        if (!seRes.error && seRes.data && seRes.data.tournament_id === tournamentId) {
-          enrichedRegs.push({
-            id: sr.id,
-            side_event_id: sr.side_event_id,
-            side_event_title: seRes.data.title,
-            round_type: seRes.data.round_type,
-            status: sr.status,
-            memo: sr.memo,
-            meal_selected: sr.meal_selected,
-            lodging_selected: sr.lodging_selected,
-          });
+      if (regIdList.length > 0) {
+        const sideRes = await supabase
+          .from("side_event_registrations")
+          .select(
+            "id,side_event_id,registration_id,status,memo,meal_selected,lodging_selected"
+          )
+          .in("registration_id", regIdList);
+
+        if (!sideRes.error && sideRes.data) {
+          const sideRegs = sideRes.data as Array<{
+            id: number;
+            side_event_id: number;
+            registration_id: number;
+            status: string;
+            memo: string | null;
+            meal_selected: boolean;
+            lodging_selected: boolean;
+          }>;
+
+          const enrichedRegs: SideEventReg[] = [];
+          for (const sr of sideRegs) {
+            const seRes = await supabase
+              .from("side_events")
+              .select("id,tournament_id,title,round_type")
+              .eq("id", sr.side_event_id)
+              .single();
+
+            if (
+              !seRes.error &&
+              seRes.data &&
+              seRes.data.tournament_id === tournamentId
+            ) {
+              enrichedRegs.push({
+                id: sr.id,
+                side_event_id: sr.side_event_id,
+                registration_id: sr.registration_id,
+                participant_nickname:
+                  regNameMap.get(sr.registration_id) ?? "알 수 없음",
+                side_event_title: seRes.data.title,
+                round_type: seRes.data.round_type,
+                status: sr.status,
+                memo: sr.memo,
+                meal_selected: sr.meal_selected,
+                lodging_selected: sr.lodging_selected,
+              });
+            }
+          }
+          setSideEventRegs(enrichedRegs);
+        } else {
+          setSideEventRegs([]);
         }
+      } else {
+        setSideEventRegs([]);
       }
-      setSideEventRegs(enrichedRegs);
+    } else {
+      setSideEventRegs([]);
     }
 
     // 6. 선택한 활동 조회
@@ -199,7 +244,9 @@ export default function MyStatusPage() {
       .eq("selected", true);
 
     if (!selectedRes.error && selectedRes.data) {
-      const extraIds = selectedRes.data.map((s: any) => s.extra_id);
+      const extraIds = selectedRes.data.map(
+        (s: { extra_id: number }) => s.extra_id
+      );
       
       if (extraIds.length > 0) {
         const extrasRes = await supabase
@@ -416,6 +463,9 @@ export default function MyStatusPage() {
                         <p className="font-medium text-slate-900">
                           {sr.round_type === "pre" ? "📍 사전" : "📍 사후"}{" "}
                           {sr.side_event_title}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          참가자: {sr.participant_nickname}
                         </p>
                         {sr.memo && (
                           <p className="text-sm text-slate-600">{sr.memo}</p>

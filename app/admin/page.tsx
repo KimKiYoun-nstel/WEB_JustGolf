@@ -90,7 +90,7 @@ export default function AdminHomePage() {
             <div>
               <p className="font-semibold">1️⃣ 새 대회 생성</p>
               <p className="ml-4 text-slate-600">
-                대회 管리 → "새 대회 만들기" 클릭 → 필수정보 입력
+                대회 관리 → "새 대회 만들기" 클릭 → 필수정보 입력
               </p>
             </div>
             <div>
