@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
 import { TOURNAMENT_FILES_BUCKET } from "../../../lib/storage";
+import { formatRegistrationStatus, formatTournamentStatus } from "../../../lib/statusLabels";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
@@ -31,13 +32,15 @@ type Tournament = {
   event_date: string;
   course_name: string | null;
   location: string | null;
+  tee_time: string | null;
   notes: string | null;
   status: string;
 };
 
 type Registration = {
   id: number;
-  user_id: string;
+  user_id: string | null;                     // NULL이면 제3자
+  registering_user_id: string;                 // 실제 신청한 회원
   nickname: string;
   status: "applied" | "approved" | "waitlisted" | "canceled" | "undecided";
   memo: string | null;
@@ -108,12 +111,11 @@ type TournamentExtra = {
 
 type PrizeSupport = {
   id: number;
-  supporter_id: string;
-  supporter_name: string | null;
   item_name: string;
   note: string | null;
   created_at: string;
 };
+
 
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
@@ -146,17 +148,26 @@ export default function TournamentDetailPage() {
   const [transportation, setTransportation] = useState("");
   const [departureLocation, setDepartureLocation] = useState("");
   const [extraNotes, setExtraNotes] = useState("");
-  const [carpoolPublic, setCarpoolPublic] = useState<CarpoolPublic[]>([]);
   const [sideEventMealSelections, setSideEventMealSelections] = useState<Map<number, boolean | null>>(new Map());
   const [sideEventLodgingSelections, setSideEventLodgingSelections] = useState<Map<number, boolean | null>>(new Map());
   const [extraName, setExtraName] = useState("");
   const [extraRelation, setExtraRelation] = useState("");
   const [extraStatus, setExtraStatus] = useState<Registration["status"]>("applied");
   const [extraMemo, setExtraMemo] = useState("");
-  const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
+  const [extraMealId, setExtraMealId] = useState<number | null>(null);
+  const [extraActivityIds, setExtraActivityIds] = useState<number[]>([]);
   const [prizeItem, setPrizeItem] = useState("");
   const [prizeNote, setPrizeNote] = useState("");
+  const [prizeSupports, setPrizeSupports] = useState<PrizeSupport[]>([]);
+  const [editingPrizeId, setEditingPrizeId] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [editingParticipant, setEditingParticipant] = useState<Registration | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRelation, setEditRelation] = useState("");
+  const [editMemo, setEditMemo] = useState("");
+  const [editMealId, setEditMealId] = useState<number | null>(null);
+  const [editActivityIds, setEditActivityIds] = useState<number[]>([]);
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 신청했습니다.";
@@ -193,7 +204,7 @@ export default function TournamentDetailPage() {
 
     const tRes = await supabase
       .from("tournaments")
-      .select("id,title,event_date,course_name,location,notes,status")
+      .select("id,title,event_date,course_name,location,tee_time,notes,status")
       .eq("id", tournamentId)
       .single();
 
@@ -207,7 +218,7 @@ export default function TournamentDetailPage() {
 
     const rRes = await supabase
       .from("registrations")
-      .select("id,user_id,nickname,status,memo,meal_option_id,relation")
+      .select("id,user_id,registering_user_id,nickname,status,memo,meal_option_id,relation")
       .eq("tournament_id", tournamentId)
       .order("id", { ascending: true });
 
@@ -215,13 +226,14 @@ export default function TournamentDetailPage() {
       setMsg(`신청 현황 조회 실패: ${friendlyError(rRes.error)}`);
     } else {
       const regList = (rRes.data ?? []) as Registration[];
-      const myRegs = uid ? regList.filter((r) => r.user_id === uid) : [];
+      // 내가 등록한 모든 참가자 (본인 + 제3자)
+      const myRegs = uid ? regList.filter((r) => r.registering_user_id === uid) : [];
       const activeMyRegs = myRegs.filter((r) => r.status !== "canceled");
+      
+      // 본인 등록 찾기 (user_id === uid)
       const preferredMain =
-        activeMyRegs.find((r) => (r.relation ?? "").trim() === "본인") ??
-        activeMyRegs[0] ??
-        myRegs.find((r) => (r.relation ?? "").trim() === "본인") ??
-        myRegs[0];
+        activeMyRegs.find((r) => r.user_id === uid) ??
+        myRegs.find((r) => r.user_id === uid);
 
       mainRegIdForExtras = preferredMain?.id ?? null;
 
@@ -319,36 +331,6 @@ export default function TournamentDetailPage() {
       setMealOptions((mealRes.data ?? []) as MealOption[]);
     }
 
-    const carpoolRes = await supabase.rpc("get_carpool_public", {
-      p_tournament_id: tournamentId,
-    });
-
-    if (!carpoolRes.error) {
-      setCarpoolPublic((carpoolRes.data ?? []) as CarpoolPublic[]);
-    } else {
-      setCarpoolPublic([]);
-    }
-
-    const prizeRes = await supabase
-      .from("tournament_prize_supports")
-      .select("id,user_id,item_name,note,created_at,profiles(nickname)")
-      .eq("tournament_id", tournamentId)
-      .order("created_at", { ascending: true });
-
-    if (!prizeRes.error) {
-      const mapped = (prizeRes.data ?? []).map((row: any) => ({
-        id: row.id,
-        supporter_id: row.user_id,
-        supporter_name: row.profiles?.nickname ?? null,
-        item_name: row.item_name,
-        note: row.note ?? null,
-        created_at: row.created_at,
-      }));
-      setPrizes(mapped as PrizeSupport[]);
-    } else {
-      setPrizes([]);
-    }
-
     // Load tournament extras (활동)
     const extrasRes = await supabase
       .from("tournament_extras")
@@ -377,6 +359,23 @@ export default function TournamentDetailPage() {
     } else {
       setSelectedExtras([]);
     }
+
+    if (uid) {
+      const prizeRes = await supabase
+        .from("tournament_prize_supports")
+        .select("id,item_name,note,created_at")
+        .eq("tournament_id", tournamentId)
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false });
+
+      if (!prizeRes.error) {
+        setPrizeSupports((prizeRes.data ?? []) as PrizeSupport[]);
+      } else {
+        setPrizeSupports([]);
+      }
+    } else {
+      setPrizeSupports([]);
+    }
   };
 
   useEffect(() => {
@@ -398,6 +397,23 @@ export default function TournamentDetailPage() {
       setMsg("관리자 승인 대기 상태입니다. 승인 후 신청할 수 있어요.");
       return;
     }
+    
+    // 대회 상태 확인
+    if (!t) {
+      setMsg("대회 정보를 찾을 수 없습니다.");
+      return;
+    }
+    if (t.status !== "open") {
+      const statusLabel = 
+        t.status === "draft" ? "아직 모집을 시작하지 않은" :
+        t.status === "closed" ? "모집을 마감한" :
+        t.status === "done" ? "완료된" :
+        t.status === "deleted" ? "삭제된" :
+        "";
+      setMsg(`${statusLabel} 대회입니다. 신청할 수 없습니다.`);
+      return;
+    }
+    
     const nick = profileNickname.trim();
     if (!nick) {
       setMsg("프로필 닉네임이 설정되지 않았습니다. 프로필 페이지에서 설정해주세요.");
@@ -446,6 +462,7 @@ export default function TournamentDetailPage() {
         .insert({
           tournament_id: tournamentId,
           user_id: uid,
+          registering_user_id: uid,        // 본인 신청
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
@@ -467,12 +484,20 @@ export default function TournamentDetailPage() {
     // 추가 정보(카풀 등) 저장
     if (registrationId) {
       const saved = await upsertExtras(registrationId);
-      if (!saved) return;
+      if (!saved) {
+        setLoadingAction(null);
+        return;
+      }
 
       const activitySaved = await upsertActivitySelections(registrationId);
-      if (!activitySaved) return;
+      if (!activitySaved) {
+        setLoadingAction(null);
+        return;
+      }
     }
 
+    setLoadingAction(null);
+    setMsg("✅ 신청이 완료되었습니다.");
     await refresh();
   };
 
@@ -491,14 +516,22 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    if (!confirm(`${mine.nickname}님의 신청을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    setLoadingAction('cancel-main');
+
     const { error } = await supabase
       .from("registrations")
-      .update({ status: "canceled" })
+      .delete()
       .eq("id", mine.id);
 
-    if (error) setMsg(`취소 실패: ${friendlyError(error)}`);
+    setLoadingAction(null);
+
+    if (error) setMsg(`삭제 실패: ${friendlyError(error)}`);
     else {
-      setMsg("취소 완료");
+      setMsg("✅ 신청이 삭제되었습니다.");
       await refresh();
     }
   };
@@ -518,38 +551,77 @@ export default function TournamentDetailPage() {
 
     const name = extraName.trim();
     if (!name) {
-      setMsg("추가 참가자 이름을 입력해줘.");
+      setMsg("닉네임을 입력해주세요.");
+      return;
+    }
+
+    const nameLower = name.toLowerCase();
+    const duplicate = regs.find((r) => r.nickname.trim().toLowerCase() === nameLower);
+    if (duplicate) {
+      setMsg("이미 사용 중인 닉네임입니다.");
       return;
     }
 
     const rel = extraRelation.trim() || null;
     const status = extraStatus === "canceled" ? "applied" : extraStatus;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("registrations")
       .insert({
         tournament_id: tournamentId,
-        user_id: uid,
+        user_id: null,                    // 제3자는 NULL
+        registering_user_id: uid,         // 실제 신청한 회원
         nickname: name,
         relation: rel,
         memo: extraMemo.trim() || null,
+        meal_option_id: extraMealId,
         status,
-      });
+      })
+      .select("id")
+      .single();
 
     if (error) {
       setMsg(`추가 참가자 등록 실패: ${friendlyError(error)}`);
       return;
     }
 
+    const registrationId = data?.id;
+    if (!registrationId) {
+      setMsg("등록 ID를 가져올 수 없습니다.");
+      return;
+    }
+
+    // 참여 활동 저장
+    if (extraActivityIds.length > 0) {
+      const activityInserts = extraActivityIds.map((extraId) => ({
+        registration_id: registrationId,
+        extra_id: extraId,
+        selected: true,
+      }));
+
+      const { error: actError } = await supabase
+        .from("registration_activity_selections")
+        .insert(activityInserts);
+
+      if (actError) {
+        setLoadingAction(null);
+        setMsg(`활동 선택 저장 실패: ${friendlyError(actError)}`);
+        return;
+      }
+    }
+
+    setLoadingAction(null);
     setExtraName("");
     setExtraRelation("");
     setExtraStatus("applied");
     setExtraMemo("");
-    setMsg("추가 참가자가 등록되었습니다.");
+    setExtraMealId(null);
+    setExtraActivityIds([]);
+    setMsg("✅ 추가 참가자가 등록되었습니다.");
     await refresh();
   };
 
-  const cancelParticipant = async (registrationId: number) => {
+  const deleteParticipant = async (registrationId: number) => {
     const supabase = createClient();
     setMsg("");
     const uid = user?.id;
@@ -558,23 +630,133 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    const target = regs.find((r) => r.id === registrationId && r.user_id === uid);
+    // 본인 또는 내가 등록한 제3자인지 확인
+    const target = regs.find((r) => r.id === registrationId && r.registering_user_id === uid);
     if (!target) {
-      setMsg("참가자 정보를 찾을 수 없습니다.");
+      setMsg("삭제 권한이 없습니다.");
       return;
     }
 
+    if (!confirm(`${target.nickname}님의 신청을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    setLoadingAction(`delete-${registrationId}`);
+
     const { error } = await supabase
       .from("registrations")
-      .update({ status: "canceled" })
+      .delete()
       .eq("id", target.id);
 
+    setLoadingAction(null);
+
     if (error) {
-      setMsg(`취소 실패: ${friendlyError(error)}`);
+      setMsg(`삭제 실패: ${friendlyError(error)}`);
     } else {
-      setMsg("참가 취소 완료");
+      setMsg("✅ 신청이 삭제되었습니다.");
       await refresh();
     }
+  };
+
+  const startEditParticipant = async (registrationId: number) => {
+    const participant = regs.find((r) => r.id === registrationId);
+    if (!participant || participant.user_id !== null) {
+      setMsg("제3자 등록만 수정할 수 있습니다.");
+      return;
+    }
+
+    setEditingParticipant(participant);
+    setEditName(participant.nickname);
+    setEditRelation(participant.relation ?? "");
+    setEditMemo(participant.memo ?? "");
+    setEditMealId(participant.meal_option_id ?? null);
+
+    // Load activity selections
+    const supabase = createClient();
+    const selectedRes = await supabase
+      .from("registration_activity_selections")
+      .select("extra_id")
+      .eq("registration_id", registrationId)
+      .eq("selected", true);
+
+    if (!selectedRes.error && selectedRes.data) {
+      setEditActivityIds(selectedRes.data.map((s: any) => s.extra_id));
+    } else {
+      setEditActivityIds([]);
+    }
+  };
+
+  const saveEditParticipant = async () => {
+    const supabase = createClient();
+    setMsg("");
+    const uid = user?.id;
+    if (!uid || !editingParticipant) {
+      setMsg("로그인 필요");
+      return;
+    }
+
+    const name = editName.trim();
+    if (!name) {
+      setMsg("닉네임을 입력해주세요.");
+      return;
+    }
+
+    const nameLower = name.toLowerCase();
+    const duplicate = regs.find(
+      (r) => r.id !== editingParticipant.id && r.nickname.trim().toLowerCase() === nameLower
+    );
+    if (duplicate) {
+      setMsg("이미 사용 중인 닉네임입니다.");
+      return;
+    }
+
+    setLoadingAction(`edit-${editingParticipant.id}`);
+
+    // Update registration
+    const { error } = await supabase
+      .from("registrations")
+      .update({
+        nickname: name,
+        relation: editRelation.trim() || null,
+        memo: editMemo.trim() || null,
+        meal_option_id: editMealId,
+      })
+      .eq("id", editingParticipant.id);
+
+    if (error) {
+      setLoadingAction(null);
+      setMsg(`수정 실패: ${friendlyError(error)}`);
+      return;
+    }
+
+    // Update activity selections
+    await supabase
+      .from("registration_activity_selections")
+      .delete()
+      .eq("registration_id", editingParticipant.id);
+
+    if (editActivityIds.length > 0) {
+      const activityInserts = editActivityIds.map((extraId) => ({
+        registration_id: editingParticipant.id,
+        extra_id: extraId,
+        selected: true,
+      }));
+
+      const { error: actError } = await supabase
+        .from("registration_activity_selections")
+        .insert(activityInserts);
+
+      if (actError) {
+        setLoadingAction(null);
+        setMsg(`활동 선택 저장 실패: ${friendlyError(actError)}`);
+        return;
+      }
+    }
+
+    setLoadingAction(null);
+    setEditingParticipant(null);
+    setMsg("✅ 참가자 정보가 수정되었습니다.");
+    await refresh();
   };
 
   const addPrizeSupport = async () => {
@@ -592,6 +774,39 @@ export default function TournamentDetailPage() {
       return;
     }
 
+    if (editingPrizeId) {
+      const { error } = await supabase
+        .from("tournament_prize_supports")
+        .update({
+          item_name: item,
+          note: prizeNote.trim() || null,
+        })
+        .eq("id", editingPrizeId);
+
+      if (error) {
+        setMsg(`경품 지원 수정 실패: ${friendlyError(error)}`);
+        return;
+      }
+
+      setEditingPrizeId(null);
+      setPrizeItem("");
+      setPrizeNote("");
+      setMsg("경품 지원이 수정되었습니다.");
+      await refresh();
+      return;
+    }
+
+    let supporterNickname: string | null = null;
+    const profileRes = await supabase
+      .from("profiles")
+      .select("nickname")
+      .eq("id", uid)
+      .single();
+
+    if (!profileRes.error) {
+      supporterNickname = profileRes.data?.nickname ?? null;
+    }
+
     const { error } = await supabase
       .from("tournament_prize_supports")
       .insert({
@@ -599,6 +814,7 @@ export default function TournamentDetailPage() {
         user_id: uid,
         item_name: item,
         note: prizeNote.trim() || null,
+        supporter_nickname: supporterNickname,
       });
 
     if (error) {
@@ -609,6 +825,49 @@ export default function TournamentDetailPage() {
     setPrizeItem("");
     setPrizeNote("");
     setMsg("경품 지원이 등록되었습니다.");
+    await refresh();
+  };
+
+  const startEditPrizeSupport = (support: PrizeSupport) => {
+    setEditingPrizeId(support.id);
+    setPrizeItem(support.item_name);
+    setPrizeNote(support.note ?? "");
+  };
+
+  const cancelEditPrizeSupport = () => {
+    setEditingPrizeId(null);
+    setPrizeItem("");
+    setPrizeNote("");
+  };
+
+  const deletePrizeSupport = async (supportId: number, itemName: string) => {
+    const supabase = createClient();
+    setMsg("");
+    const uid = user?.id;
+    if (!uid) {
+      setMsg("경품 지원을 삭제하려면 로그인 필요");
+      return;
+    }
+
+    if (!confirm(`"${itemName}" 경품 지원을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("tournament_prize_supports")
+      .delete()
+      .eq("id", supportId);
+
+    if (error) {
+      setMsg(`경품 지원 삭제 실패: ${friendlyError(error)}`);
+      return;
+    }
+
+    if (editingPrizeId === supportId) {
+      cancelEditPrizeSupport();
+    }
+
+    setMsg("✅ 경품 지원이 삭제되었습니다.");
     await refresh();
   };
 
@@ -669,6 +928,16 @@ export default function TournamentDetailPage() {
     const uid = user?.id;
     if (!uid) {
       setMsg("로그인 필요");
+      return;
+    }
+
+    // 대회 상태 확인 (open 상태일 때만 수정 가능)
+    if (!t) {
+      setMsg("대회 정보를 찾을 수 없습니다.");
+      return;
+    }
+    if (t.status !== "open") {
+      setMsg("모집 중인 대회만 정보를 수정할 수 있습니다.");
       return;
     }
 
@@ -802,21 +1071,17 @@ export default function TournamentDetailPage() {
     }
   };
 
+  // 내가 등록한 모든 참가자 (본인 + 제3자)
   const myParticipantList = regs.filter(
-    (r) => r.user_id === me && r.id !== mainRegId
+    (r) => r.registering_user_id === user?.id
   );
   const hasActiveRegistration = regs.some(
-    (r) => r.user_id === me && r.status !== "canceled"
+    (r) => r.registering_user_id === user?.id && r.status !== "canceled"
   );
 
-  const formatStatus = (status: Registration["status"]) => {
-    if (status === "undecided") return "미정";
-    if (status === "applied") return "신청";
-    if (status === "approved") return "확정";
-    if (status === "waitlisted") return "대기";
-    if (status === "canceled") return "취소";
-    return status;
-  };
+  const formatStatus = (status: Registration["status"]) =>
+    formatRegistrationStatus(status);
+  const applicantCount = regs.filter((r) => r.status === "applied").length;
 
   return (
     <main className="min-h-screen bg-slate-50/70">
@@ -834,12 +1099,10 @@ export default function TournamentDetailPage() {
                 <CardTitle className="flex items-center justify-between gap-3">
                   <span>{t.title}</span>
                   <Badge variant="secondary" className="capitalize">
-                    {t.status}
+                    {formatTournamentStatus(t.status)}
                   </Badge>
                 </CardTitle>
-                <CardDescription>
-                  {t.event_date} · {t.course_name ?? "-"} · {t.location ?? "-"}
-                </CardDescription>
+                <CardDescription>대회 정보 요약</CardDescription>
                 <div className="mt-3 flex justify-center">
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${tournamentId}/participants`}>
@@ -848,11 +1111,16 @@ export default function TournamentDetailPage() {
                   </Button>
                 </div>
               </CardHeader>
-              {t.notes && (
-                <CardContent>
-                  <p className="text-sm text-slate-600">{t.notes}</p>
-                </CardContent>
-              )}
+              <CardContent>
+                <div className="grid gap-1 text-sm text-slate-600">
+                  <div>일자: {t.event_date}</div>
+                  <div>코스: {t.course_name ?? "-"}</div>
+                  <div>지역: {t.location ?? "-"}</div>
+                  <div>첫 티오프: {t.tee_time ?? "-"}</div>
+                  <div>신청자 수: {applicantCount}명</div>
+                  <div>메모: {t.notes ?? "-"}</div>
+                </div>
+              </CardContent>
             </Card>
 
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -959,7 +1227,7 @@ export default function TournamentDetailPage() {
                     <Button
                       type="button"
                       size="sm"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => setTransportation("미정")}
                       className="text-xs"
                     >
@@ -977,7 +1245,7 @@ export default function TournamentDetailPage() {
                     <Button
                       type="button"
                       size="sm"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={() => setDepartureLocation("미정")}
                       className="text-xs"
                     >
@@ -1047,24 +1315,29 @@ export default function TournamentDetailPage() {
                   )}
 
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={apply} size="sm">
-                      {regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
+                    <Button onClick={apply} size="sm" disabled={loadingAction === 'apply'}>
+                      {loadingAction === 'apply' ? "처리중..." : regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
                     </Button>
                     <Button onClick={saveExtras} variant="secondary" size="sm">
                       저장
                     </Button>
-                    <Button onClick={cancelMine} variant="outline" size="sm">
-                      신청 취소
+                    <Button onClick={cancelMine} variant="outline" size="sm" disabled={loadingAction === 'cancel-main'}>
+                      {loadingAction === 'cancel-main' ? "삭제중..." : "신청 삭제"}
                     </Button>
-                    <Button onClick={refresh} variant="ghost" size="sm">
+                    <Button onClick={refresh} variant="secondary" size="sm">
                       새로고침
                     </Button>
                   </div>
 
-                  {msg && <p className="text-sm text-slate-600">{msg}</p>}
+                  {msg && (
+                    <div className={`text-sm p-3 rounded-md ${msg.startsWith('✅') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-50 text-slate-700 border border-slate-200'}`}>
+                      {msg}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
+              {/* 내 참가자 목록 (등록한 참가자가 있을 때만 표시) */}
               {user && myParticipantList.length > 0 && (
                 <Card className="border-slate-200/70">
                   <CardHeader>
@@ -1073,195 +1346,358 @@ export default function TournamentDetailPage() {
                       내 계정으로 신청한 모든 참가자입니다.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="overflow-x-auto -mx-6">
+                  <CardContent>
+                    <div className="overflow-x-auto rounded-md border border-slate-200">
                       <Table>
                         <TableHeader>
-                          <TableRow>
-                            <TableHead>닉네임</TableHead>
-                            <TableHead>관계</TableHead>
-                            <TableHead>상태</TableHead>
-                            <TableHead>작업</TableHead>
+                          <TableRow className="bg-slate-50">
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">닉네임</TableHead>
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">관계</TableHead>
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center">상태</TableHead>
+                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center w-[160px]">액션</TableHead>
                           </TableRow>
                         </TableHeader>
-                      <TableBody>
-                        {myParticipantList.map((p) => (
-                          <TableRow key={p.id}>
-                            <TableCell>{p.nickname}</TableCell>
-                            <TableCell>{p.relation ?? "-"}</TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{formatStatus(p.status)}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              {p.status !== "canceled" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => cancelParticipant(p.id)}
-                                >
-                                  취소
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        <TableBody>
+                          {myParticipantList.map((p) => (
+                            <TableRow key={p.id}>
+                              <TableCell className="px-4">{p.nickname}</TableCell>
+                              <TableCell className="px-4">{p.relation ?? "-"}</TableCell>
+                              <TableCell className="px-4 text-center align-middle">
+                                <Badge variant={p.status === "approved" ? "default" : "outline"}>
+                                  {formatStatus(p.status)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="px-4 text-center align-middle whitespace-nowrap w-[160px]">
+                                <div className="inline-flex items-center justify-center gap-2 w-full">
+                                  {p.user_id === null && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => startEditParticipant(p.id)}
+                                      disabled={!!loadingAction}
+                                    >
+                                      수정
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => deleteParticipant(p.id)}
+                                    disabled={loadingAction === `delete-${p.id}`}
+                                  >
+                                    {loadingAction === `delete-${p.id}` ? "삭제중..." : "삭제"}
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 제3자 정보 수정 다이얼로그 */}
+              {user && editingParticipant && (
+                <Card className="border-blue-200 bg-blue-50/30">
+                  <CardHeader>
+                    <CardTitle className="text-blue-900">제3자 정보 수정</CardTitle>
+                    <CardDescription>
+                      {editingParticipant.nickname}님의 정보를 수정합니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">닉네임</label>
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          placeholder="예: 홍길동"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">관계</label>
+                        <Input
+                          value={editRelation}
+                          onChange={(e) => setEditRelation(e.target.value)}
+                          placeholder="예: 가족, 지인"
+                        />
+                      </div>
                     </div>
 
-                    <div className="border-t pt-4 space-y-3">
-                      <h3 className="font-medium text-sm">추가 참가자 등록</h3>
-                      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">닉네임</label>
-                          <Input
-                            value={extraName}
-                            onChange={(e) => setExtraName(e.target.value)}
-                            placeholder="참가자 이름"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">관계</label>
-                          <Input
-                            value={extraRelation}
-                            onChange={(e) => setExtraRelation(e.target.value)}
-                            placeholder="예: 가족, 지인"
-                          />
+                    {mealOptions.length > 0 && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">식사 메뉴</label>
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          value={editMealId ?? ""}
+                          onChange={(e) => setEditMealId(e.target.value ? Number(e.target.value) : null)}
+                        >
+                          <option value="">미정</option>
+                          {mealOptions.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.menu_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {tournamentExtras.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium">참여 활동</label>
+                        <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 max-h-40 overflow-y-auto">
+                          {tournamentExtras.map((extra) => (
+                            <label key={extra.id} className="flex items-start gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4"
+                                checked={editActivityIds.includes(extra.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditActivityIds([...editActivityIds, extra.id]);
+                                  } else {
+                                    setEditActivityIds(editActivityIds.filter((id) => id !== extra.id));
+                                  }
+                                }}
+                              />
+                              <div>
+                                <span className="font-medium">{extra.activity_name}</span>
+                                {extra.description && (
+                                  <p className="text-xs text-slate-500">{extra.description}</p>
+                                )}
+                              </div>
+                            </label>
+                          ))}
                         </div>
                       </div>
-                      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">상태</label>
-                          <select
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                            value={extraStatus}
-                            onChange={(e) =>
-                              setExtraStatus(e.target.value as Registration["status"])
-                            }
-                          >
-                            <option value="applied">신청</option>
-                            <option value="undecided">미정</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs font-medium">메모</label>
-                          <Input
-                            value={extraMemo}
-                            onChange={(e) => setExtraMemo(e.target.value)}
-                            placeholder="선택사항"
-                          />
-                        </div>
-                      </div>
-                      <Button onClick={addParticipant} size="sm">
-                        추가 참가자 등록
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">메모 (선택)</label>
+                      <Input
+                        value={editMemo}
+                        onChange={(e) => setEditMemo(e.target.value)}
+                        placeholder="특이사항 등"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={saveEditParticipant} 
+                        size="sm"
+                        disabled={loadingAction === `edit-${editingParticipant.id}`}
+                      >
+                        {loadingAction === `edit-${editingParticipant.id}` ? "저장중..." : "저장"}
+                      </Button>
+                      <Button 
+                        onClick={() => setEditingParticipant(null)} 
+                        variant="outline" 
+                        size="sm"
+                        disabled={!!loadingAction}
+                      >
+                        취소
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
               )}
-            </div>
 
-            <Card className="border-slate-200/70">
-              <CardHeader>
-                <CardTitle>카풀 매칭 현황</CardTitle>
-                <CardDescription>
-                  로그인 사용자에게 카풀 가능/좌석만 공개됩니다.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {carpoolPublic.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    카풀 제공자가 아직 없습니다.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto -mx-6">
-                    <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>닉네임</TableHead>
-                        <TableHead>제공 좌석</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {carpoolPublic.map((row) => (
-                        <TableRow key={row.registration_id}>
-                          <TableCell>{row.nickname}</TableCell>
-                          <TableCell>
-                            {row.carpool_seats ? `${row.carpool_seats}석` : "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              {/* 제3자 등록 (로그인만 하면 항상 표시) */}
+              {user && (
+                <Card className="border-slate-200/70">
+                  <CardHeader>
+                    <CardTitle>추가 참가자 등록 (제3자)</CardTitle>
+                    <CardDescription>
+                      본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">닉네임</label>
+                        <Input
+                          value={extraName}
+                          onChange={(e) => setExtraName(e.target.value)}
+                          placeholder="예: 홍길동"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">관계</label>
+                        <Input
+                          value={extraRelation}
+                          onChange={(e) => setExtraRelation(e.target.value)}
+                          placeholder="예: 가족, 지인"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">상태</label>
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                          value={extraStatus}
+                          onChange={(e) =>
+                            setExtraStatus(e.target.value as Registration["status"])
+                          }
+                        >
+                          <option value="applied">신청</option>
+                          <option value="undecided">미정</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">식사 메뉴</label>
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                          value={extraMealId ?? ""}
+                          onChange={(e) =>
+                            setExtraMealId(e.target.value ? Number(e.target.value) : null)
+                          }
+                        >
+                          <option value="">선택 안 함</option>
+                          {mealOptions
+                            .filter((m) => m.is_active)
+                            .sort((a, b) => a.display_order - b.display_order)
+                            .map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.menu_name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {tournamentExtras.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium">참여 활동 (선택)</label>
+                        <div className="space-y-2 rounded-md border border-slate-200 p-3 max-h-40 overflow-y-auto">
+                          {tournamentExtras.map((extra) => (
+                            <label key={extra.id} className="flex items-start gap-2 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4"
+                                checked={extraActivityIds.includes(extra.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setExtraActivityIds([...extraActivityIds, extra.id]);
+                                  } else {
+                                    setExtraActivityIds(extraActivityIds.filter((id) => id !== extra.id));
+                                  }
+                                }}
+                              />
+                              <div className="flex-1">
+                                <span className="font-medium">{extra.activity_name}</span>
+                                {extra.description && (
+                                  <p className="text-xs text-slate-500">{extra.description}</p>
+                                )}
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">메모 (선택)</label>
+                      <Input
+                        value={extraMemo}
+                        onChange={(e) => setExtraMemo(e.target.value)}
+                        placeholder="특이사항 등"
+                      />
+                    </div>
+
+                    <Button onClick={addParticipant} size="sm" className="w-full sm:w-auto" disabled={loadingAction === 'addParticipant'}>
+                      {loadingAction === 'addParticipant' ? "등록중..." : "추가 참가자 등록"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
             {user && (
               <Card className="border-slate-200/70">
                 <CardHeader>
-                  <CardTitle>경품 지원 현황</CardTitle>
+                  <CardTitle>경품 지원하기</CardTitle>
                   <CardDescription>
-                    대회를 위해 경품을 지원해주신 분들입니다.
+                    경품 지원은 이 화면에서 등록합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {prizes.length === 0 ? (
-                    <p className="text-sm text-slate-500">
-                      아직 등록된 경품이 없습니다.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto -mx-6">
+                  <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">경품명</label>
+                      <Input
+                        value={prizeItem}
+                        onChange={(e) => setPrizeItem(e.target.value)}
+                        placeholder="예: 골프공 1박스"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">비고</label>
+                      <Input
+                        value={prizeNote}
+                        onChange={(e) => setPrizeNote(e.target.value)}
+                        placeholder="선택사항"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={addPrizeSupport} size="sm">
+                      {editingPrizeId ? "경품 수정" : "경품 등록"}
+                    </Button>
+                    {editingPrizeId && (
+                      <Button onClick={cancelEditPrizeSupport} size="sm" variant="outline">
+                        취소
+                      </Button>
+                    )}
+                  </div>
+
+                  {prizeSupports.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-slate-700">내 경품 지원</p>
                       <Table>
                         <TableHeader>
                           <TableRow>
-                          <TableHead>지원자</TableHead>
-                          <TableHead>경품명</TableHead>
-                          <TableHead>비고</TableHead>
-                          <TableHead>등록일</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {prizes.map((prize) => (
-                          <TableRow key={prize.id}>
-                            <TableCell>{prize.supporter_name ?? "익명"}</TableCell>
-                            <TableCell>{prize.item_name}</TableCell>
-                            <TableCell>{prize.note ?? "-"}</TableCell>
-                            <TableCell>
-                              {new Date(prize.created_at).toLocaleDateString()}
-                            </TableCell>
+                            <TableHead>경품명</TableHead>
+                            <TableHead>비고</TableHead>
+                            <TableHead>작업</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {prizeSupports.map((support) => (
+                            <TableRow key={support.id}>
+                              <TableCell className="font-medium">
+                                {support.item_name}
+                              </TableCell>
+                              <TableCell className="text-sm text-slate-600">
+                                {support.note || "-"}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex justify-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => startEditPrizeSupport(support)}
+                                  >
+                                    수정
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => deletePrizeSupport(support.id, support.item_name)}
+                                  >
+                                    삭제
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
-
-                  <div className="border-t pt-4 space-y-3">
-                    <h3 className="font-medium text-sm">경품 지원하기</h3>
-                    <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">경품명</label>
-                        <Input
-                          value={prizeItem}
-                          onChange={(e) => setPrizeItem(e.target.value)}
-                          placeholder="예: 골프공 1박스"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium">비고</label>
-                        <Input
-                          value={prizeNote}
-                          onChange={(e) => setPrizeNote(e.target.value)}
-                          placeholder="선택사항"
-                        />
-                      </div>
-                    </div>
-                    <Button onClick={addPrizeSupport} size="sm">
-                      경품 등록
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             )}
@@ -1277,51 +1713,47 @@ export default function TournamentDetailPage() {
                     공개된 파일이 없습니다.
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {files.map((file) => {
-                      const { data } = supabase.storage
-                        .from(TOURNAMENT_FILES_BUCKET)
-                        .getPublicUrl(file.storage_path);
-                      return (
-                        <li
-                          key={file.id}
-                          className="flex flex-wrap items-center justify-between gap-2"
-                        >
-                          <div className="text-sm">
-                            <span className="font-medium">{file.file_name}</span>
-                            <span className="text-slate-500">
-                              {" "}
-                              · {file.file_type}
-                            </span>
-                          </div>
-                          <Button asChild size="sm" variant="outline">
-                            <a
-                              href={data.publicUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              열기
-                            </a>
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>파일명</TableHead>
+                        <TableHead>유형</TableHead>
+                        <TableHead>열기</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {files.map((file) => {
+                        const { data } = supabase.storage
+                          .from(TOURNAMENT_FILES_BUCKET)
+                          .getPublicUrl(file.storage_path);
+                        return (
+                          <TableRow key={file.id}>
+                            <TableCell className="font-medium">
+                              {file.file_name}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {file.file_type}
+                            </TableCell>
+                            <TableCell>
+                              <Button asChild size="sm" variant="outline">
+                                <a
+                                  href={data.publicUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  열기
+                                </a>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200/70">
-              <CardHeader>
-                <CardTitle>조편성</CardTitle>
-                <CardDescription>공개된 조편성을 확인하세요.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild variant="outline">
-                  <Link href={`/t/${tournamentId}/groups`}>조편성 보기</Link>
-                </Button>
-              </CardContent>
-            </Card>
 
             {sideEvents.length > 0 && (
               <div className="space-y-4">
@@ -1339,7 +1771,7 @@ export default function TournamentDetailPage() {
                             {se.title}
                           </span>
                           <Badge variant="secondary" className="capitalize">
-                            {se.status}
+                            {formatTournamentStatus(se.status)}
                           </Badge>
                         </CardTitle>
                         <CardDescription>

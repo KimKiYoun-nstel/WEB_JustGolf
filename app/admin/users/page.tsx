@@ -25,6 +25,7 @@ import {
 type ProfileRow = {
   id: string;
   nickname: string;
+  email: string | null;
   is_admin: boolean;
   is_approved: boolean;
   created_at: string;
@@ -36,25 +37,46 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
+  const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
 
   const load = async () => {
     setMsg("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id,nickname,is_admin,is_approved,created_at")
-      .order("created_at", { ascending: false });
+    const response = await fetch("/api/admin/users");
+    const data = await response.json().catch(() => ({}));
 
-    if (error) {
-      setMsg(`조회 실패: ${error.message}`);
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        setUnauthorized(true);
+      }
+
+      setMsg(`조회 실패: ${data?.error ?? response.statusText}`);
       setLoading(false);
       return;
     }
 
     setRows((data ?? []) as ProfileRow[]);
     setLoading(false);
+  };
+
+  const loadSettings = async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "approval_required")
+      .single();
+
+    if (error) {
+      setApprovalRequired(true);
+      setSettingsLoading(false);
+      return;
+    }
+
+    setApprovalRequired(data?.value ?? true);
+    setSettingsLoading(false);
   };
 
   useEffect(() => {
@@ -78,6 +100,7 @@ export default function AdminUsersPage() {
         return;
       }
 
+      await loadSettings();
       await load();
     };
 
@@ -87,14 +110,15 @@ export default function AdminUsersPage() {
 
   const updateApproval = async (id: string, approved: boolean) => {
     setMsg("");
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_approved: approved })
-      .eq("id", id);
+    const response = await fetch(`/api/admin/users/${id}/approve`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approved }),
+    });
+    const data = await response.json().catch(() => ({}));
 
-    if (error) {
-      setMsg(`승인 변경 실패: ${error.message}`);
+    if (!response.ok) {
+      setMsg(`승인 변경 실패: ${data?.error ?? response.statusText}`);
       return;
     }
 
@@ -104,18 +128,76 @@ export default function AdminUsersPage() {
 
   const updateAdmin = async (id: string, isAdmin: boolean) => {
     setMsg("");
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_admin: isAdmin })
-      .eq("id", id);
+    const response = await fetch(`/api/admin/users/${id}/set-admin`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_admin: isAdmin }),
+    });
+    const data = await response.json().catch(() => ({}));
 
-    if (error) {
-      setMsg(`권한 변경 실패: ${error.message}`);
+    if (!response.ok) {
+      setMsg(`권한 변경 실패: ${data?.error ?? response.statusText}`);
       return;
     }
 
     setMsg(isAdmin ? "관리자로 승격 완료" : "관리자 권한 해제 완료");
+    await load();
+  };
+
+  const resetPassword = async (id: string, nickname: string) => {
+    const nextPassword = window.prompt("새 비밀번호를 입력하세요.");
+    if (!nextPassword) return;
+
+    const confirmed = window.confirm(
+      `${nickname || "해당 사용자"}의 비밀번호를 변경하시겠습니까?`
+    );
+    if (!confirmed) return;
+
+    setMsg("");
+    const response = await fetch(`/api/admin/users/${id}/reset-password`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: nextPassword }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMsg(`비밀번호 초기화 실패: ${data?.error ?? response.statusText}`);
+      return;
+    }
+
+    setMsg("비밀번호가 초기화되었습니다.");
+  };
+
+  const toggleApprovalRequired = async () => {
+    if (approvalRequired === null) return;
+    const nextValue = !approvalRequired;
+    setMsg("");
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert({ key: "approval_required", value: nextValue }, { onConflict: "key" });
+
+    if (error) {
+      setMsg(`설정 변경 실패: ${error.message}`);
+      return;
+    }
+
+    if (nextValue === false) {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ is_approved: true })
+        .eq("is_approved", false);
+
+      if (updateError) {
+        setMsg(`자동 승인 처리 실패: ${updateError.message}`);
+        return;
+      }
+    }
+
+    setApprovalRequired(nextValue);
+    setMsg(nextValue ? "승인 기능이 ON으로 변경되었습니다." : "승인 기능이 OFF로 변경되었습니다.");
     await load();
   };
 
@@ -144,22 +226,39 @@ export default function AdminUsersPage() {
         {!loading && !unauthorized && (
           <Card className="border-slate-200/70">
             <CardHeader>
-              <CardTitle>회원 승인 관리</CardTitle>
+              <CardTitle>회원 관리</CardTitle>
               <CardDescription>
-                신규 가입자의 계정을 승인하거나 보류합니다.
+                회원 승인, 권한, 비밀번호 초기화, 상세 정보 확인을 관리합니다.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-slate-800">가입 승인</p>
+                  <p className="text-xs text-slate-500">
+                    {approvalRequired ? "승인 필요: ON" : "승인 필요: OFF (자동 승인)"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={approvalRequired ? "outline" : "default"}
+                  onClick={toggleApprovalRequired}
+                  disabled={settingsLoading}
+                >
+                  {approvalRequired ? "자동 승인 켜기" : "자동 승인 끄기"}
+                </Button>
+              </div>
               {msg && <p className="text-sm text-red-600">{msg}</p>}
 
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>닉네임</TableHead>
+                    <TableHead>이메일</TableHead>
                     <TableHead>권한</TableHead>
                     <TableHead>승인 상태</TableHead>
                     <TableHead>가입일</TableHead>
-                    <TableHead className="text-right">작업</TableHead>
+                    <TableHead className="text-center">작업</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -167,6 +266,9 @@ export default function AdminUsersPage() {
                     <TableRow key={row.id}>
                       <TableCell className="font-medium">
                         {row.nickname}
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-600">
+                        {row.email ?? "-"}
                       </TableCell>
                       <TableCell>
                         {row.is_admin ? (
@@ -187,8 +289,18 @@ export default function AdminUsersPage() {
                       <TableCell className="text-sm text-slate-600">
                         {new Date(row.created_at).toLocaleString("ko-KR")}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-2">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/admin/users/${row.id}`}>상세보기</Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => resetPassword(row.id, row.nickname)}
+                          >
+                            비밀번호 초기화
+                          </Button>
                           {row.is_approved ? (
                             <Button
                               size="sm"

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../../../lib/supabaseClient";
+import { formatTournamentStatus } from "../../../lib/statusLabels";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
@@ -42,6 +43,45 @@ export default function AdminTournamentsPage() {
     if (error) setMsg(`조회 실패: ${error.message}`);
     else setRows((data ?? []) as TournamentRow[]);
   };
+  const deleteTournament = async (tournamentId: number, title: string, status: string) => {
+    if (status === "deleted") {
+      setMsg("이미 삭제된 대회입니다.");
+      return;
+    }
+
+    const supabase = createClient();
+    const { count: registrationCount, error: countError } = await supabase
+      .from("registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId);
+
+    if (countError) {
+      setMsg(`삭제 전 확인 실패: ${countError.message}`);
+      return;
+    }
+
+    const confirmMessage =
+      `"${title}" 대회를 삭제하시겠습니까?\n\n` +
+      `현재 신청자: ${registrationCount ?? 0}명\n` +
+      "삭제하면 대회는 숨김 처리되며 복구 가능합니다.";
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setMsg("");
+    const { error } = await supabase
+      .from("tournaments")
+      .update({ status: "deleted" })
+      .eq("id", tournamentId);
+
+    if (error) {
+      setMsg(`삭제 실패: ${error.message}`);
+    } else {
+      setMsg("✅ 대회가 삭제되었습니다.");
+      await load();
+    }
+  };
 
   useEffect(() => {
     load();
@@ -57,7 +97,11 @@ export default function AdminTournamentsPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {msg && <p className="text-sm text-red-600">{msg}</p>}
+          {msg && (
+            <p className={`text-sm ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
+              {msg}
+            </p>
+          )}
 
           <div className="space-y-3">
             {rows.map((row) => (
@@ -69,7 +113,7 @@ export default function AdminTournamentsPage() {
                       <div className="flex items-center gap-2 text-xs text-slate-500">
                         <span>{row.event_date}</span>
                         <Badge variant="secondary" className="capitalize">
-                          {row.status}
+                          {formatTournamentStatus(row.status)}
                         </Badge>
                       </div>
                     </div>
@@ -117,16 +161,25 @@ export default function AdminTournamentsPage() {
                         조편성
                       </Link>
                     </Button>
-                    <Button asChild size="sm" variant="ghost">
-                      <Link href={`/t/${row.id}`}>공개 페이지</Link>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/t/${row.id}/participants`}>참가자 현황</Link>
                     </Button>
+                    {row.status !== "deleted" && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => deleteTournament(row.id, row.title, row.status)}
+                      >
+                        삭제
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          <Button onClick={load} variant="ghost">
+          <Button onClick={load} variant="secondary">
             새로고침
           </Button>
         </CardContent>

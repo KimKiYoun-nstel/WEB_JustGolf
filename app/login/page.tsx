@@ -19,6 +19,7 @@ function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
   const supabase = createClient();
 
   // 이미 로그인하면 자동으로 /start로 리다이렉트
@@ -43,18 +44,61 @@ function LoginForm() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    const loadApprovalSetting = async () => {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "approval_required")
+        .single();
+
+      if (error) {
+        setApprovalRequired(true);
+        return;
+      }
+
+      setApprovalRequired(data?.value ?? true);
+    };
+
+    loadApprovalSetting();
+  }, [supabase]);
+
   const signUp = async () => {
     setMsg("");
     setLoading(true);
     
     try {
       setMsg("회원가입 요청 중...");
+
+      const nick = nickname.trim();
+      if (!nick) {
+        setMsg("닉네임을 입력해주세요.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: available, error: checkError } = await supabase.rpc(
+        "is_nickname_available",
+        { p_nickname: nick, p_user_id: null }
+      );
+
+      if (checkError) {
+        setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!available) {
+        setMsg("이미 사용 중인 닉네임입니다.");
+        setLoading(false);
+        return;
+      }
       
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { nickname },
+          data: { nickname: nick },
         },
       });
 
@@ -96,19 +140,60 @@ function LoginForm() {
         lastError = pRes.error;
       }
 
+      const approvalRequiredValue = approvalRequired ?? true;
+
       if (!profileCheck) {
         // 5회 재시도 후에도 실패했으면 생성 대기 중일 가능성
-        setMsg("회원가입 완료되었습니다. 관리자 승인 후 로그인해주세요.");
+        setMsg(
+          approvalRequiredValue
+            ? "회원가입 완료되었습니다. 관리자 승인 후 로그인해주세요."
+            : "회원가입 완료되었습니다. 바로 로그인할 수 있습니다."
+        );
         setLoading(false);
         return;
       }
 
-      setMsg(`회원가입 완료! ${profileCheck.is_approved ? '로그인할 수 있습니다.' : '관리자 승인 후 로그인할 수 있습니다.'}`);
+      if (!approvalRequiredValue && profileCheck.is_approved === false) {
+        await supabase
+          .from("profiles")
+          .update({ is_approved: true })
+          .eq("id", data.user.id);
+      }
+
+      setMsg(
+        `회원가입 완료! ${
+          approvalRequiredValue
+            ? (profileCheck.is_approved ? "로그인할 수 있습니다." : "관리자 승인 후 로그인할 수 있습니다.")
+            : "로그인할 수 있습니다."
+        }`
+      );
       setLoading(false);
     } catch (err) {
       const errorMsg = getUserFriendlyError(err, "signUp");
       setMsg(`회원가입 실패: ${errorMsg}`);
       setLoading(false);
+    }
+  };
+
+  const checkEmailExists = async (emailToCheck: string) => {
+    if (!emailToCheck) return null;
+
+    try {
+      const response = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailToCheck }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return null;
+
+      return {
+        exists: Boolean(data?.exists),
+        profileExists: Boolean(data?.profileExists),
+      };
+    } catch {
+      return null;
     }
   };
 
@@ -125,8 +210,32 @@ function LoginForm() {
       });
       
       if (error) {
-        const errorMsg = getUserFriendlyError(error, "signIn");
-        setMsg(`로그인 실패: ${errorMsg}`);
+        const rawMessage = error?.message ?? "";
+
+        if (rawMessage.includes("Invalid login credentials")) {
+          const emailCheck = await checkEmailExists(email.trim());
+
+          if (emailCheck?.exists === true) {
+            setMsg("로그인 실패: 비밀번호가 틀렸습니다.");
+          } else if (emailCheck?.exists === false) {
+            if (emailCheck.profileExists) {
+              setMsg(
+                "로그인 실패: 계정 상태에 문제가 있습니다. 관리자에게 문의해주세요."
+              );
+            } else {
+              setMsg("로그인 실패: 존재하지 않는 계정입니다.");
+            }
+          } else {
+            const errorMsg = getUserFriendlyError(error, "signIn");
+            setMsg(`로그인 실패: ${errorMsg}`);
+          }
+        } else if (rawMessage.toLowerCase().includes("email not confirmed")) {
+          setMsg("로그인 실패: 이메일 인증이 필요합니다.");
+        } else {
+          const errorMsg = getUserFriendlyError(error, "signIn");
+          setMsg(`로그인 실패: ${errorMsg}`);
+        }
+
         setLoading(false);
         return;
       }

@@ -94,7 +94,7 @@ const { container } = render(<StartPage />);
       
       // 주요 관리 기능 확인
       expect(screen.getByText(/대회 관리/)).toBeInTheDocument();
-      expect(screen.getByText(/회원 승인/)).toBeInTheDocument();
+      expect(screen.getByText(/회원 관리/)).toBeInTheDocument();
       expect(screen.getByText(/조편성 관리/)).toBeInTheDocument();
     });
 

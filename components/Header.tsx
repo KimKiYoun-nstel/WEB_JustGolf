@@ -86,16 +86,16 @@ export default function Header() {
                   {profileNickname ? `${profileNickname}님` : "닉네임 없음"}
                 </span>
                 {!isAdmin && (
-                  <Button asChild size="sm" variant="ghost">
+                  <Button asChild size="sm" variant="outline">
                     <Link href="/start">홈</Link>
                   </Button>
                 )}
                 {isAdmin && (
-                  <Button asChild size="sm" variant="ghost">
+                  <Button asChild size="sm" variant="outline">
                     <Link href="/admin">관리자</Link>
                   </Button>
                 )}
-                <Button asChild size="sm" variant="ghost">
+                <Button asChild size="sm" variant="outline">
                   <Link href="/profile">내 프로필</Link>
                 </Button>
                 <Button onClick={handleLogout} size="sm" variant="outline">

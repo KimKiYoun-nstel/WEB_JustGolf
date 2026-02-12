@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
+import { formatRegistrationStatus, formatTournamentStatus } from "../../../../../lib/statusLabels";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import {
@@ -165,7 +166,7 @@ export default function TournamentDashboardPage() {
               {t.title}
             </h1>
             <Badge variant="secondary" className="capitalize">
-              {t.status}
+              {formatTournamentStatus(t.status)}
             </Badge>
           </div>
           <p className="text-sm text-slate-500">{t.event_date} · 가입 현황</p>
@@ -284,7 +285,7 @@ export default function TournamentDashboardPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="capitalize">
-                          {reg.status}
+                          {formatRegistrationStatus(reg.status)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">

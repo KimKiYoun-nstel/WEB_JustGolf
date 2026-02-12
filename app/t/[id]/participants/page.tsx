@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
+import { formatRegistrationStatus, formatTournamentStatus } from "../../../../lib/statusLabels";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import {
@@ -32,7 +33,8 @@ type Tournament = {
 
 type Registration = {
   id: number;
-  user_id: string;
+  user_id: string | null;              // NULL이면 제3자
+  registering_user_id: string;         // 실제 신청한 회원
   nickname: string;
   status: string;
   memo: string | null;
@@ -43,6 +45,7 @@ type Registration = {
   departure_location: string | null;
   notes: string | null;
   created_at: string;
+  activities: string[];
 };
 
 type SideEvent = {
@@ -74,7 +77,7 @@ export default function TournamentParticipantsPage() {
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
   const supabase = createClient();
 
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [t, setT] = useState<Tournament | null>(null);
   const [rows, setRows] = useState<Registration[]>([]);
   const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
@@ -104,9 +107,10 @@ export default function TournamentParticipantsPage() {
     const rRes = await supabase
       .from("registrations")
       .select(
-        "id,user_id,nickname,status,memo,created_at,"
+        "id,user_id,registering_user_id,nickname,status,memo,created_at,"
           + "tournament_meal_options(menu_name),"
-          + "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes)"
+          + "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes),"
+          + "registration_activity_selections(selected,tournament_extras(activity_name))"
       )
       .eq("tournament_id", tournamentId)
       .order("created_at", { ascending: true });
@@ -117,9 +121,16 @@ export default function TournamentParticipantsPage() {
       return;
     }
 
-    const transformed = (rRes.data ?? []).map((row: any) => ({
+    const transformed = (rRes.data ?? []).map((row: any) => {
+      const activities = (row.registration_activity_selections ?? [])
+        .filter((sel: any) => sel?.selected)
+        .map((sel: any) => sel?.tournament_extras?.activity_name)
+        .filter((name: string | null) => Boolean(name));
+
+      return {
       id: row.id,
       user_id: row.user_id,
+      registering_user_id: row.registering_user_id,
       nickname: row.nickname,
       status: row.status,
       memo: row.memo ?? null,
@@ -130,7 +141,9 @@ export default function TournamentParticipantsPage() {
       departure_location: row.registration_extras?.departure_location ?? null,
       notes: row.registration_extras?.notes ?? null,
       created_at: row.created_at,
-    }));
+      activities: activities as string[],
+      };
+    });
 
     setRows(transformed as Registration[]);
 
@@ -163,14 +176,14 @@ export default function TournamentParticipantsPage() {
     // Load prize supports
     const prizeRes = await supabase
       .from("tournament_prize_supports")
-      .select("id,item_name,note,created_at,profiles(nickname)")
+      .select("id,item_name,note,created_at,supporter_nickname")
       .eq("tournament_id", tournamentId)
       .order("created_at", { ascending: true });
 
     if (!prizeRes.error) {
       const mapped = (prizeRes.data ?? []).map((row: any) => ({
         id: row.id,
-        supporter_name: row.profiles?.nickname ?? null,
+        supporter_name: row.supporter_nickname ?? null,
         item_name: row.item_name,
         note: row.note ?? null,
         created_at: row.created_at,
@@ -183,14 +196,24 @@ export default function TournamentParticipantsPage() {
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
+    
+    // Auth 로딩이 끝날 때까지 대기
+    if (authLoading) return;
+
+    // 로그인하지 않았으면 로그인 페이지로
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournamentId]);
+  }, [tournamentId, user?.id, authLoading]);
 
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
-        {loading && (
+        {(loading || authLoading) && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
@@ -198,7 +221,18 @@ export default function TournamentParticipantsPage() {
           </Card>
         )}
 
-        {!loading && !t && (
+        {!authLoading && !user && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="py-10">
+              <p className="text-sm text-red-700 mb-4">이 페이지는 로그인이 필요합니다.</p>
+              <Button asChild variant="default">
+                <Link href="/login">로그인하기</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !t && user && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">대회를 찾을 수 없습니다.</p>
@@ -206,7 +240,7 @@ export default function TournamentParticipantsPage() {
           </Card>
         )}
 
-        {!loading && t && (
+        {!loading && t && user && (
           <>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
@@ -214,7 +248,7 @@ export default function TournamentParticipantsPage() {
                   {t.title}
                 </h1>
                 <Badge variant="secondary" className="capitalize">
-                  {t.status}
+                  {formatTournamentStatus(t.status)}
                 </Badge>
               </div>
               <p className="text-sm text-slate-500">
@@ -230,10 +264,29 @@ export default function TournamentParticipantsPage() {
 
             <Card className="border-slate-200/70">
               <CardHeader>
-                <CardTitle>참가자 목록</CardTitle>
-                <CardDescription>
-                  신청 정보가 최대한 공개됩니다.
-                </CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>참가자 목록</CardTitle>
+                    <CardDescription>
+                      신청 정보가 최대한 공개됩니다.
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="text-sm text-slate-500">총 신청</div>
+                    <div className="text-2xl font-bold text-slate-900">{rows.length}명</div>
+                    <div className="flex gap-2 text-xs">
+                      <span className="text-green-700">
+                        확정 {rows.filter((r) => r.status === "approved").length}
+                      </span>
+                      <span className="text-blue-700">
+                        신청 {rows.filter((r) => r.status === "applied").length}
+                      </span>
+                      <span className="text-yellow-700">
+                        대기 {rows.filter((r) => r.status === "waitlisted").length}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {rows.length === 0 ? (
@@ -246,8 +299,10 @@ export default function TournamentParticipantsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="whitespace-nowrap">닉네임</TableHead>
+                          <TableHead className="whitespace-nowrap">구분</TableHead>
                           <TableHead className="whitespace-nowrap">상태</TableHead>
                           <TableHead className="whitespace-nowrap">식사</TableHead>
+                          <TableHead className="whitespace-nowrap">활동</TableHead>
                           <TableHead className="whitespace-nowrap">카풀</TableHead>
                           <TableHead className="whitespace-nowrap">이동/출발지</TableHead>
                           <TableHead className="whitespace-nowrap">비고</TableHead>
@@ -267,12 +322,28 @@ export default function TournamentParticipantsPage() {
                               </div>
                             </TableCell>
                             <TableCell>
+                              {r.user_id ? (
+                                <Badge variant="outline" className="bg-slate-50 text-slate-700">
+                                  회원
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                  제3자
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
                               <Badge variant="secondary" className="capitalize">
-                                {r.status}
+                                {formatRegistrationStatus(r.status)}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-sm text-slate-600">
                               {r.meal_name ?? "-"}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {r.activities.length > 0
+                                ? r.activities.slice(0, 3).join(", ")
+                                : "-"}
                             </TableCell>
                             <TableCell className="text-sm text-slate-600">
                               {r.carpool_available
@@ -339,7 +410,9 @@ export default function TournamentParticipantsPage() {
                                   <TableRow key={r.id}>
                                     <TableCell>{r.nickname}</TableCell>
                                     <TableCell>
-                                      <Badge variant="secondary">{r.status}</Badge>
+                                      <Badge variant="secondary">
+                                        {formatRegistrationStatus(r.status)}
+                                      </Badge>
                                     </TableCell>
                                     <TableCell className="text-sm text-slate-600">
                                       {r.meal_selected === null ? "미정" : r.meal_selected ? "참여" : "불참"}
@@ -400,6 +473,18 @@ export default function TournamentParticipantsPage() {
                     </Table>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-200/70">
+              <CardHeader>
+                <CardTitle>조편성</CardTitle>
+                <CardDescription>공개된 조편성을 확인하세요.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline">
+                  <Link href={`/t/${tournamentId}/groups`}>조편성 보기</Link>
+                </Button>
               </CardContent>
             </Card>
 

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
+import { formatTournamentStatus } from "../../../../../lib/statusLabels";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
 import { Input } from "../../../../../components/ui/input";
 
-type Status = "draft" | "open" | "closed" | "done";
+type Status = "draft" | "open" | "closed" | "done" | "deleted";
 
 type Tournament = {
   id: number;
@@ -178,6 +179,49 @@ export default function AdminTournamentEditPage() {
     else setMsg("복제는 되었지만 이동할 수 없어요.");
   };
 
+  const deleteTournament = async () => {
+    if (status === "deleted") {
+      setMsg("이미 삭제된 대회입니다.");
+      return;
+    }
+
+    const supabase = createClient();
+    const { count: registrationCount, error: countError } = await supabase
+      .from("registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId);
+
+    if (countError) {
+      setMsg(`삭제 전 확인 실패: ${countError.message}`);
+      return;
+    }
+
+    const confirmMessage =
+      `"${title}" 대회를 삭제하시겠습니까?\n\n` +
+      `현재 신청자: ${registrationCount ?? 0}명\n` +
+      "삭제하면 대회는 숨김 처리되며 복구 가능합니다.";
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setMsg("");
+    const { error } = await supabase
+      .from("tournaments")
+      .update({ status: "deleted" })
+      .eq("id", tournamentId);
+
+    if (error) {
+      setMsg(`삭제 실패: ${error.message}`);
+      return;
+    }
+
+    setMsg("✅ 대회가 삭제되었습니다.");
+    setTimeout(() => {
+      router.push("/admin/tournaments");
+    }, 1000);
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70">
@@ -255,10 +299,10 @@ export default function AdminTournamentEditPage() {
                 onChange={(e) => setStatus(e.target.value as Status)}
                 className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm"
               >
-                <option value="draft">draft</option>
-                <option value="open">open</option>
-                <option value="closed">closed</option>
-                <option value="done">done</option>
+                <option value="draft">{formatTournamentStatus("draft")}</option>
+                <option value="open">{formatTournamentStatus("open")}</option>
+                <option value="closed">{formatTournamentStatus("closed")}</option>
+                <option value="done">{formatTournamentStatus("done")}</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -294,6 +338,11 @@ export default function AdminTournamentEditPage() {
             <Button onClick={duplicate} variant="outline" className="w-full sm:w-auto">
               이 대회 복제
             </Button>
+            {status !== "deleted" && (
+              <Button onClick={deleteTournament} variant="destructive" className="w-full sm:w-auto">
+                삭제
+              </Button>
+            )}
           </div>
 
           {msg && <p className="text-sm text-slate-600">{msg}</p>}

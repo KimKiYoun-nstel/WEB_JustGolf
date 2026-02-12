@@ -38,28 +38,48 @@ export default function BoardPage() {
 
   useEffect(() => {
     loadFeedbacks();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const loadFeedbacks = async () => {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("feedbacks")
-      .select("*, profiles!user_id(nickname)")
+      .select("id,user_id,title,content,category,status,created_at")
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      const mapped = data.map((row: any) => ({
-        id: row.id,
-        user_id: row.user_id,
-        title: row.title,
-        content: row.content,
-        category: row.category,
-        status: row.status,
-        created_at: row.created_at,
-        nickname: row.profiles?.nickname ?? "익명",
-      }));
-      setFeedbacks(mapped as Feedback[]);
+    if (error || !data) return;
+
+    let nicknameById: Record<string, string> = {};
+    const userIds = Array.from(
+      new Set((data ?? []).map((row: any) => row.user_id).filter(Boolean))
+    );
+
+    if (userIds.length > 0 && user?.id) {
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id,nickname")
+        .in("id", userIds);
+
+      if (!profileError && profiles) {
+        nicknameById = profiles.reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.nickname ?? "익명";
+          return acc;
+        }, {});
+      }
     }
+
+    const mapped = data.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      title: row.title,
+      content: row.content,
+      category: row.category,
+      status: row.status,
+      created_at: row.created_at,
+      nickname: nicknameById[row.user_id] ?? "익명",
+    }));
+    setFeedbacks(mapped as Feedback[]);
   };
 
   const submitFeedback = async () => {
@@ -132,6 +152,38 @@ export default function BoardPage() {
         return "secondary";
       default:
         return "outline";
+    }
+  };
+
+  const deleteFeedback = async (feedbackId: number) => {
+    if (!user?.id) {
+      setMsg("로그인이 필요합니다.");
+      return;
+    }
+
+    const feedback = feedbacks.find((fb) => fb.id === feedbackId);
+    if (!feedback) {
+      setMsg("피드백을 찾을 수 없습니다.");
+      return;
+    }
+
+    // 작성자 또는 관리자만 삭제 가능한지는 RLS에서 확인됨
+    if (!confirm(`"${feedback.title}" 피드백을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    const supabase = createClient();
+    setMsg("");
+    const { error } = await supabase
+      .from("feedbacks")
+      .delete()
+      .eq("id", feedbackId);
+
+    if (error) {
+      setMsg(`삭제 실패: ${error.message}`);
+    } else {
+      setMsg("✅ 피드백이 삭제되었습니다.");
+      await loadFeedbacks();
     }
   };
 
@@ -289,6 +341,15 @@ export default function BoardPage() {
                       <Badge variant={getStatusVariant(fb.status)}>
                         {getStatusLabel(fb.status)}
                       </Badge>
+                      {user?.id === fb.user_id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => deleteFeedback(fb.id)}
+                        >
+                          삭제
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>

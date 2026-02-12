@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
+import { formatRegistrationStatus } from "../../../../lib/statusLabels";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import {
@@ -328,7 +329,7 @@ export default function MyStatusPage() {
               <div>
                 <p className="text-sm font-medium text-slate-700">참가 상태</p>
                 <Badge variant="secondary" className="capitalize">
-                  {myReg.status}
+                  {formatRegistrationStatus(myReg.status)}
                 </Badge>
               </div>
               <div>
@@ -421,7 +422,7 @@ export default function MyStatusPage() {
                         )}
                       </div>
                       <Badge variant="secondary" className="capitalize">
-                        {sr.status}
+                        {formatRegistrationStatus(sr.status)}
                       </Badge>
                     </div>
                     {(sr.meal_selected || sr.lodging_selected) && (

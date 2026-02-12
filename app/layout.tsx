@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Golf Tour",
+  title: "Just Golf",
   description: "온라인 골프 대회 운영 서비스",
 };
 
