@@ -4,8 +4,11 @@ import { updateSession } from "./lib/supabase/middleware";
 export async function middleware(request: NextRequest) {
   const { response, supabase } = await updateSession(request);
 
-  // 로그인 페이지는 항상 접근 가능
-  if (request.nextUrl.pathname === "/login") {
+  // 로그인/인증 보조 페이지는 항상 접근 가능
+  if (
+    request.nextUrl.pathname === "/login" ||
+    request.nextUrl.pathname.startsWith("/auth")
+  ) {
     return response;
   }
 
@@ -22,6 +25,35 @@ export async function middleware(request: NextRequest) {
       status: 307,
       headers: {
         Location: loginUrl.toString(),
+      },
+    });
+  }
+
+  // 승인 해제된 사용자는 자동승인 ON/OFF와 무관하게 온보딩을 다시 거치도록 강제
+  // (관리자 승인 해제 시 신규 가입 후 최초 로그인과 동일한 흐름 적용)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_approved")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.is_approved === false) {
+    const onboardingUrl = new URL("/auth/onboarding", request.url);
+    return new Response(null, {
+      status: 307,
+      headers: {
+        Location: onboardingUrl.toString(),
+      },
+    });
+  }
+
+  const onboardingCompleted = user.user_metadata?.onboarding_completed === true;
+  if (!onboardingCompleted) {
+    const onboardingUrl = new URL("/auth/onboarding", request.url);
+    return new Response(null, {
+      status: 307,
+      headers: {
+        Location: onboardingUrl.toString(),
       },
     });
   }
