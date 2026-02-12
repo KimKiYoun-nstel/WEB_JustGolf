@@ -294,7 +294,7 @@ export default function TournamentParticipantsPage() {
                     아직 참가자가 없습니다.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto lg:overflow-x-visible">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -395,7 +395,7 @@ export default function TournamentParticipantsPage() {
                         {regs.length === 0 ? (
                           <p className="text-sm text-slate-500">신청자가 없습니다.</p>
                         ) : (
-                          <div className="overflow-x-auto">
+                          <div className="overflow-x-auto lg:overflow-x-visible">
                             <Table>
                               <TableHeader>
                                 <TableRow>
@@ -446,7 +446,7 @@ export default function TournamentParticipantsPage() {
                     아직 등록된 경품이 없습니다.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto lg:overflow-x-visible">
                     <Table>
                       <TableHeader>
                         <TableRow>

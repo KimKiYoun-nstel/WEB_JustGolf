@@ -306,7 +306,7 @@ export default function ManagerSetupPage() {
             <Button onClick={searchUsers}>검색</Button>
 
             {searchResults.length > 0 && (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto lg:overflow-x-visible">
                 <Table>
                   <TableHeader>
                     <TableRow>

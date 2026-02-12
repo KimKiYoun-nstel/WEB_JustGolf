@@ -1347,7 +1347,7 @@ export default function TournamentDetailPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto rounded-md border border-slate-200">
+                    <div className="overflow-x-auto rounded-md border border-slate-200 lg:overflow-x-visible">
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-slate-50">
@@ -1448,7 +1448,7 @@ export default function TournamentDetailPage() {
                     {tournamentExtras.length > 0 && (
                       <div className="space-y-2">
                         <label className="text-xs font-medium">참여 활동</label>
-                        <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 max-h-40 overflow-y-auto">
+                        <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3 max-h-40 overflow-y-auto lg:max-h-none lg:overflow-y-visible">
                           {tournamentExtras.map((extra) => (
                             <label key={extra.id} className="flex items-start gap-2 text-sm">
                               <input
@@ -1572,7 +1572,7 @@ export default function TournamentDetailPage() {
                     {tournamentExtras.length > 0 && (
                       <div className="space-y-2">
                         <label className="text-xs font-medium">참여 활동 (선택)</label>
-                        <div className="space-y-2 rounded-md border border-slate-200 p-3 max-h-40 overflow-y-auto">
+                        <div className="space-y-2 rounded-md border border-slate-200 p-3 max-h-40 overflow-y-auto lg:max-h-none lg:overflow-y-visible">
                           {tournamentExtras.map((extra) => (
                             <label key={extra.id} className="flex items-start gap-2 text-sm text-slate-700">
                               <input

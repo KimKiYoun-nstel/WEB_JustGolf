@@ -267,7 +267,7 @@ export default function AdminUsersPage() {
                       <TableCell className="font-medium">
                         {row.nickname}
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600">
+                      <TableCell className="break-all text-sm text-slate-600">
                         {row.email ?? "-"}
                       </TableCell>
                       <TableCell>
@@ -290,7 +290,7 @@ export default function AdminUsersPage() {
                         {new Date(row.created_at).toLocaleString("ko-KR")}
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex justify-center gap-2">
+                        <div className="flex flex-wrap justify-center gap-2">
                           <Button asChild size="sm" variant="outline">
                             <Link href={`/admin/users/${row.id}`}>상세보기</Link>
                           </Button>

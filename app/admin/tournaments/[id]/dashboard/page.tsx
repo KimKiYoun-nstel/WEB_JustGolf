@@ -268,7 +268,7 @@ export default function TournamentDashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto lg:overflow-x-visible">
               <Table>
                 <TableHeader>
                   <TableRow>
