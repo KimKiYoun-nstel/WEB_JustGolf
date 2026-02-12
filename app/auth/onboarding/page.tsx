@@ -36,6 +36,15 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const navigateWithFallback = (target: string) => {
+    router.replace(target);
+    router.refresh();
+
+    window.setTimeout(() => {
+      window.location.replace(target);
+    }, 350);
+  };
+
   useEffect(() => {
     const loadOnboardingData = async () => {
       const {
@@ -60,33 +69,27 @@ export default function OnboardingPage() {
       const authEmail = user.email ?? "";
       setEmail(profileEmail || authEmail);
 
+      const metadataNickname =
+        (user.user_metadata?.nickname as string | undefined) ??
+        (user.user_metadata?.name as string | undefined) ??
+        "";
+
       if (profile) {
-        if (profile.nickname && profile.nickname !== "익명") {
+        if (profile.nickname && !profile.nickname.startsWith("user-")) {
           setNickname(profile.nickname);
         } else {
-          const metadataNickname =
-            (user.user_metadata?.nickname as string | undefined) ??
-            (user.user_metadata?.name as string | undefined) ??
-            "";
           setNickname(metadataNickname);
         }
-
         setFullName(profile.full_name ?? "");
       } else {
-        const metadataNickname =
-          (user.user_metadata?.nickname as string | undefined) ??
-          (user.user_metadata?.name as string | undefined) ??
-          "";
-        const metadataFullName =
-          (user.user_metadata?.full_name as string | undefined) ?? "";
         setNickname(metadataNickname);
-        setFullName(metadataFullName);
+        setFullName((user.user_metadata?.full_name as string | undefined) ?? "");
       }
 
       setLoading(false);
     };
 
-    loadOnboardingData();
+    void loadOnboardingData();
   }, [router, supabase]);
 
   const completeOnboarding = async () => {
@@ -108,134 +111,143 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (nextEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
       setMsg("이메일 형식을 확인해주세요.");
       return;
     }
 
     setSaving(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setMsg("로그인 세션을 확인할 수 없습니다. 다시 로그인해주세요.");
-      setSaving(false);
-      return;
-    }
-
-    const emailAvailabilityResponse = await fetch(
-      "/api/auth/check-email-availability",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail }),
-      }
-    );
-
-    const emailAvailabilityPayload = await emailAvailabilityResponse
-      .json()
-      .catch(() => null);
-
-    if (!emailAvailabilityResponse.ok) {
-      const errorMessage =
-        emailAvailabilityPayload?.error ??
-        "이메일 중복 확인 중 오류가 발생했습니다.";
-      setMsg(errorMessage);
-      setSaving(false);
-      return;
-    }
-
-    if (!emailAvailabilityPayload?.available) {
-      setMsg("이미 사용 중인 이메일입니다.");
-      setSaving(false);
-      return;
-    }
-
-    const { data: available, error: checkError } = await supabase.rpc(
-      "is_nickname_available",
-      { p_nickname: nextNickname, p_user_id: user.id }
-    );
-
-    if (checkError) {
-      setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
-      setSaving(false);
-      return;
-    }
-
-    if (!available) {
-      setMsg("이미 사용 중인 닉네임입니다.");
-      setSaving(false);
-      return;
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .update({
-        nickname: nextNickname,
-        full_name: nextFullName || null,
-        email: normalizedEmail || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id)
-      .select("id, is_approved")
-      .maybeSingle<{ id: string; is_approved: boolean | null }>();
-
-    if (profileError) {
-      setMsg(`프로필 업데이트 실패: ${profileError.message}`);
-      setSaving(false);
-      return;
-    }
-
-    const currentMetadata = user.user_metadata ?? {};
-    const { error: metadataError } = await supabase.auth.updateUser({
-      data: {
-        ...currentMetadata,
-        phone: nextPhone || null,
-        contact_email: normalizedEmail || null,
-        onboarding_completed: true,
-      },
-    });
-
-    if (metadataError) {
-      setMsg(`온보딩 저장 실패: ${metadataError.message}`);
-      setSaving(false);
-      return;
-    }
-
-    let approvalRequired = true;
-    const { data: approvalSetting } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "approval_required")
-      .maybeSingle();
-
-    if (typeof approvalSetting?.value === "boolean") {
-      approvalRequired = approvalSetting.value;
-    }
-
-    if (!approvalRequired && !profile?.is_approved) {
-      const { error: autoApproveError } = await supabase
-        .from("profiles")
-        .update({ is_approved: true, updated_at: new Date().toISOString() })
-        .eq("id", user.id);
-
-      if (autoApproveError) {
-        setMsg(`자동 승인 처리 실패: ${autoApproveError.message}`);
+      if (!user) {
+        setMsg("로그인 세션을 확인할 수 없습니다. 다시 로그인해주세요.");
         setSaving(false);
         return;
       }
-    }
 
-    if (approvalRequired && !profile?.is_approved) {
-      router.replace(
-        `/login?message=${encodeURIComponent(APPROVAL_WAITING_MESSAGE)}`
+      const emailAvailabilityResponse = await fetch(
+        "/api/auth/check-email-availability",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalizedEmail }),
+        }
       );
-      return;
-    }
 
-    router.replace("/start");
+      const emailAvailabilityPayload = await emailAvailabilityResponse
+        .json()
+        .catch(() => null);
+
+      if (!emailAvailabilityResponse.ok) {
+        const errorMessage =
+          emailAvailabilityPayload?.error ??
+          "이메일 중복 확인 중 오류가 발생했습니다.";
+        setMsg(errorMessage);
+        setSaving(false);
+        return;
+      }
+
+      if (!emailAvailabilityPayload?.available) {
+        setMsg("이미 사용 중인 이메일입니다.");
+        setSaving(false);
+        return;
+      }
+
+      const { data: available, error: checkError } = await supabase.rpc(
+        "is_nickname_available",
+        { p_nickname: nextNickname, p_user_id: user.id }
+      );
+
+      if (checkError) {
+        setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
+        setSaving(false);
+        return;
+      }
+
+      if (!available) {
+        setMsg("이미 사용 중인 닉네임입니다.");
+        setSaving(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          nickname: nextNickname,
+          full_name: nextFullName || null,
+          email: normalizedEmail,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id)
+        .select("id, is_approved")
+        .maybeSingle<{ id: string; is_approved: boolean | null }>();
+
+      if (profileError) {
+        setMsg(`프로필 업데이트 실패: ${profileError.message}`);
+        setSaving(false);
+        return;
+      }
+
+      const currentMetadata = user.user_metadata ?? {};
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          ...currentMetadata,
+          phone: nextPhone || null,
+          contact_email: normalizedEmail,
+          onboarding_completed: true,
+        },
+      });
+
+      if (metadataError) {
+        setMsg(`온보딩 저장 실패: ${metadataError.message}`);
+        setSaving(false);
+        return;
+      }
+
+      let approvalRequired = true;
+      const { data: approvalSetting } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "approval_required")
+        .maybeSingle<{ value: boolean }>();
+
+      if (typeof approvalSetting?.value === "boolean") {
+        approvalRequired = approvalSetting.value;
+      }
+
+      if (!approvalRequired && !profile?.is_approved) {
+        const { error: autoApproveError } = await supabase
+          .from("profiles")
+          .update({ is_approved: true, updated_at: new Date().toISOString() })
+          .eq("id", user.id);
+
+        if (autoApproveError) {
+          setMsg(`자동 승인 처리 실패: ${autoApproveError.message}`);
+          setSaving(false);
+          return;
+        }
+      }
+
+      if (approvalRequired && !profile?.is_approved) {
+        navigateWithFallback(
+          `/login?message=${encodeURIComponent(APPROVAL_WAITING_MESSAGE)}`
+        );
+        return;
+      }
+
+      navigateWithFallback("/start");
+    } catch (error) {
+      setMsg(
+        `온보딩 처리 중 오류가 발생했습니다: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -256,7 +268,8 @@ export default function OnboardingPage() {
         <CardHeader>
           <CardTitle>온보딩</CardTitle>
           <CardDescription>
-            최초 로그인 설정입니다. 닉네임은 필수이며 이름/전화번호는 선택입니다.
+            최초 로그인 설정입니다. 닉네임/이메일은 필수이며 이름/전화번호는
+            선택입니다.
           </CardDescription>
         </CardHeader>
 
@@ -311,7 +324,9 @@ export default function OnboardingPage() {
           {msg && (
             <p
               className={`text-sm ${
-                msg.includes("실패") ? "text-red-600" : "text-slate-600"
+                msg.includes("실패") || msg.includes("오류")
+                  ? "text-red-600"
+                  : "text-slate-600"
               }`}
             >
               {msg}

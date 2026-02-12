@@ -356,15 +356,6 @@ export default function BoardPage() {
           </p>
         </div>
 
-        <Card className="border-slate-200/70">
-          <CardHeader>
-            <CardTitle>피드백 상태 흐름</CardTitle>
-            <CardDescription>
-              대기 → 접수 → 확인중 → 완료 → 삭제
-            </CardDescription>
-          </CardHeader>
-        </Card>
-
         {user && (
           <Card className="border-slate-200/70">
             <CardHeader>
