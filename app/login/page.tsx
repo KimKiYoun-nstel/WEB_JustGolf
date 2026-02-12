@@ -99,12 +99,40 @@ function LoginForm() {
     }
   };
 
+  const getEmailConflictMessage = (check: {
+    exists: boolean;
+    profileExists: boolean;
+  }) => {
+    if (check.exists) {
+      return "이미 이메일로 가입된 계정입니다. 로그인 후 프로필에서 카카오 계정 연동을 진행해주세요.";
+    }
+
+    if (check.profileExists) {
+      return "이미 다른 계정에서 사용 중인 이메일입니다. 기존 계정으로 로그인해주세요.";
+    }
+
+    return null;
+  };
+
   const signUp = async () => {
     setMsg("");
     setLoading(true);
     
     try {
       setMsg("회원가입 요청 중...");
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (!normalizedEmail) {
+        setMsg("이메일을 입력해주세요.");
+        setLoading(false);
+        return;
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        setMsg("이메일 형식을 확인해주세요.");
+        setLoading(false);
+        return;
+      }
 
       const nick = nickname.trim();
       if (!nick) {
@@ -136,7 +164,9 @@ function LoginForm() {
       }
 
       if (!available) {
-        setMsg("이미 사용 중인 닉네임입니다.");
+        setMsg(
+          "이미 사용 중인 닉네임입니다. 이메일이 달라도 닉네임은 중복 사용할 수 없습니다."
+        );
         await logAuthFailure({
           action: "signup_submit",
           message: "회원가입 실패: 닉네임 중복",
@@ -146,9 +176,29 @@ function LoginForm() {
         setLoading(false);
         return;
       }
+
+      const emailCheck = await checkEmailExists(normalizedEmail);
+      if (emailCheck) {
+        const emailConflictMessage = getEmailConflictMessage(emailCheck);
+
+        if (emailConflictMessage) {
+          setMsg(`회원가입 실패: ${emailConflictMessage}`);
+          await logAuthFailure({
+            action: "signup_submit",
+            message: "회원가입 실패: 이메일 충돌",
+            errorCode: emailCheck.exists ? "email_exists" : "profile_email_exists",
+            details: {
+              existsInAuth: emailCheck.exists,
+              existsInProfile: emailCheck.profileExists,
+            },
+          });
+          setLoading(false);
+          return;
+        }
+      }
       
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -310,14 +360,14 @@ function LoginForm() {
         const rawMessage = error?.message ?? "";
 
         if (rawMessage.includes("Invalid login credentials")) {
-          const emailCheck = await checkEmailExists(email.trim());
+          const emailCheck = await checkEmailExists(email.trim().toLowerCase());
 
           if (emailCheck?.exists === true) {
             setMsg("로그인 실패: 비밀번호가 틀렸습니다.");
           } else if (emailCheck?.exists === false) {
             if (emailCheck.profileExists) {
               setMsg(
-                "로그인 실패: 계정 상태에 문제가 있습니다. 관리자에게 문의해주세요."
+                "로그인 실패: 이메일 로그인 계정이 없습니다. 카카오 가입 계정이면 카카오 로그인을 이용해주세요."
               );
             } else {
               setMsg("로그인 실패: 존재하지 않는 계정입니다.");
@@ -471,6 +521,10 @@ function LoginForm() {
           >
             {loading ? "처리 중..." : "카카오로 시작하기"}
           </Button>
+          <p className="text-xs text-slate-500">
+            기존 이메일 계정과 카카오 계정을 합치려면 이메일 로그인 후 프로필의
+            카카오 계정 연동 기능을 사용하세요.
+          </p>
 
           {msg && (
             <p

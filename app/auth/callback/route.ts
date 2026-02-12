@@ -29,6 +29,8 @@ const STATE_COOKIE = "kakao_oidc_state";
 const COOKIE_MAX_AGE = 60 * 10; // 10 minutes
 const secure = process.env.NODE_ENV === "production";
 
+const LINK_STATE_PREFIX = "lk_";
+
 const KAKAO_ERROR_MESSAGE = "카카오 로그인 처리에 실패했습니다.";
 const KAKAO_STATE_ERROR_MESSAGE = "카카오 로그인 요청 검증에 실패했습니다.";
 const KAKAO_TOKEN_ERROR_MESSAGE = "카카오 로그인 토큰 교환에 실패했습니다.";
@@ -66,7 +68,20 @@ const buildLoginRedirect = (
   const response = NextResponse.redirect(loginUrl);
   response.headers.set("Cache-Control", "no-store");
   setStateCookie(response, statesToKeep);
+  return response;
+};
 
+const buildProfileRedirect = (
+  request: NextRequest,
+  message: string,
+  statesToKeep: string[] = []
+) => {
+  const profileUrl = new URL("/profile", request.nextUrl.origin);
+  profileUrl.searchParams.set("message", message);
+
+  const response = NextResponse.redirect(profileUrl);
+  response.headers.set("Cache-Control", "no-store");
+  setStateCookie(response, statesToKeep);
   return response;
 };
 
@@ -81,12 +96,11 @@ export async function GET(request: NextRequest) {
   const forwardedFor = request.headers.get("x-forwarded-for");
   const ip = forwardedFor?.split(",")[0]?.trim() ?? null;
   const userAgent = request.headers.get("user-agent");
+  const isLinkIntent = Boolean(state && state.startsWith(LINK_STATE_PREFIX));
 
   const stateResult = state
     ? consumeState(rawStateCookie, state)
     : { matched: false, remainingStates: knownStates };
-
-  const redirectUri = buildRedirectUri(request);
 
   if (!code || !state || !stateResult.matched) {
     await writeErrorLog({
@@ -113,7 +127,6 @@ export async function GET(request: NextRequest) {
   }
 
   const clientId = process.env.KAKAO_CLIENT_ID;
-
   if (!clientId) {
     await writeErrorLog({
       category: "auth",
@@ -123,7 +136,16 @@ export async function GET(request: NextRequest) {
       path: request.nextUrl.pathname,
       ip,
       userAgent,
+      details: { isLinkIntent },
     });
+
+    if (isLinkIntent) {
+      return buildProfileRedirect(
+        request,
+        "카카오 로그인 설정이 필요합니다.",
+        stateResult.remainingStates
+      );
+    }
 
     return buildLoginRedirect(
       request,
@@ -132,6 +154,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const redirectUri = buildRedirectUri(request);
   const tokenParams = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: clientId,
@@ -166,11 +189,20 @@ export async function GET(request: NextRequest) {
       ip,
       userAgent,
       details: {
+        isLinkIntent,
         httpStatus: tokenResponse.status,
         kakaoError: tokenData.error ?? null,
         kakaoErrorDescription: tokenData.error_description ?? null,
       },
     });
+
+    if (isLinkIntent) {
+      return buildProfileRedirect(
+        request,
+        KAKAO_TOKEN_ERROR_MESSAGE,
+        stateResult.remainingStates
+      );
+    }
 
     return buildLoginRedirect(
       request,
@@ -197,6 +229,73 @@ export async function GET(request: NextRequest) {
     }
   );
 
+  const applyPendingCookies = (response: NextResponse) => {
+    response.headers.set("Cache-Control", "no-store");
+    pendingCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
+    });
+    setStateCookie(response, stateResult.remainingStates);
+    return response;
+  };
+
+  if (isLinkIntent) {
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
+    if (!currentUser) {
+      return applyPendingCookies(
+        buildLoginRedirect(
+          request,
+          "카카오 연동은 로그인 후 진행해주세요.",
+          stateResult.remainingStates
+        )
+      );
+    }
+
+    const { error: linkError } = await supabase.auth.linkIdentity({
+      provider: "kakao",
+      token: tokenData.id_token,
+      access_token: tokenData.access_token,
+    });
+
+    if (linkError) {
+      await writeErrorLog({
+        category: "auth",
+        action: "kakao_callback",
+        message: "카카오 계정 연동 실패",
+        errorCode: linkError.code ?? null,
+        authUserId: currentUser.id,
+        path: request.nextUrl.pathname,
+        ip,
+        userAgent,
+        details: { message: linkError.message },
+      });
+
+      const lowerMessage = linkError.message.toLowerCase();
+      const linkFailMessage =
+        lowerMessage.includes("already")
+          ? "이미 다른 계정에 연동된 카카오 계정입니다."
+          : "카카오 계정 연동에 실패했습니다.";
+
+      return applyPendingCookies(
+        buildProfileRedirect(
+          request,
+          linkFailMessage,
+          stateResult.remainingStates
+        )
+      );
+    }
+
+    return applyPendingCookies(
+      buildProfileRedirect(
+        request,
+        "카카오 계정 연동이 완료되었습니다.",
+        stateResult.remainingStates
+      )
+    );
+  }
+
   const { data: signInData, error: signInError } = await supabase.auth.signInWithIdToken({
     provider: "kakao",
     token: tokenData.id_token,
@@ -207,85 +306,37 @@ export async function GET(request: NextRequest) {
     await writeErrorLog({
       category: "auth",
       action: "kakao_callback",
-      message: "Supabase signInWithIdToken ??",
+      message: "Supabase signInWithIdToken 실패",
       errorCode: signInError.code ?? null,
       path: request.nextUrl.pathname,
       ip,
       userAgent,
-      details: {
-        message: signInError.message,
-      },
+      details: { message: signInError.message },
     });
 
-    return buildLoginRedirect(
-      request,
-      KAKAO_ERROR_MESSAGE,
-      stateResult.remainingStates
+    return applyPendingCookies(
+      buildLoginRedirect(request, KAKAO_ERROR_MESSAGE, stateResult.remainingStates)
     );
   }
 
   const signedInUserId = signInData.user?.id ?? null;
-  if (!signedInUserId) {
-    await writeErrorLog({
-      category: "auth",
-      action: "kakao_callback",
-      message: "카카오 로그인 성공 후 사용자 ID 누락",
-      errorCode: "missing_user_id",
-      path: request.nextUrl.pathname,
-      ip,
-      userAgent,
-    });
-  } else {
+  if (signedInUserId) {
     const supabaseAdmin = createServiceRoleSupabaseClient();
-    const { data: setting, error: settingError } = await supabaseAdmin
+    const { data: setting } = await supabaseAdmin
       .from("app_settings")
       .select("value")
       .eq("key", "approval_required")
       .maybeSingle<{ value: boolean }>();
 
-    if (settingError) {
-      await writeErrorLog({
-        category: "auth",
-        action: "kakao_callback",
-        message: "자동 승인 동기화 실패: 설정 조회 오류",
-        errorCode: settingError.code ?? null,
-        authUserId: signedInUserId,
-        path: request.nextUrl.pathname,
-        ip,
-        userAgent,
-        details: { errorMessage: settingError.message },
-      });
-    } else if (setting?.value === false) {
-      const { error: syncError } = await supabaseAdmin
+    if (setting?.value === false) {
+      await supabaseAdmin
         .from("profiles")
         .update({ is_approved: true, updated_at: new Date().toISOString() })
         .eq("id", signedInUserId)
         .eq("is_approved", false);
-
-      if (syncError) {
-        await writeErrorLog({
-          category: "auth",
-          action: "kakao_callback",
-          message: "자동 승인 동기화 실패: profiles 업데이트 오류",
-          errorCode: syncError.code ?? null,
-          authUserId: signedInUserId,
-          path: request.nextUrl.pathname,
-          ip,
-          userAgent,
-          details: { errorMessage: syncError.message },
-        });
-      }
     }
   }
 
   const redirectResponse = NextResponse.redirect(new URL("/start", requestUrl.origin));
-  redirectResponse.headers.set("Cache-Control", "no-store");
-
-  pendingCookies.forEach(({ name, value, options }) => {
-    redirectResponse.cookies.set(name, value, options);
-  });
-
-  setStateCookie(redirectResponse, stateResult.remainingStates);
-
-  return redirectResponse;
+  return applyPendingCookies(redirectResponse);
 }

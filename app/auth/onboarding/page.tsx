@@ -152,7 +152,22 @@ export default function OnboardingPage() {
       }
 
       if (!emailAvailabilityPayload?.available) {
-        setMsg("이미 사용 중인 이메일입니다.");
+        const authEmailInUse = Boolean(emailAvailabilityPayload?.authEmailInUse);
+        const profileEmailInUse = Boolean(
+          emailAvailabilityPayload?.profileEmailInUse
+        );
+
+        if (authEmailInUse) {
+          setMsg(
+            "이미 이메일 로그인에 사용 중인 이메일입니다. 기존 계정으로 로그인 후 프로필에서 카카오 계정 연동을 진행해주세요."
+          );
+        } else if (profileEmailInUse) {
+          setMsg(
+            "이미 다른 계정의 온보딩 이메일로 등록된 주소입니다. 같은 사용자라면 기존 계정으로 로그인해주세요."
+          );
+        } else {
+          setMsg("이미 사용 중인 이메일입니다.");
+        }
         setSaving(false);
         return;
       }
@@ -169,7 +184,9 @@ export default function OnboardingPage() {
       }
 
       if (!available) {
-        setMsg("이미 사용 중인 닉네임입니다.");
+        setMsg(
+          "이미 사용 중인 닉네임입니다. 이메일이 달라도 닉네임은 중복 사용할 수 없습니다."
+        );
         setSaving(false);
         return;
       }
@@ -286,7 +303,9 @@ export default function OnboardingPage() {
             />
             {canEditEmail && (
               <p className="text-xs text-slate-500">
-                카카오에서 이메일을 제공하지 않아 직접 입력이 필요합니다.
+                카카오에서 이메일을 제공하지 않아 직접 입력이 필요합니다. 기존
+                계정과 연결하려면 기존 계정의 이메일을 입력하지 말고, 기존 계정으로
+                로그인 후 프로필의 카카오 연동을 이용하세요.
               </p>
             )}
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
 import { Button } from "../../components/ui/button";
@@ -14,9 +14,11 @@ import {
 } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 
-export default function ProfilePage() {
+function ProfileContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
 
   const [nickname, setNickname] = useState("");
   const [originalNickname, setOriginalNickname] = useState("");
@@ -28,11 +30,21 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [authProvider, setAuthProvider] = useState("email");
+  const [hasKakaoLinked, setHasKakaoLinked] = useState(false);
   const [msg, setMsg] = useState("");
+
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingNickname, setIsSavingNickname] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isLinkingKakao, setIsLinkingKakao] = useState(false);
+
+  useEffect(() => {
+    const queryMessage = searchParams.get("message");
+    if (queryMessage) {
+      setMsg(queryMessage);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (loading) return;
@@ -50,13 +62,18 @@ export default function ProfilePage() {
     if (!user) return;
 
     setEmail(user.email ?? "");
-    setAuthProvider(user.app_metadata?.provider ?? "email");
+    const provider = user.app_metadata?.provider ?? "email";
+    setAuthProvider(provider);
+
+    const linkedKakao =
+      provider === "kakao" ||
+      (user.identities ?? []).some((identity) => identity.provider === "kakao");
+    setHasKakaoLinked(linkedKakao);
 
     const metadataPhone = (user.user_metadata?.phone as string | undefined) ?? "";
     setPhone(metadataPhone);
     setOriginalPhone(metadataPhone);
 
-    const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
       .select("nickname, full_name")
@@ -68,7 +85,6 @@ export default function ProfilePage() {
     } else if (data) {
       const nextNickname = data.nickname ?? "";
       const nextFullName = data.full_name ?? "";
-
       setNickname(nextNickname);
       setOriginalNickname(nextNickname);
       setFullName(nextFullName);
@@ -95,8 +111,6 @@ export default function ProfilePage() {
     }
 
     setIsSavingProfile(true);
-
-    const supabase = createClient();
 
     const { error: profileError } = await supabase
       .from("profiles")
@@ -153,7 +167,6 @@ export default function ProfilePage() {
 
     setIsSavingNickname(true);
 
-    const supabase = createClient();
     const { data: available, error: checkError } = await supabase.rpc(
       "is_nickname_available",
       { p_nickname: nick, p_user_id: user.id }
@@ -212,7 +225,6 @@ export default function ProfilePage() {
 
     setIsSavingPassword(true);
 
-    const supabase = createClient();
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });
@@ -227,6 +239,16 @@ export default function ProfilePage() {
     setNewPassword("");
     setConfirmPassword("");
     setIsSavingPassword(false);
+  };
+
+  const startKakaoLink = () => {
+    if (hasKakaoLinked) {
+      setMsg("이미 카카오 계정이 연동되어 있습니다.");
+      return;
+    }
+
+    setIsLinkingKakao(true);
+    window.location.href = "/api/auth/kakao/link-start";
   };
 
   if (loading || isLoadingData) {
@@ -325,6 +347,33 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+        {authProvider === "email" && (
+          <Card className="border-slate-200/70">
+            <CardHeader>
+              <CardTitle>카카오 계정 연동</CardTitle>
+              <CardDescription>
+                동일 계정으로 카카오 로그인을 사용하려면 연동을 진행하세요.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-slate-600">
+                연동 상태: {hasKakaoLinked ? "연동됨" : "미연동"}
+              </p>
+              <Button
+                onClick={startKakaoLink}
+                disabled={isLinkingKakao || hasKakaoLinked}
+                className="bg-yellow-400 text-slate-900 hover:bg-yellow-300"
+              >
+                {hasKakaoLinked
+                  ? "카카오 계정 연동 완료"
+                  : isLinkingKakao
+                    ? "카카오로 이동 중..."
+                    : "카카오 계정 연동하기"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {authProvider === "email" ? (
           <Card className="border-slate-200/70">
             <CardHeader>
@@ -382,5 +431,25 @@ export default function ProfilePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-slate-50/70">
+          <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-10">
+            <Card>
+              <CardContent className="py-10">
+                <p className="text-sm text-slate-500">로딩 중...</p>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      }
+    >
+      <ProfileContent />
+    </Suspense>
   );
 }

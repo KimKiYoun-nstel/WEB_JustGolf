@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       available: !authEmailInUse && !profileEmailInUse,
+      authEmailInUse,
+      profileEmailInUse,
     });
   } catch (error) {
     console.error("API Error:", error);
