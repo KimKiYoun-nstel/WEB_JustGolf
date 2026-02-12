@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
   Card,
@@ -13,73 +14,175 @@ import {
   CardTitle,
 } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
-import { Badge } from "../../components/ui/badge";
+
+type FeedbackCategory = "bug" | "feature" | "general";
+type FeedbackStatus =
+  | "pending"
+  | "received"
+  | "in_review"
+  | "completed"
+  | "deleted";
 
 type Feedback = {
   id: number;
   user_id: string;
   title: string;
   content: string;
-  category: "bug" | "feature" | "general";
-  status: "pending" | "in_progress" | "completed";
+  category: FeedbackCategory;
+  status: FeedbackStatus | "in_progress";
   created_at: string;
-  nickname?: string;
+  nickname: string;
 };
+
+type FeedbackComment = {
+  id: number;
+  feedback_id: number;
+  user_id: string;
+  content: string;
+  created_at: string;
+  nickname: string;
+};
+
+const FEEDBACK_STATUS_FLOW: FeedbackStatus[] = [
+  "pending",
+  "received",
+  "in_review",
+  "completed",
+  "deleted",
+];
+
+const categoryLabelMap: Record<FeedbackCategory, string> = {
+  general: "일반",
+  bug: "버그",
+  feature: "기능요청",
+};
+
+const statusLabelMap: Record<FeedbackStatus, string> = {
+  pending: "대기",
+  received: "접수",
+  in_review: "확인중",
+  completed: "완료",
+  deleted: "삭제",
+};
+
+function getStatusLabel(status: Feedback["status"]) {
+  if (status === "in_progress") return "확인중";
+  return statusLabelMap[status] ?? status;
+}
+
+function getStatusVariant(
+  status: Feedback["status"]
+): "default" | "secondary" | "outline" {
+  if (status === "completed") return "default";
+  if (status === "in_review" || status === "in_progress") return "secondary";
+  return "outline";
+}
 
 export default function BoardPage() {
   const { user } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
+
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [commentsByFeedbackId, setCommentsByFeedbackId] = useState<
+    Record<number, FeedbackComment[]>
+  >({});
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [category, setCategory] = useState<"bug" | "feature" | "general">("general");
-  const [filter, setFilter] = useState<string>("all");
+  const [category, setCategory] = useState<FeedbackCategory>("general");
+  const [filter, setFilter] = useState<"all" | FeedbackCategory>("all");
+  const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>({});
+
+  const [isAdmin, setIsAdmin] = useState(false);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadFeedbacks();
+    void loadBoardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const loadFeedbacks = async () => {
-    const supabase = createClient();
-    const { data, error } = await supabase
+  const loadBoardData = async () => {
+    const { data: feedbackRows, error: feedbackError } = await supabase
       .from("feedbacks")
       .select("id,user_id,title,content,category,status,created_at")
       .order("created_at", { ascending: false });
 
-    if (error || !data) return;
+    if (feedbackError || !feedbackRows) return;
 
-    let nicknameById: Record<string, string> = {};
+    if (user?.id) {
+      const { data: me } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .maybeSingle<{ is_admin: boolean }>();
+      setIsAdmin(Boolean(me?.is_admin));
+    } else {
+      setIsAdmin(false);
+    }
+
+    const feedbackIds = feedbackRows.map((row) => row.id);
+    const { data: commentRows } =
+      feedbackIds.length > 0
+        ? await supabase
+            .from("feedback_comments")
+            .select("id,feedback_id,user_id,content,created_at")
+            .in("feedback_id", feedbackIds)
+            .order("created_at", { ascending: true })
+        : { data: [] };
+
     const userIds = Array.from(
-      new Set((data ?? []).map((row: any) => row.user_id).filter(Boolean))
+      new Set(
+        [
+          ...feedbackRows.map((row) => row.user_id),
+          ...(commentRows ?? []).map((row) => row.user_id),
+        ].filter(Boolean)
+      )
     );
 
-    if (userIds.length > 0 && user?.id) {
-      const { data: profiles, error: profileError } = await supabase
+    let nicknameById: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
         .from("profiles")
         .select("id,nickname")
         .in("id", userIds);
 
-      if (!profileError && profiles) {
-        nicknameById = profiles.reduce((acc: Record<string, string>, p: any) => {
-          acc[p.id] = p.nickname ?? "익명";
-          return acc;
-        }, {});
-      }
+      nicknameById = (profiles ?? []).reduce((acc, row) => {
+        acc[row.id] = row.nickname ?? "익명";
+        return acc;
+      }, {} as Record<string, string>);
     }
 
-    const mapped = data.map((row: any) => ({
+    const mappedFeedbacks: Feedback[] = feedbackRows.map((row) => ({
       id: row.id,
       user_id: row.user_id,
       title: row.title,
       content: row.content,
-      category: row.category,
-      status: row.status,
+      category: row.category as FeedbackCategory,
+      status: row.status as Feedback["status"],
       created_at: row.created_at,
       nickname: nicknameById[row.user_id] ?? "익명",
     }));
-    setFeedbacks(mapped as Feedback[]);
+
+    const mappedComments: FeedbackComment[] = (commentRows ?? []).map((row) => ({
+      id: row.id,
+      feedback_id: row.feedback_id,
+      user_id: row.user_id,
+      content: row.content,
+      created_at: row.created_at,
+      nickname: nicknameById[row.user_id] ?? "익명",
+    }));
+
+    const grouped = mappedComments.reduce((acc, row) => {
+      if (!acc[row.feedback_id]) {
+        acc[row.feedback_id] = [];
+      }
+      acc[row.feedback_id].push(row);
+      return acc;
+    }, {} as Record<number, FeedbackComment[]>);
+
+    setFeedbacks(mappedFeedbacks);
+    setCommentsByFeedbackId(grouped);
   };
 
   const submitFeedback = async () => {
@@ -96,7 +199,6 @@ export default function BoardPage() {
     setLoading(true);
     setMsg("");
 
-    const supabase = createClient();
     const { error } = await supabase.from("feedbacks").insert({
       user_id: user.id,
       title: title.trim(),
@@ -109,50 +211,47 @@ export default function BoardPage() {
 
     if (error) {
       setMsg(`등록 실패: ${error.message}`);
-    } else {
-      setMsg("피드백이 등록되었습니다!");
-      setTitle("");
-      setContent("");
-      setCategory("general");
-      loadFeedbacks();
+      return;
     }
+
+    setMsg("피드백이 등록되었습니다.");
+    setTitle("");
+    setContent("");
+    setCategory("general");
+    await loadBoardData();
   };
 
-  const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case "bug":
-        return "버그";
-      case "feature":
-        return "기능요청";
-      case "general":
-        return "일반";
-      default:
-        return cat;
+  const updateFeedbackStatus = async (
+    feedbackId: number,
+    nextStatus: FeedbackStatus
+  ) => {
+    if (!user?.id) {
+      setMsg("로그인이 필요합니다.");
+      return;
     }
-  };
 
-  const getStatusLabel = (stat: string) => {
-    switch (stat) {
-      case "pending":
-        return "대기";
-      case "in_progress":
-        return "진행중";
-      case "completed":
-        return "완료";
-      default:
-        return stat;
-    }
-  };
+    const feedback = feedbacks.find((row) => row.id === feedbackId);
+    if (!feedback) return;
 
-  const getStatusVariant = (stat: string): "default" | "secondary" | "outline" => {
-    switch (stat) {
-      case "completed":
-        return "default";
-      case "in_progress":
-        return "secondary";
-      default:
-        return "outline";
+    const canUpdate = feedback.user_id === user.id || isAdmin;
+    if (!canUpdate) {
+      setMsg("상태를 변경할 권한이 없습니다.");
+      return;
     }
+
+    setMsg("");
+    const { error } = await supabase
+      .from("feedbacks")
+      .update({ status: nextStatus })
+      .eq("id", feedbackId);
+
+    if (error) {
+      setMsg(`상태 변경 실패: ${error.message}`);
+      return;
+    }
+
+    setMsg("상태가 변경되었습니다.");
+    await loadBoardData();
   };
 
   const deleteFeedback = async (feedbackId: number) => {
@@ -161,35 +260,90 @@ export default function BoardPage() {
       return;
     }
 
-    const feedback = feedbacks.find((fb) => fb.id === feedbackId);
-    if (!feedback) {
-      setMsg("피드백을 찾을 수 없습니다.");
+    const feedback = feedbacks.find((row) => row.id === feedbackId);
+    if (!feedback) return;
+
+    if (!confirm(`"${feedback.title}" 글을 삭제하시겠습니까?`)) {
       return;
     }
 
-    // 작성자 또는 관리자만 삭제 가능한지는 RLS에서 확인됨
-    if (!confirm(`"${feedback.title}" 피드백을 삭제하시겠습니까?`)) {
-      return;
-    }
-
-    const supabase = createClient();
-    setMsg("");
-    const { error } = await supabase
-      .from("feedbacks")
-      .delete()
-      .eq("id", feedbackId);
+    const { error } = await supabase.from("feedbacks").delete().eq("id", feedbackId);
 
     if (error) {
       setMsg(`삭제 실패: ${error.message}`);
-    } else {
-      setMsg("✅ 피드백이 삭제되었습니다.");
-      await loadFeedbacks();
+      return;
     }
+
+    setMsg("게시글이 삭제되었습니다.");
+    await loadBoardData();
   };
 
-  const filteredFeedbacks = feedbacks.filter((fb) => {
+  const addComment = async (feedbackId: number) => {
+    if (!user?.id) {
+      setMsg("로그인이 필요합니다.");
+      return;
+    }
+
+    const value = (commentDrafts[feedbackId] ?? "").trim();
+    if (!value) {
+      setMsg("댓글 내용을 입력해주세요.");
+      return;
+    }
+
+    const { error } = await supabase.from("feedback_comments").insert({
+      feedback_id: feedbackId,
+      user_id: user.id,
+      content: value,
+    });
+
+    if (error) {
+      setMsg(`댓글 등록 실패: ${error.message}`);
+      return;
+    }
+
+    setCommentDrafts((prev) => ({ ...prev, [feedbackId]: "" }));
+    setMsg("댓글이 등록되었습니다.");
+    await loadBoardData();
+  };
+
+  const deleteComment = async (commentId: number, feedbackId: number) => {
+    if (!user?.id) {
+      setMsg("로그인이 필요합니다.");
+      return;
+    }
+
+    const target = (commentsByFeedbackId[feedbackId] ?? []).find(
+      (row) => row.id === commentId
+    );
+    if (!target) return;
+
+    const canDelete = target.user_id === user.id || isAdmin;
+    if (!canDelete) {
+      setMsg("댓글을 삭제할 권한이 없습니다.");
+      return;
+    }
+
+    if (!confirm("댓글을 삭제하시겠습니까?")) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("feedback_comments")
+      .delete()
+      .eq("id", commentId);
+
+    if (error) {
+      setMsg(`댓글 삭제 실패: ${error.message}`);
+      return;
+    }
+
+    setMsg("댓글이 삭제되었습니다.");
+    await loadBoardData();
+  };
+
+  const filteredFeedbacks = feedbacks.filter((feedback) => {
     if (filter === "all") return true;
-    return fb.category === filter;
+    return feedback.category === filter;
   });
 
   return (
@@ -198,17 +352,24 @@ export default function BoardPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-slate-900">피드백 게시판</h1>
           <p className="text-sm text-slate-600">
-            버그 신고, 기능 제안, 문의사항을 자유롭게 남겨주세요.
+            버그 신고, 기능 제안, 일반 의견을 남겨주세요.
           </p>
         </div>
+
+        <Card className="border-slate-200/70">
+          <CardHeader>
+            <CardTitle>피드백 상태 흐름</CardTitle>
+            <CardDescription>
+              대기 → 접수 → 확인중 → 완료 → 삭제
+            </CardDescription>
+          </CardHeader>
+        </Card>
 
         {user && (
           <Card className="border-slate-200/70">
             <CardHeader>
               <CardTitle>피드백 작성</CardTitle>
-              <CardDescription>
-                서비스 개선을 위한 의견을 남겨주세요.
-              </CardDescription>
+              <CardDescription>개선이 필요한 내용을 자세히 적어주세요.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -216,9 +377,7 @@ export default function BoardPage() {
                 <select
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                   value={category}
-                  onChange={(e) =>
-                    setCategory(e.target.value as "bug" | "feature" | "general")
-                  }
+                  onChange={(e) => setCategory(e.target.value as FeedbackCategory)}
                   disabled={loading}
                 >
                   <option value="general">일반</option>
@@ -251,16 +410,6 @@ export default function BoardPage() {
               <Button onClick={submitFeedback} disabled={loading}>
                 {loading ? "등록 중..." : "피드백 등록"}
               </Button>
-
-              {msg && (
-                <p
-                  className={`text-sm ${
-                    msg.includes("실패") ? "text-red-600" : "text-green-600"
-                  }`}
-                >
-                  {msg}
-                </p>
-              )}
             </CardContent>
           </Card>
         )}
@@ -276,6 +425,12 @@ export default function BoardPage() {
                 이 필요합니다.
               </p>
             </CardContent>
+          </Card>
+        )}
+
+        {msg && (
+          <Card className="border-slate-200/70">
+            <CardContent className="py-4 text-sm text-slate-700">{msg}</CardContent>
           </Card>
         )}
 
@@ -318,48 +473,149 @@ export default function BoardPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredFeedbacks.map((fb) => (
-              <Card key={fb.id} className="border-slate-200/70">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 space-y-1">
-                      <CardTitle className="text-lg">{fb.title}</CardTitle>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>{fb.nickname}</span>
-                        <span>·</span>
-                        <span>
-                          {new Date(fb.created_at).toLocaleDateString("ko-KR", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </span>
+            filteredFeedbacks.map((feedback) => {
+              const canUpdateStatus =
+                !!user && (feedback.user_id === user.id || isAdmin);
+              const canDeleteFeedback = !!user && feedback.user_id === user.id;
+              const comments = commentsByFeedbackId[feedback.id] ?? [];
+
+              return (
+                <Card key={feedback.id} className="border-slate-200/70">
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 space-y-1">
+                        <CardTitle className="text-lg">{feedback.title}</CardTitle>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span>{feedback.nickname}</span>
+                          <span>·</span>
+                          <span>
+                            {new Date(feedback.created_at).toLocaleDateString("ko-KR", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          {categoryLabelMap[feedback.category] ?? feedback.category}
+                        </Badge>
+                        <Badge variant={getStatusVariant(feedback.status)}>
+                          {getStatusLabel(feedback.status)}
+                        </Badge>
+                        {canDeleteFeedback && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => deleteFeedback(feedback.id)}
+                          >
+                            삭제
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{getCategoryLabel(fb.category)}</Badge>
-                      <Badge variant={getStatusVariant(fb.status)}>
-                        {getStatusLabel(fb.status)}
-                      </Badge>
-                      {user?.id === fb.user_id && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => deleteFeedback(fb.id)}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="whitespace-pre-wrap text-sm text-slate-700">
+                      {feedback.content}
+                    </p>
+
+                    {canUpdateStatus && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium">상태 변경</label>
+                        <select
+                          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                          value={
+                            feedback.status === "in_progress"
+                              ? "in_review"
+                              : feedback.status
+                          }
+                          onChange={(e) =>
+                            void updateFeedbackStatus(
+                              feedback.id,
+                              e.target.value as FeedbackStatus
+                            )
+                          }
                         >
-                          삭제
-                        </Button>
+                          {FEEDBACK_STATUS_FLOW.map((status) => (
+                            <option key={status} value={status}>
+                              {statusLabelMap[status]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3">
+                      <p className="mb-3 text-sm font-medium text-slate-700">
+                        댓글 {comments.length}개
+                      </p>
+
+                      <div className="space-y-2">
+                        {comments.length === 0 ? (
+                          <p className="text-xs text-slate-500">첫 댓글을 남겨주세요.</p>
+                        ) : (
+                          comments.map((comment) => {
+                            const canDeleteComment =
+                              !!user && (comment.user_id === user.id || isAdmin);
+                            return (
+                              <div
+                                key={comment.id}
+                                className="rounded-md border border-slate-200 bg-white p-3"
+                              >
+                                <div className="mb-2 flex items-center justify-between gap-2 text-xs text-slate-500">
+                                  <span>
+                                    {comment.nickname} ·{" "}
+                                    {new Date(comment.created_at).toLocaleString("ko-KR")}
+                                  </span>
+                                  {canDeleteComment && (
+                                    <button
+                                      type="button"
+                                      className="text-red-600 hover:underline"
+                                      onClick={() =>
+                                        void deleteComment(comment.id, feedback.id)
+                                      }
+                                    >
+                                      삭제
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="whitespace-pre-wrap text-sm text-slate-700">
+                                  {comment.content}
+                                </p>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {user && feedback.status !== "deleted" && (
+                        <div className="mt-3 space-y-2">
+                          <textarea
+                            className="min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                            value={commentDrafts[feedback.id] ?? ""}
+                            onChange={(e) =>
+                              setCommentDrafts((prev) => ({
+                                ...prev,
+                                [feedback.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="댓글을 입력하세요"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => void addComment(feedback.id)}
+                          >
+                            댓글 등록
+                          </Button>
+                        </div>
                       )}
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap text-sm text-slate-700">
-                    {fb.content}
-                  </p>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       </div>
