@@ -1,11 +1,12 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  createServiceRoleSupabaseClient,
+  requireApiUser,
+} from "../../../../../../lib/apiGuard";
 
 /**
  * PATCH /api/admin/users/[id]/set-admin
- * 사용자에게 관리자 권한 부여/해제 (관리자만 접근 가능)
- * Service Role Key로 프로필 업데이트
+ * 사용자 관리자 권한 부여/해제 (관리자 전용)
  */
 export async function PATCH(
   request: NextRequest,
@@ -13,85 +14,37 @@ export async function PATCH(
 ) {
   try {
     const { id: userId } = await params;
-    const body = await request.json();
-    const { is_admin } = body;
+    const body = await request.json().catch(() => null);
+    const isAdmin = body?.is_admin;
 
-    if (typeof is_admin !== 'boolean') {
+    if (typeof isAdmin !== "boolean") {
       return NextResponse.json(
-        { error: 'is_admin은 boolean이어야 합니다' },
+        { error: "is_admin은 boolean이어야 합니다." },
         { status: 400 }
       );
     }
 
-    // 1. 요청자가 관리자인지 확인
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch {}
-          },
-        },
-      }
-    );
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: '인증 필요' }, { status: 401 });
+    const guard = await requireApiUser({ requireAdmin: true });
+    if ("error" in guard) {
+      return guard.error;
     }
 
-    // 2. 요청자의 관리자 권한 확인 (자신도 관리자여야 함)
-    const { data: requesterProfile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!requesterProfile?.is_admin) {
-      return NextResponse.json({ error: '관리자 권한 필요' }, { status: 403 });
-    }
-
-    // 3. 자신의 권한을 제거하려고 하는지 확인 (방지)
-    if (user.id === userId && !is_admin) {
+    if (guard.user.id === userId && !isAdmin) {
       return NextResponse.json(
-        { error: '자신의 관리자 권한을 제거할 수 없습니다' },
+        { error: "자신의 관리자 권한은 해제할 수 없습니다." },
         { status: 400 }
       );
     }
 
-    // 4. Service Role Key로 권한 변경
-    const supabaseAdmin = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return [];
-          },
-          setAll() {},
-        },
-      }
-    );
+    const supabaseAdmin = createServiceRoleSupabaseClient();
 
     const { data: updatedProfile, error } = await supabaseAdmin
-      .from('profiles')
+      .from("profiles")
       .update({
-        is_admin,
+        is_admin: isAdmin,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
+      .eq("id", userId)
       .select()
       .single();
 
@@ -101,16 +54,13 @@ export async function PATCH(
 
     return NextResponse.json(
       {
-        message: `관리자 권한 ${is_admin ? '부여' : '제거'} 완료`,
+        message: `관리자 권한 ${isAdmin ? "부여" : "해제"} 완료`,
         profile: updatedProfile,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error('API Error:', error);
-    return NextResponse.json(
-      { error: '서버 오류 발생' },
-      { status: 500 }
-    );
+    console.error("API Error:", error);
+    return NextResponse.json({ error: "서버 오류 발생" }, { status: 500 });
   }
 }

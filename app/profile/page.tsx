@@ -21,9 +21,9 @@ export default function ProfilePage() {
   const [nickname, setNickname] = useState("");
   const [originalNickname, setOriginalNickname] = useState("");
   const [email, setEmail] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [authProvider, setAuthProvider] = useState("email");
   const [msg, setMsg] = useState("");
   const [isLoadingData, setIsLoadingData] = useState(true);
 
@@ -44,6 +44,7 @@ export default function ProfilePage() {
 
     // 이메일은 auth에서 가져옴
     setEmail(user.email ?? "");
+    setAuthProvider(user.app_metadata?.provider ?? "email");
 
     // 닉네임은 profiles 테이블에서 가져옴
     const supabase = createClient();
@@ -144,7 +145,6 @@ export default function ProfilePage() {
       setMsg(`비밀번호 변경 실패: ${error.message}`);
     } else {
       setMsg("비밀번호가 변경되었습니다");
-      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     }
@@ -177,7 +177,9 @@ export default function ProfilePage() {
             내 프로필
           </h1>
           <p className="text-sm text-slate-500">
-            닉네임과 비밀번호를 변경할 수 있습니다.
+            {authProvider === "kakao"
+              ? "카카오 계정으로 로그인 중입니다. 닉네임을 관리할 수 있습니다."
+              : "이메일 계정으로 로그인 중입니다. 닉네임과 비밀번호를 변경할 수 있습니다."}
           </p>
         </div>
 
@@ -217,38 +219,48 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* 비밀번호 변경 */}
-        <Card className="border-slate-200/70">
-          <CardHeader>
-            <CardTitle>비밀번호 변경</CardTitle>
-            <CardDescription>
-              새 비밀번호는 최소 6자 이상이어야 합니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">새 비밀번호</label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="새 비밀번호"
-              />
-            </div>
+        {authProvider === "email" ? (
+          <Card className="border-slate-200/70">
+            <CardHeader>
+              <CardTitle>비밀번호 변경</CardTitle>
+              <CardDescription>
+                새 비밀번호는 최소 6자 이상이어야 합니다.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">새 비밀번호</label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="새 비밀번호"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">비밀번호 확인</label>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="비밀번호 확인"
-              />
-            </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">비밀번호 확인</label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="비밀번호 확인"
+                />
+              </div>
 
-            <Button onClick={updatePassword}>비밀번호 변경</Button>
-          </CardContent>
-        </Card>
+              <Button onClick={updatePassword}>비밀번호 변경</Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-slate-200/70">
+            <CardHeader>
+              <CardTitle>비밀번호 변경</CardTitle>
+              <CardDescription>
+                카카오 로그인 사용자는 카카오 계정에서 비밀번호를 관리합니다.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
 
         {/* 돌아가기 */}
         <div className="flex gap-2">

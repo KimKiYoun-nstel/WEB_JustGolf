@@ -132,7 +132,7 @@ describe('Login Page', () => {
           email: 'newuser@test.com',
           password: 'password123',
           options: {
-            data: { nickname: '테스터' },
+            data: { nickname: '테스터', onboarding_completed: false },
           },
         });
       });

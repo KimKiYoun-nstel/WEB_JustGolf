@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
-import { withRetry, getUserFriendlyError } from "../../lib/errorHandler";
+import { getUserFriendlyError } from "../../lib/errorHandler";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
@@ -25,7 +25,9 @@ function LoginForm() {
   // 이미 로그인하면 자동으로 /start로 리다이렉트
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/start");
+      const onboardingCompleted =
+        user.user_metadata?.onboarding_completed === true;
+      router.push(onboardingCompleted ? "/start" : "/auth/onboarding");
     }
   }, [user, authLoading, router]);
 
@@ -98,7 +100,10 @@ function LoginForm() {
         email,
         password,
         options: {
-          data: { nickname: nick },
+          data: {
+            nickname: nick,
+            onboarding_completed: false,
+          },
         },
       });
 
@@ -197,6 +202,18 @@ function LoginForm() {
     }
   };
 
+  const signInWithKakao = async () => {
+    setMsg("");
+    setLoading(true);
+
+    try {
+      window.location.href = "/api/auth/kakao/start";
+    } catch (err) {
+      setMsg(`카카오 로그인 실패: ${getUserFriendlyError(err, "signIn")}`);
+      setLoading(false);
+    }
+  };
+
   const signIn = async () => {
     setMsg("");
     setLoading(true);
@@ -255,8 +272,10 @@ function LoginForm() {
 
       // 로그인 성공 - 클라이언트 사이드 네비게이션
       setMsg("로그인 성공! 이동 중...");
+      const onboardingCompleted =
+        data.user.user_metadata?.onboarding_completed === true;
       setTimeout(() => {
-        router.push("/start");
+        router.push(onboardingCompleted ? "/start" : "/auth/onboarding");
       }, 300);
     } catch (err) {
       const errorMsg = getUserFriendlyError(err, "signIn");
@@ -329,6 +348,23 @@ function LoginForm() {
               {loading ? "처리 중..." : "회원가입"}
             </Button>
           </div>
+
+          <div className="relative py-1">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-slate-400">또는</span>
+            </div>
+          </div>
+
+          <Button
+            onClick={signInWithKakao}
+            disabled={loading}
+            className="w-full bg-yellow-400 text-slate-900 hover:bg-yellow-300"
+          >
+            {loading ? "처리 중..." : "카카오로 시작하기"}
+          </Button>
 
           {msg && (
             <p
