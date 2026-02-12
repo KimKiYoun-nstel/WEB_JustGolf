@@ -65,6 +65,40 @@ function LoginForm() {
     loadApprovalSetting();
   }, [supabase]);
 
+  const logAuthFailure = async (payload: {
+    action: "login_submit" | "signup_submit" | "kakao_login_submit";
+    message: string;
+    errorCode?: string | null;
+    details?: Record<string, unknown>;
+  }) => {
+    try {
+      await fetch("/api/auth/error-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: payload.action,
+          message: payload.message,
+          errorCode: payload.errorCode ?? null,
+          email: email.trim().toLowerCase() || null,
+          path: window.location.pathname,
+          details: payload.details ?? {},
+        }),
+      });
+    } catch {
+      // 로깅 실패는 사용자 흐름에 영향 주지 않음
+    }
+  };
+
+  const syncAutoApproval = async () => {
+    try {
+      await fetch("/api/auth/sync-approval", {
+        method: "POST",
+      });
+    } catch {
+      // 동기화 실패는 로그인/회원가입 흐름을 막지 않음
+    }
+  };
+
   const signUp = async () => {
     setMsg("");
     setLoading(true);
@@ -75,6 +109,11 @@ function LoginForm() {
       const nick = nickname.trim();
       if (!nick) {
         setMsg("닉네임을 입력해주세요.");
+        await logAuthFailure({
+          action: "signup_submit",
+          message: "회원가입 실패: 닉네임 누락",
+          errorCode: "missing_nickname",
+        });
         setLoading(false);
         return;
       }
@@ -86,12 +125,24 @@ function LoginForm() {
 
       if (checkError) {
         setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
+        await logAuthFailure({
+          action: "signup_submit",
+          message: "회원가입 실패: 닉네임 중복 확인 오류",
+          errorCode: checkError.code ?? null,
+          details: { errorMessage: checkError.message },
+        });
         setLoading(false);
         return;
       }
 
       if (!available) {
         setMsg("이미 사용 중인 닉네임입니다.");
+        await logAuthFailure({
+          action: "signup_submit",
+          message: "회원가입 실패: 닉네임 중복",
+          errorCode: "nickname_conflict",
+          details: { nickname: nick },
+        });
         setLoading(false);
         return;
       }
@@ -110,15 +161,28 @@ function LoginForm() {
       if (error) {
         const errorMsg = getUserFriendlyError(error, "signUp");
         setMsg(`회원가입 실패: ${errorMsg}`);
+        await logAuthFailure({
+          action: "signup_submit",
+          message: "회원가입 실패: Supabase signUp 오류",
+          errorCode: error.code ?? null,
+          details: { errorMessage: error.message },
+        });
         setLoading(false);
         return;
       }
 
       if (!data?.user?.id) {
         setMsg("회원가입 실패: 사용자 정보를 찾을 수 없습니다.");
+        await logAuthFailure({
+          action: "signup_submit",
+          message: "회원가입 실패: 사용자 ID 없음",
+          errorCode: "missing_user_id",
+        });
         setLoading(false);
         return;
       }
+
+      await syncAutoApproval();
 
       // Trigger가 profile을 자동 생성 - 재시도 로직으로 생성 대기
       let profileCheck = null;
@@ -149,6 +213,12 @@ function LoginForm() {
 
       if (!profileCheck) {
         // 5회 재시도 후에도 실패했으면 생성 대기 중일 가능성
+        await logAuthFailure({
+          action: "signup_submit",
+          message: "회원가입 후 profiles 동기화 지연",
+          errorCode: lastError?.code ?? "profile_sync_delayed",
+          details: { lastErrorMessage: lastError?.message ?? null },
+        });
         setMsg(
           approvalRequiredValue
             ? "회원가입 완료되었습니다. 관리자 승인 후 로그인해주세요."
@@ -176,6 +246,11 @@ function LoginForm() {
     } catch (err) {
       const errorMsg = getUserFriendlyError(err, "signUp");
       setMsg(`회원가입 실패: ${errorMsg}`);
+      await logAuthFailure({
+        action: "signup_submit",
+        message: "회원가입 실패: 예외 발생",
+        details: { errorMessage: String(err) },
+      });
       setLoading(false);
     }
   };
@@ -210,6 +285,11 @@ function LoginForm() {
       window.location.href = "/api/auth/kakao/start";
     } catch (err) {
       setMsg(`카카오 로그인 실패: ${getUserFriendlyError(err, "signIn")}`);
+      await logAuthFailure({
+        action: "kakao_login_submit",
+        message: "카카오 로그인 시작 실패",
+        details: { errorMessage: String(err) },
+      });
       setLoading(false);
     }
   };
@@ -253,15 +333,36 @@ function LoginForm() {
           setMsg(`로그인 실패: ${errorMsg}`);
         }
 
+        await logAuthFailure({
+          action: "login_submit",
+          message: "로그인 실패: Supabase signInWithPassword 오류",
+          errorCode: error.code ?? null,
+          details: {
+            errorMessage: error.message,
+            normalizedReason: rawMessage.includes("Invalid login credentials")
+              ? "invalid_credentials"
+              : rawMessage.toLowerCase().includes("email not confirmed")
+                ? "email_not_confirmed"
+                : "other",
+          },
+        });
+
         setLoading(false);
         return;
       }
 
       if (!data?.user?.id) {
         setMsg("로그인 실패: 사용자 정보를 찾을 수 없습니다.");
+        await logAuthFailure({
+          action: "login_submit",
+          message: "로그인 실패: 사용자 ID 없음",
+          errorCode: "missing_user_id",
+        });
         setLoading(false);
         return;
       }
+
+      await syncAutoApproval();
 
       // 로그인 정보 기억하기
       if (rememberMe) {
@@ -280,6 +381,11 @@ function LoginForm() {
     } catch (err) {
       const errorMsg = getUserFriendlyError(err, "signIn");
       setMsg(`로그인 실패: ${errorMsg}`);
+      await logAuthFailure({
+        action: "login_submit",
+        message: "로그인 실패: 예외 발생",
+        details: { errorMessage: String(err) },
+      });
       setLoading(false);
     }
   };

@@ -1,5 +1,12 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  consumeState,
+  parseStateCookie,
+  serializeStateCookie,
+} from "../../../lib/kakaoOidcState";
+import { createServiceRoleSupabaseClient } from "../../../lib/apiGuard";
+import { writeErrorLog } from "../../../lib/server/errorLogger";
 
 type PendingCookie = {
   name: string;
@@ -19,10 +26,12 @@ type KakaoTokenResponse = {
 };
 
 const STATE_COOKIE = "kakao_oidc_state";
+const COOKIE_MAX_AGE = 60 * 10; // 10 minutes
+const secure = process.env.NODE_ENV === "production";
 
-const KAKAO_ERROR_MESSAGE = "카카오 로그인 처리에 실패했습니다.";
-const KAKAO_STATE_ERROR_MESSAGE = "카카오 로그인 요청 검증에 실패했습니다.";
-const KAKAO_TOKEN_ERROR_MESSAGE = "카카오 로그인 토큰 교환에 실패했습니다.";
+const KAKAO_ERROR_MESSAGE = "??? ??? ??? ??????.";
+const KAKAO_STATE_ERROR_MESSAGE = "??? ??? ?? ??? ??????.";
+const KAKAO_TOKEN_ERROR_MESSAGE = "??? ??? ?? ??? ??????.";
 
 const buildRedirectUri = (request: NextRequest) => {
   return (
@@ -31,41 +40,96 @@ const buildRedirectUri = (request: NextRequest) => {
   );
 };
 
-const clearOidcCookies = (response: NextResponse) => {
-  response.cookies.set(STATE_COOKIE, "", { path: "/", maxAge: 0 });
+const setStateCookie = (response: NextResponse, states: string[]) => {
+  if (states.length === 0) {
+    response.cookies.set(STATE_COOKIE, "", { path: "/", maxAge: 0 });
+    return;
+  }
+
+  response.cookies.set(STATE_COOKIE, serializeStateCookie(states), {
+    httpOnly: true,
+    secure,
+    sameSite: "lax",
+    path: "/",
+    maxAge: COOKIE_MAX_AGE,
+  });
 };
+
+const buildLoginRedirect = (
+  request: NextRequest,
+  message: string,
+  statesToKeep: string[] = []
+) => {
+  const loginUrl = new URL("/login", request.nextUrl.origin);
+  loginUrl.searchParams.set("message", message);
+
+  const response = NextResponse.redirect(loginUrl);
+  response.headers.set("Cache-Control", "no-store");
+  setStateCookie(response, statesToKeep);
+
+  return response;
+};
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const state = requestUrl.searchParams.get("state");
-  const stateCookie = request.cookies.get(STATE_COOKIE)?.value;
+  const rawStateCookie = request.cookies.get(STATE_COOKIE)?.value;
+  const knownStates = parseStateCookie(rawStateCookie);
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ip = forwardedFor?.split(",")[0]?.trim() ?? null;
+  const userAgent = request.headers.get("user-agent");
 
-  const toLogin = (message: string) => {
-    const loginUrl = new URL("/login", requestUrl.origin);
-    loginUrl.searchParams.set("message", message);
-    const response = NextResponse.redirect(loginUrl);
-    clearOidcCookies(response);
-    return response;
-  };
+  const stateResult = state
+    ? consumeState(rawStateCookie, state)
+    : { matched: false, remainingStates: knownStates };
 
-  const toLoginWithDebug = (fallbackMessage: string, debugMessage?: string) => {
-    const safeDebug = (debugMessage ?? "").replace(/\s+/g, " ").trim();
-    if (process.env.NODE_ENV !== "production" && safeDebug) {
-      return toLogin(`${fallbackMessage} (${safeDebug})`);
-    }
-    return toLogin(fallbackMessage);
-  };
+  const redirectUri = buildRedirectUri(request);
 
-  if (!code || !state || !stateCookie || state !== stateCookie) {
-    return toLogin(KAKAO_STATE_ERROR_MESSAGE);
+  if (!code || !state || !stateResult.matched) {
+    await writeErrorLog({
+      category: "auth",
+      action: "kakao_callback",
+      message: "??? callback state/code ?? ??",
+      errorCode: "state_mismatch",
+      path: request.nextUrl.pathname,
+      ip,
+      userAgent,
+      details: {
+        hasCode: Boolean(code),
+        hasState: Boolean(state),
+        stateMatched: stateResult.matched,
+        knownStateCount: knownStates.length,
+      },
+    });
+
+    return buildLoginRedirect(
+      request,
+      KAKAO_STATE_ERROR_MESSAGE,
+      stateResult.remainingStates
+    );
   }
 
   const clientId = process.env.KAKAO_CLIENT_ID;
-  const redirectUri = buildRedirectUri(request);
 
   if (!clientId) {
-    return toLogin(KAKAO_ERROR_MESSAGE);
+    await writeErrorLog({
+      category: "auth",
+      action: "kakao_callback",
+      message: "??? callback ?? ??: KAKAO_CLIENT_ID ??",
+      errorCode: "missing_client_id",
+      path: request.nextUrl.pathname,
+      ip,
+      userAgent,
+    });
+
+    return buildLoginRedirect(
+      request,
+      KAKAO_ERROR_MESSAGE,
+      stateResult.remainingStates
+    );
   }
 
   const tokenParams = new URLSearchParams({
@@ -93,10 +157,25 @@ export async function GET(request: NextRequest) {
     .catch(() => ({}))) as KakaoTokenResponse;
 
   if (!tokenResponse.ok || !tokenData.id_token || !tokenData.access_token) {
-    console.error("Kakao token exchange failed:", tokenData);
-    return toLoginWithDebug(
+    await writeErrorLog({
+      category: "auth",
+      action: "kakao_callback",
+      message: "??? ?? ?? ??",
+      errorCode: tokenData.error ?? `http_${tokenResponse.status}`,
+      path: request.nextUrl.pathname,
+      ip,
+      userAgent,
+      details: {
+        httpStatus: tokenResponse.status,
+        kakaoError: tokenData.error ?? null,
+        kakaoErrorDescription: tokenData.error_description ?? null,
+      },
+    });
+
+    return buildLoginRedirect(
+      request,
       KAKAO_TOKEN_ERROR_MESSAGE,
-      tokenData.error_description ?? tokenData.error
+      stateResult.remainingStates
     );
   }
 
@@ -118,28 +197,95 @@ export async function GET(request: NextRequest) {
     }
   );
 
-  const signInPayload: {
-    provider: "kakao";
-    token: string;
-    access_token: string;
-  } = {
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithIdToken({
     provider: "kakao",
     token: tokenData.id_token,
     access_token: tokenData.access_token,
-  };
-
-  const { error: signInError } = await supabase.auth.signInWithIdToken(signInPayload);
+  });
 
   if (signInError) {
-    console.error("Supabase signInWithIdToken failed:", signInError);
-    return toLoginWithDebug(KAKAO_ERROR_MESSAGE, signInError.message);
+    await writeErrorLog({
+      category: "auth",
+      action: "kakao_callback",
+      message: "Supabase signInWithIdToken ??",
+      errorCode: signInError.code ?? null,
+      path: request.nextUrl.pathname,
+      ip,
+      userAgent,
+      details: {
+        message: signInError.message,
+      },
+    });
+
+    return buildLoginRedirect(
+      request,
+      KAKAO_ERROR_MESSAGE,
+      stateResult.remainingStates
+    );
+  }
+
+  const signedInUserId = signInData.user?.id ?? null;
+  if (!signedInUserId) {
+    await writeErrorLog({
+      category: "auth",
+      action: "kakao_callback",
+      message: "??? ??? ?? ? ??? ID ??",
+      errorCode: "missing_user_id",
+      path: request.nextUrl.pathname,
+      ip,
+      userAgent,
+    });
+  } else {
+    const supabaseAdmin = createServiceRoleSupabaseClient();
+    const { data: setting, error: settingError } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "approval_required")
+      .maybeSingle<{ value: boolean }>();
+
+    if (settingError) {
+      await writeErrorLog({
+        category: "auth",
+        action: "kakao_callback",
+        message: "자동 승인 동기화 실패: 설정 조회 오류",
+        errorCode: settingError.code ?? null,
+        authUserId: signedInUserId,
+        path: request.nextUrl.pathname,
+        ip,
+        userAgent,
+        details: { errorMessage: settingError.message },
+      });
+    } else if (setting?.value === false) {
+      const { error: syncError } = await supabaseAdmin
+        .from("profiles")
+        .update({ is_approved: true, updated_at: new Date().toISOString() })
+        .eq("id", signedInUserId)
+        .eq("is_approved", false);
+
+      if (syncError) {
+        await writeErrorLog({
+          category: "auth",
+          action: "kakao_callback",
+          message: "자동 승인 동기화 실패: profiles 업데이트 오류",
+          errorCode: syncError.code ?? null,
+          authUserId: signedInUserId,
+          path: request.nextUrl.pathname,
+          ip,
+          userAgent,
+          details: { errorMessage: syncError.message },
+        });
+      }
+    }
   }
 
   const redirectResponse = NextResponse.redirect(new URL("/start", requestUrl.origin));
+  redirectResponse.headers.set("Cache-Control", "no-store");
+
   pendingCookies.forEach(({ name, value, options }) => {
     redirectResponse.cookies.set(name, value, options);
   });
-  clearOidcCookies(redirectResponse);
+
+  setStateCookie(redirectResponse, stateResult.remainingStates);
 
   return redirectResponse;
 }

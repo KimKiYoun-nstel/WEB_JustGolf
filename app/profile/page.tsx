@@ -20,12 +20,19 @@ export default function ProfilePage() {
 
   const [nickname, setNickname] = useState("");
   const [originalNickname, setOriginalNickname] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [originalFullName, setOriginalFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [originalPhone, setOriginalPhone] = useState("");
   const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [authProvider, setAuthProvider] = useState("email");
   const [msg, setMsg] = useState("");
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingNickname, setIsSavingNickname] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -35,53 +42,116 @@ export default function ProfilePage() {
       return;
     }
 
-    loadProfile();
+    void loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user]);
 
   const loadProfile = async () => {
     if (!user) return;
 
-    // 이메일은 auth에서 가져옴
     setEmail(user.email ?? "");
     setAuthProvider(user.app_metadata?.provider ?? "email");
 
-    // 닉네임은 profiles 테이블에서 가져옴
+    const metadataPhone = (user.user_metadata?.phone as string | undefined) ?? "";
+    setPhone(metadataPhone);
+    setOriginalPhone(metadataPhone);
+
     const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("nickname")
+      .select("nickname, full_name")
       .eq("id", user.id)
       .single();
 
     if (error) {
-      setMsg(`프로필 조회 실패: ${error.message}`);
+      setMsg(`??? ?? ??: ${error.message}`);
     } else if (data) {
-      setNickname(data.nickname ?? "");
-      setOriginalNickname(data.nickname ?? "");
+      const nextNickname = data.nickname ?? "";
+      const nextFullName = data.full_name ?? "";
+
+      setNickname(nextNickname);
+      setOriginalNickname(nextNickname);
+      setFullName(nextFullName);
+      setOriginalFullName(nextFullName);
     }
 
     setIsLoadingData(false);
+  };
+
+  const updateProfileInfo = async () => {
+    setMsg("");
+
+    if (!user) {
+      setMsg("???? ?????.");
+      return;
+    }
+
+    const nextFullName = fullName.trim();
+    const nextPhone = phone.trim();
+
+    if (nextFullName === originalFullName && nextPhone === originalPhone) {
+      setMsg("??? ??? ????.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+
+    const supabase = createClient();
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        full_name: nextFullName || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (profileError) {
+      setMsg(`??? ?? ?? ??: ${profileError.message}`);
+      setIsSavingProfile(false);
+      return;
+    }
+
+    const { error: metadataError } = await supabase.auth.updateUser({
+      data: {
+        ...(user.user_metadata ?? {}),
+        full_name: nextFullName || null,
+        phone: nextPhone || null,
+      },
+    });
+
+    if (metadataError) {
+      setMsg(`??? ????? ?? ??: ${metadataError.message}`);
+      setIsSavingProfile(false);
+      return;
+    }
+
+    setOriginalFullName(nextFullName);
+    setOriginalPhone(nextPhone);
+    setMsg("??? ????? ???????.");
+    setIsSavingProfile(false);
   };
 
   const updateNickname = async () => {
     setMsg("");
 
     if (!user) {
-      setMsg("로그인이 필요합니다");
+      setMsg("???? ?????.");
       return;
     }
 
     const nick = nickname.trim();
     if (!nick) {
-      setMsg("닉네임을 입력해주세요");
+      setMsg("???? ??????.");
       return;
     }
 
     if (nick === originalNickname) {
-      setMsg("현재 닉네임과 동일합니다.");
+      setMsg("?? ???? ?????.");
       return;
     }
+
+    setIsSavingNickname(true);
 
     const supabase = createClient();
     const { data: available, error: checkError } = await supabase.rpc(
@@ -90,64 +160,73 @@ export default function ProfilePage() {
     );
 
     if (checkError) {
-      setMsg(`닉네임 중복 확인 실패: ${checkError.message}`);
+      setMsg(`??? ?? ?? ??: ${checkError.message}`);
+      setIsSavingNickname(false);
       return;
     }
 
     if (!available) {
-      setMsg("이미 사용 중인 닉네임입니다.");
+      setMsg("?? ?? ?? ??????.");
+      setIsSavingNickname(false);
       return;
     }
 
     const { error } = await supabase
       .from("profiles")
-      .update({ nickname: nick })
+      .update({ nickname: nick, updated_at: new Date().toISOString() })
       .eq("id", user.id);
 
     if (error) {
-      setMsg(`닉네임 변경 실패: ${error.message}`);
-    } else {
-      setMsg("닉네임이 변경되었습니다");
-      setOriginalNickname(nick);
+      setMsg(`??? ?? ??: ${error.message}`);
+      setIsSavingNickname(false);
+      return;
     }
+
+    setOriginalNickname(nick);
+    setMsg("???? ???????.");
+    setIsSavingNickname(false);
   };
 
   const updatePassword = async () => {
     setMsg("");
 
     if (!user) {
-      setMsg("로그인이 필요합니다");
+      setMsg("???? ?????.");
       return;
     }
 
     if (!newPassword.trim()) {
-      setMsg("새 비밀번호를 입력해주세요");
+      setMsg("? ????? ??????.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setMsg("비밀번호가 일치하지 않습니다");
+      setMsg("????? ???? ????.");
       return;
     }
 
     if (newPassword.length < 6) {
-      setMsg("비밀번호는 최소 6자 이상이어야 합니다");
+      setMsg("????? ?? 6? ????? ???.");
       return;
     }
 
-    // Supabase Auth로 비밀번호 변경
+    setIsSavingPassword(true);
+
     const supabase = createClient();
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });
 
     if (error) {
-      setMsg(`비밀번호 변경 실패: ${error.message}`);
-    } else {
-      setMsg("비밀번호가 변경되었습니다");
-      setNewPassword("");
-      setConfirmPassword("");
+      setMsg(`???? ?? ??: ${error.message}`);
+      setIsSavingPassword(false);
+      return;
     }
+
+    setMsg("????? ???????.");
+    setNewPassword("");
+    setConfirmPassword("");
+    setIsSavingPassword(false);
   };
 
   if (loading || isLoadingData) {
@@ -156,7 +235,7 @@ export default function ProfilePage() {
         <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-10">
           <Card>
             <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩중...</p>
+              <p className="text-sm text-slate-500">?? ?...</p>
             </CardContent>
           </Card>
         </div>
@@ -165,113 +244,138 @@ export default function ProfilePage() {
   }
 
   if (!user) {
-    return null; // 리다이렉트 중...
+    return null;
   }
 
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-10">
-        {/* 헤더 */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-slate-900">
-            내 프로필
-          </h1>
+          <h1 className="text-3xl font-semibold text-slate-900">? ???</h1>
           <p className="text-sm text-slate-500">
             {authProvider === "kakao"
-              ? "카카오 계정으로 로그인 중입니다. 닉네임을 관리할 수 있습니다."
-              : "이메일 계정으로 로그인 중입니다. 닉네임과 비밀번호를 변경할 수 있습니다."}
+              ? "??? ???? ??? ????. ??? ??? ??? ? ????."
+              : "??? ???? ??? ????. ??? ??? ??? ? ????."}
           </p>
         </div>
 
-        {/* 메시지 */}
         {msg && (
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
             {msg}
           </div>
         )}
 
-        {/* 이메일 (읽기 전용) */}
         <Card className="border-slate-200/70">
           <CardHeader>
-            <CardTitle>이메일</CardTitle>
-            <CardDescription>변경할 수 없습니다.</CardDescription>
+            <CardTitle>???</CardTitle>
+            <CardDescription>??? ?? ???? ? ???? ??? ? ????.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Input value={email} disabled />
+            <Input value={email || "????? ???? ??"} disabled />
           </CardContent>
         </Card>
 
-        {/* 닉네임 */}
         <Card className="border-slate-200/70">
           <CardHeader>
-            <CardTitle>닉네임</CardTitle>
-            <CardDescription>
-              대회 참가 시 표시되는 이름입니다.
-            </CardDescription>
+            <CardTitle>?? ??</CardTitle>
+            <CardDescription>??? ????? ??? ? ????.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">??</label>
+              <Input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="??? ?????"
+                disabled={isSavingProfile}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">????</label>
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="010-1234-5678"
+                disabled={isSavingProfile}
+              />
+            </div>
+            <Button onClick={updateProfileInfo} disabled={isSavingProfile}>
+              {isSavingProfile ? "?? ?..." : "?? ?? ??"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/70">
+          <CardHeader>
+            <CardTitle>???</CardTitle>
+            <CardDescription>????? ???? ?????.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="닉네임을 입력하세요"
+              placeholder="???? ?????"
+              disabled={isSavingNickname}
             />
-            <Button onClick={updateNickname}>닉네임 변경</Button>
+            <Button onClick={updateNickname} disabled={isSavingNickname}>
+              {isSavingNickname ? "?? ?..." : "??? ??"}
+            </Button>
           </CardContent>
         </Card>
 
         {authProvider === "email" ? (
           <Card className="border-slate-200/70">
             <CardHeader>
-              <CardTitle>비밀번호 변경</CardTitle>
+              <CardTitle>???? ??</CardTitle>
               <CardDescription>
-                새 비밀번호는 최소 6자 이상이어야 합니다.
+                ? ????? ?? 6? ????? ???.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">새 비밀번호</label>
+                <label className="text-sm font-medium">? ????</label>
                 <Input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="새 비밀번호"
+                  placeholder="? ????"
+                  disabled={isSavingPassword}
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">비밀번호 확인</label>
+                <label className="text-sm font-medium">???? ??</label>
                 <Input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="비밀번호 확인"
+                  placeholder="???? ??"
+                  disabled={isSavingPassword}
                 />
               </div>
 
-              <Button onClick={updatePassword}>비밀번호 변경</Button>
+              <Button onClick={updatePassword} disabled={isSavingPassword}>
+                {isSavingPassword ? "?? ?..." : "???? ??"}
+              </Button>
             </CardContent>
           </Card>
         ) : (
           <Card className="border-slate-200/70">
             <CardHeader>
-              <CardTitle>비밀번호 변경</CardTitle>
+              <CardTitle>???? ??</CardTitle>
               <CardDescription>
-                카카오 로그인 사용자는 카카오 계정에서 비밀번호를 관리합니다.
+                ??? ??? ???? ??? ???? ????? ?????.
               </CardDescription>
             </CardHeader>
           </Card>
         )}
 
-        {/* 돌아가기 */}
         <div className="flex gap-2">
-          <Button
-            onClick={() => router.back()}
-            variant="outline"
-          >
-            돌아가기
+          <Button onClick={() => router.back()} variant="outline">
+            ????
           </Button>
           <Button onClick={() => router.push("/")} variant="secondary">
-            홈으로
+            ???
           </Button>
         </div>
       </div>
