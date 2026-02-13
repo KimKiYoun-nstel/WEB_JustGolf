@@ -28,7 +28,10 @@ type GroupMemberQueryRow = {
   group_id: number;
   position: number;
   role: string | null;
-  registrations: { nickname: string | null } | null;
+  registrations:
+    | { nickname: string | null }
+    | { nickname: string | null }[]
+    | null;
 };
 
 export default function TournamentGroupsPage() {
@@ -85,15 +88,22 @@ export default function TournamentGroupsPage() {
       return;
     }
 
-    const mapped = ((memberRes.data ?? []) as GroupMemberQueryRow[]).map((row) => ({
-      id: row.id,
-      group_id: row.group_id,
-      position: row.position,
-      role: row.role ?? null,
-      nickname: row.registrations?.nickname ?? null,
-    }));
+    const mapped: GroupMember[] = ((memberRes.data ?? []) as GroupMemberQueryRow[]).map(
+      (row) => {
+        const registration =
+          Array.isArray(row.registrations) ? row.registrations[0] : row.registrations;
 
-    setMembers(mapped as GroupMember[]);
+        return {
+          id: row.id,
+          group_id: row.group_id,
+          position: row.position,
+          role: row.role ?? null,
+          nickname: registration?.nickname ?? null,
+        };
+      }
+    );
+
+    setMembers(mapped);
     setLoading(false);
   };
 
