@@ -14,6 +14,8 @@ export default function Header() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileNickname, setProfileNickname] = useState("");
   const supabase = createClient();
+  const headerClassName =
+    "sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85";
 
   useEffect(() => {
     if (!user) {
@@ -46,7 +48,7 @@ export default function Header() {
 
   if (loading) {
     return (
-      <header className="border-b border-slate-200 bg-white">
+      <header className={headerClassName}>
         <div className="mx-auto max-w-6xl px-4 py-3">
           <Link href="/login" className="flex items-center gap-2">
             <span className="text-xl font-bold text-slate-900">⛳ Just Golf</span>
@@ -59,7 +61,7 @@ export default function Header() {
   // 로그인 페이지에서는 로고만 표시
   if (pathname === "/login") {
     return (
-      <header className="border-b border-slate-200 bg-white">
+      <header className={headerClassName}>
         <div className="mx-auto max-w-6xl px-4 py-4">
           <Link href="/login" className="flex items-center gap-2">
             <span className="text-xl font-bold text-slate-900">⛳ Just Golf</span>
@@ -70,7 +72,7 @@ export default function Header() {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className={headerClassName}>
       <div className="mx-auto max-w-6xl px-4 py-4">
         <div className="flex items-center justify-between">
           {/* 로고/홈 */}

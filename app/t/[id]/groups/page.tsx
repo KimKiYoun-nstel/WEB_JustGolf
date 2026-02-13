@@ -23,6 +23,14 @@ type GroupMember = {
   role: string | null;
 };
 
+type GroupMemberQueryRow = {
+  id: number;
+  group_id: number;
+  position: number;
+  role: string | null;
+  registrations: { nickname: string | null } | null;
+};
+
 export default function TournamentGroupsPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
@@ -77,7 +85,7 @@ export default function TournamentGroupsPage() {
       return;
     }
 
-    const mapped = (memberRes.data ?? []).map((row: any) => ({
+    const mapped = ((memberRes.data ?? []) as GroupMemberQueryRow[]).map((row) => ({
       id: row.id,
       group_id: row.group_id,
       position: row.position,
@@ -105,7 +113,7 @@ export default function TournamentGroupsPage() {
             </p>
           </div>
           <Button asChild variant="outline">
-            <Link href={`/t/${tournamentId}`}>대회 상세로</Link>
+            <Link href={`/t/${tournamentId}/participants`}>참가자 현황으로</Link>
           </Button>
         </div>
 

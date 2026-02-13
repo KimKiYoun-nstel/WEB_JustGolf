@@ -22,6 +22,7 @@ type FeedbackStatus =
   | "in_review"
   | "completed"
   | "deleted";
+type FeedbackStatusFilter = "all" | FeedbackStatus;
 
 type Feedback = {
   id: number;
@@ -42,6 +43,9 @@ type FeedbackComment = {
   created_at: string;
   nickname: string;
 };
+
+const TITLE_MAX_LENGTH = 50;
+const CONTENT_MAX_LENGTH = 500;
 
 const FEEDBACK_STATUS_FLOW: FeedbackStatus[] = [
   "pending",
@@ -66,16 +70,48 @@ const statusLabelMap: Record<FeedbackStatus, string> = {
 };
 
 function getStatusLabel(status: Feedback["status"]) {
-  if (status === "in_progress") return "확인중";
+  if (status === "in_progress") return statusLabelMap.in_review;
   return statusLabelMap[status] ?? status;
 }
 
 function getStatusVariant(
   status: Feedback["status"]
-): "default" | "secondary" | "outline" {
+): "default" | "secondary" | "outline" | "destructive" {
+  if (status === "deleted") return "destructive";
   if (status === "completed") return "default";
   if (status === "in_review" || status === "in_progress") return "secondary";
   return "outline";
+}
+
+function normalizeStatus(status: Feedback["status"]): FeedbackStatus {
+  return status === "in_progress" ? "in_review" : status;
+}
+
+function getStatusBadgeClassName(status: Feedback["status"]): string {
+  const normalizedStatus = normalizeStatus(status);
+  if (normalizedStatus === "completed") {
+    return "border-emerald-600 bg-emerald-600 text-white";
+  }
+  if (normalizedStatus === "deleted") {
+    return "border-red-600 bg-red-600 text-white";
+  }
+  return "";
+}
+
+function validateFeedbackInput(rawTitle: string, rawContent: string): string | null {
+  const trimmedTitle = rawTitle.trim();
+  const trimmedContent = rawContent.trim();
+
+  if (!trimmedTitle || !trimmedContent) {
+    return "제목과 내용을 입력해주세요.";
+  }
+  if (trimmedTitle.length > TITLE_MAX_LENGTH) {
+    return `제목은 ${TITLE_MAX_LENGTH}자 이하로 입력해주세요.`;
+  }
+  if (trimmedContent.length > CONTENT_MAX_LENGTH) {
+    return `내용은 ${CONTENT_MAX_LENGTH}자 이하로 입력해주세요.`;
+  }
+  return null;
 }
 
 export default function BoardPage() {
@@ -91,10 +127,17 @@ export default function BoardPage() {
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<FeedbackCategory>("general");
   const [filter, setFilter] = useState<"all" | FeedbackCategory>("all");
+  const [statusFilter, setStatusFilter] = useState<FeedbackStatusFilter>("all");
   const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>({});
 
+  const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<number[]>([]);
+  const [editingFeedbackId, setEditingFeedbackId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editCategory, setEditCategory] = useState<FeedbackCategory>("general");
+
   const [isAdmin, setIsAdmin] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -108,7 +151,10 @@ export default function BoardPage() {
       .select("id,user_id,title,content,category,status,created_at")
       .order("created_at", { ascending: false });
 
-    if (feedbackError || !feedbackRows) return;
+    if (feedbackError || !feedbackRows) {
+      setErrorMsg(feedbackError?.message ?? "피드백 목록을 불러오지 못했습니다.");
+      return;
+    }
 
     if (user?.id) {
       const { data: me } = await supabase
@@ -185,19 +231,41 @@ export default function BoardPage() {
     setCommentsByFeedbackId(grouped);
   };
 
+  const toggleExpanded = (feedbackId: number) => {
+    setExpandedFeedbackIds((prev) =>
+      prev.includes(feedbackId)
+        ? prev.filter((id) => id !== feedbackId)
+        : [...prev, feedbackId]
+    );
+  };
+
+  const openExpanded = (feedbackId: number) => {
+    setExpandedFeedbackIds((prev) =>
+      prev.includes(feedbackId) ? prev : [...prev, feedbackId]
+    );
+  };
+
+  const resetEditState = () => {
+    setEditingFeedbackId(null);
+    setEditTitle("");
+    setEditContent("");
+    setEditCategory("general");
+  };
+
   const submitFeedback = async () => {
     if (!user?.id) {
-      setMsg("로그인이 필요합니다.");
+      setErrorMsg("로그인이 필요합니다.");
       return;
     }
 
-    if (!title.trim() || !content.trim()) {
-      setMsg("제목과 내용을 입력해주세요.");
+    const validationMessage = validateFeedbackInput(title, content);
+    if (validationMessage) {
+      setErrorMsg(validationMessage);
       return;
     }
 
     setLoading(true);
-    setMsg("");
+    setErrorMsg("");
 
     const { error } = await supabase.from("feedbacks").insert({
       user_id: user.id,
@@ -210,14 +278,60 @@ export default function BoardPage() {
     setLoading(false);
 
     if (error) {
-      setMsg(`등록 실패: ${error.message}`);
+      setErrorMsg(`등록 실패: ${error.message}`);
       return;
     }
 
-    setMsg("피드백이 등록되었습니다.");
     setTitle("");
     setContent("");
     setCategory("general");
+    await loadBoardData();
+  };
+
+  const startEditFeedback = (feedback: Feedback) => {
+    if (!user?.id || feedback.user_id !== user.id) {
+      setErrorMsg("본인 글만 수정할 수 있습니다.");
+      return;
+    }
+
+    setEditingFeedbackId(feedback.id);
+    setEditTitle(feedback.title);
+    setEditContent(feedback.content);
+    setEditCategory(feedback.category);
+    setErrorMsg("");
+    openExpanded(feedback.id);
+  };
+
+  const saveFeedbackEdit = async (feedbackId: number) => {
+    if (!user?.id) {
+      setErrorMsg("로그인이 필요합니다.");
+      return;
+    }
+    if (editingFeedbackId !== feedbackId) return;
+
+    const validationMessage = validateFeedbackInput(editTitle, editContent);
+    if (validationMessage) {
+      setErrorMsg(validationMessage);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("feedbacks")
+      .update({
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        category: editCategory,
+      })
+      .eq("id", feedbackId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      setErrorMsg(`수정 실패: ${error.message}`);
+      return;
+    }
+
+    setErrorMsg("");
+    resetEditState();
     await loadBoardData();
   };
 
@@ -226,7 +340,7 @@ export default function BoardPage() {
     nextStatus: FeedbackStatus
   ) => {
     if (!user?.id) {
-      setMsg("로그인이 필요합니다.");
+      setErrorMsg("로그인이 필요합니다.");
       return;
     }
 
@@ -235,28 +349,27 @@ export default function BoardPage() {
 
     const canUpdate = feedback.user_id === user.id || isAdmin;
     if (!canUpdate) {
-      setMsg("상태를 변경할 권한이 없습니다.");
+      setErrorMsg("상태를 변경할 권한이 없습니다.");
       return;
     }
 
-    setMsg("");
     const { error } = await supabase
       .from("feedbacks")
       .update({ status: nextStatus })
       .eq("id", feedbackId);
 
     if (error) {
-      setMsg(`상태 변경 실패: ${error.message}`);
+      setErrorMsg(`상태 변경 실패: ${error.message}`);
       return;
     }
 
-    setMsg("상태가 변경되었습니다.");
+    setErrorMsg("");
     await loadBoardData();
   };
 
   const deleteFeedback = async (feedbackId: number) => {
     if (!user?.id) {
-      setMsg("로그인이 필요합니다.");
+      setErrorMsg("로그인이 필요합니다.");
       return;
     }
 
@@ -270,23 +383,27 @@ export default function BoardPage() {
     const { error } = await supabase.from("feedbacks").delete().eq("id", feedbackId);
 
     if (error) {
-      setMsg(`삭제 실패: ${error.message}`);
+      setErrorMsg(`삭제 실패: ${error.message}`);
       return;
     }
 
-    setMsg("게시글이 삭제되었습니다.");
+    setErrorMsg("");
+    setExpandedFeedbackIds((prev) => prev.filter((id) => id !== feedbackId));
+    if (editingFeedbackId === feedbackId) {
+      resetEditState();
+    }
     await loadBoardData();
   };
 
   const addComment = async (feedbackId: number) => {
     if (!user?.id) {
-      setMsg("로그인이 필요합니다.");
+      setErrorMsg("로그인이 필요합니다.");
       return;
     }
 
     const value = (commentDrafts[feedbackId] ?? "").trim();
     if (!value) {
-      setMsg("댓글 내용을 입력해주세요.");
+      setErrorMsg("댓글 내용을 입력해주세요.");
       return;
     }
 
@@ -297,18 +414,18 @@ export default function BoardPage() {
     });
 
     if (error) {
-      setMsg(`댓글 등록 실패: ${error.message}`);
+      setErrorMsg(`댓글 등록 실패: ${error.message}`);
       return;
     }
 
+    setErrorMsg("");
     setCommentDrafts((prev) => ({ ...prev, [feedbackId]: "" }));
-    setMsg("댓글이 등록되었습니다.");
     await loadBoardData();
   };
 
   const deleteComment = async (commentId: number, feedbackId: number) => {
     if (!user?.id) {
-      setMsg("로그인이 필요합니다.");
+      setErrorMsg("로그인이 필요합니다.");
       return;
     }
 
@@ -319,7 +436,7 @@ export default function BoardPage() {
 
     const canDelete = target.user_id === user.id || isAdmin;
     if (!canDelete) {
-      setMsg("댓글을 삭제할 권한이 없습니다.");
+      setErrorMsg("댓글을 삭제할 권한이 없습니다.");
       return;
     }
 
@@ -333,26 +450,28 @@ export default function BoardPage() {
       .eq("id", commentId);
 
     if (error) {
-      setMsg(`댓글 삭제 실패: ${error.message}`);
+      setErrorMsg(`댓글 삭제 실패: ${error.message}`);
       return;
     }
 
-    setMsg("댓글이 삭제되었습니다.");
+    setErrorMsg("");
     await loadBoardData();
   };
 
   const filteredFeedbacks = feedbacks.filter((feedback) => {
-    if (filter === "all") return true;
-    return feedback.category === filter;
+    const categoryMatched = filter === "all" || feedback.category === filter;
+    const statusMatched =
+      statusFilter === "all" || normalizeStatus(feedback.status) === statusFilter;
+    return categoryMatched && statusMatched;
   });
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-12">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-slate-900">피드백 게시판</h1>
           <p className="text-sm text-slate-600">
-            버그 신고, 기능 제안, 일반 의견을 남겨주세요.
+            카드 나열 대신 글/댓글 스레드 방식으로 빠르게 확인할 수 있도록 구성했습니다.
           </p>
         </div>
 
@@ -360,7 +479,7 @@ export default function BoardPage() {
           <Card className="border-slate-200/70">
             <CardHeader>
               <CardTitle>피드백 작성</CardTitle>
-              <CardDescription>개선이 필요한 내용을 자세히 적어주세요.</CardDescription>
+              <CardDescription>제목 최대 50자, 내용 최대 500자입니다.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -378,22 +497,34 @@ export default function BoardPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">제목</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">제목</label>
+                  <span className="text-xs text-slate-500">
+                    {title.trim().length}/{TITLE_MAX_LENGTH}
+                  </span>
+                </div>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="제목을 입력하세요"
+                  maxLength={TITLE_MAX_LENGTH}
                   disabled={loading}
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">내용</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">내용</label>
+                  <span className="text-xs text-slate-500">
+                    {content.trim().length}/{CONTENT_MAX_LENGTH}
+                  </span>
+                </div>
                 <textarea
                   className="min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="내용을 입력하세요"
+                  maxLength={CONTENT_MAX_LENGTH}
                   disabled={loading}
                 />
               </div>
@@ -419,13 +550,9 @@ export default function BoardPage() {
           </Card>
         )}
 
-        {msg && (
-          <Card className="border-slate-200/70">
-            <CardContent className="py-4 text-sm text-slate-700">{msg}</CardContent>
-          </Card>
-        )}
+        {errorMsg && <p className="text-sm font-medium text-red-600">{errorMsg}</p>}
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant={filter === "all" ? "default" : "outline"}
@@ -454,157 +581,299 @@ export default function BoardPage() {
           >
             기능요청
           </Button>
+          <span className="ml-auto text-xs text-slate-500">
+            총 {filteredFeedbacks.length}건
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant={statusFilter === "all" ? "default" : "outline"}
+            onClick={() => setStatusFilter("all")}
+          >
+            전체상태
+          </Button>
+          {FEEDBACK_STATUS_FLOW.map((status) => (
+            <Button
+              key={status}
+              size="sm"
+              variant={statusFilter === status ? "default" : "outline"}
+              onClick={() => setStatusFilter(status)}
+            >
+              {statusLabelMap[status]}
+            </Button>
+          ))}
         </div>
 
-        <div className="space-y-4">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           {filteredFeedbacks.length === 0 ? (
-            <Card className="border-slate-200/70">
-              <CardContent className="py-10 text-center text-slate-500">
-                등록된 피드백이 없습니다.
-              </CardContent>
-            </Card>
+            <p className="px-4 py-10 text-center text-sm text-slate-500">
+              등록된 피드백이 없습니다.
+            </p>
           ) : (
-            filteredFeedbacks.map((feedback) => {
+            filteredFeedbacks.map((feedback, index) => {
               const canUpdateStatus =
                 !!user && (feedback.user_id === user.id || isAdmin);
               const canDeleteFeedback = !!user && feedback.user_id === user.id;
+              const canEditFeedback = !!user && feedback.user_id === user.id;
               const comments = commentsByFeedbackId[feedback.id] ?? [];
+              const isExpanded = expandedFeedbackIds.includes(feedback.id);
+              const isEditing = editingFeedbackId === feedback.id;
+              const normalizedStatus = normalizeStatus(feedback.status);
+              const rowStateClassName =
+                normalizedStatus === "completed"
+                  ? "bg-emerald-50/50"
+                  : normalizedStatus === "deleted"
+                    ? "bg-red-50/60"
+                    : "";
 
               return (
-                <Card key={feedback.id} className="border-slate-200/70">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 space-y-1">
-                        <CardTitle className="text-lg">{feedback.title}</CardTitle>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <span>{feedback.nickname}</span>
-                          <span>·</span>
-                          <span>
-                            {new Date(feedback.created_at).toLocaleDateString("ko-KR", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                <article
+                  key={feedback.id}
+                  className={[
+                    "px-4 py-4 sm:px-5",
+                    rowStateClassName,
+                    index !== filteredFeedbacks.length - 1
+                      ? "border-b border-slate-200"
+                      : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        className="text-left"
+                        onClick={() => toggleExpanded(feedback.id)}
+                      >
+                        <h2
+                          className={[
+                            "truncate text-base font-semibold",
+                            normalizedStatus === "deleted"
+                              ? "text-slate-500 line-through"
+                              : "text-slate-900",
+                          ].join(" ")}
+                        >
+                          {feedback.title}
+                        </h2>
+                      </button>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span>{feedback.nickname}</span>
+                        <span>·</span>
+                        <span>
+                          {new Date(feedback.created_at).toLocaleDateString("ko-KR", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
                         <Badge variant="outline">
                           {categoryLabelMap[feedback.category] ?? feedback.category}
                         </Badge>
-                        <Badge variant={getStatusVariant(feedback.status)}>
+                        <Badge
+                          variant={getStatusVariant(feedback.status)}
+                          className={getStatusBadgeClassName(feedback.status)}
+                        >
                           {getStatusLabel(feedback.status)}
                         </Badge>
-                        {canDeleteFeedback && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => deleteFeedback(feedback.id)}
-                          >
-                            삭제
-                          </Button>
-                        )}
+                        <span>댓글 {comments.length}개</span>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="whitespace-pre-wrap text-sm text-slate-700">
-                      {feedback.content}
-                    </p>
-
-                    {canUpdateStatus && (
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium">상태 변경</label>
-                        <select
-                          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-                          value={
-                            feedback.status === "in_progress"
-                              ? "in_review"
-                              : feedback.status
-                          }
-                          onChange={(e) =>
-                            void updateFeedbackStatus(
-                              feedback.id,
-                              e.target.value as FeedbackStatus
-                            )
-                          }
+                    <div className="flex shrink-0 items-center gap-2">
+                      {canEditFeedback && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startEditFeedback(feedback)}
                         >
-                          {FEEDBACK_STATUS_FLOW.map((status) => (
-                            <option key={status} value={status}>
-                              {statusLabelMap[status]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                          수정
+                        </Button>
+                      )}
+                      {canDeleteFeedback && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => deleteFeedback(feedback.id)}
+                        >
+                          삭제
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleExpanded(feedback.id)}
+                      >
+                        {isExpanded ? "접기" : "열기"}
+                      </Button>
+                    </div>
+                  </div>
 
-                    <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3">
-                      <p className="mb-3 text-sm font-medium text-slate-700">
-                        댓글 {comments.length}개
-                      </p>
+                  {isExpanded && (
+                    <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+                      {isEditing ? (
+                        <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/70 p-3">
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-slate-700">
+                              카테고리
+                            </label>
+                            <select
+                              className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                              value={editCategory}
+                              onChange={(e) =>
+                                setEditCategory(e.target.value as FeedbackCategory)
+                              }
+                            >
+                              <option value="general">일반</option>
+                              <option value="bug">버그</option>
+                              <option value="feature">기능요청</option>
+                            </select>
+                          </div>
 
-                      <div className="space-y-2">
-                        {comments.length === 0 ? (
-                          <p className="text-xs text-slate-500">첫 댓글을 남겨주세요.</p>
-                        ) : (
-                          comments.map((comment) => {
-                            const canDeleteComment =
-                              !!user && (comment.user_id === user.id || isAdmin);
-                            return (
-                              <div
-                                key={comment.id}
-                                className="rounded-md border border-slate-200 bg-white p-3"
-                              >
-                                <div className="mb-2 flex items-center justify-between gap-2 text-xs text-slate-500">
-                                  <span>
-                                    {comment.nickname} ·{" "}
-                                    {new Date(comment.created_at).toLocaleString("ko-KR")}
-                                  </span>
-                                  {canDeleteComment && (
-                                    <button
-                                      type="button"
-                                      className="text-red-600 hover:underline"
-                                      onClick={() =>
-                                        void deleteComment(comment.id, feedback.id)
-                                      }
-                                    >
-                                      삭제
-                                    </button>
-                                  )}
-                                </div>
-                                <p className="whitespace-pre-wrap text-sm text-slate-700">
-                                  {comment.content}
-                                </p>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-medium text-slate-700">
+                                제목
+                              </label>
+                              <span className="text-xs text-slate-500">
+                                {editTitle.trim().length}/{TITLE_MAX_LENGTH}
+                              </span>
+                            </div>
+                            <Input
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              maxLength={TITLE_MAX_LENGTH}
+                            />
+                          </div>
 
-                      {user && feedback.status !== "deleted" && (
-                        <div className="mt-3 space-y-2">
-                          <textarea
-                            className="min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
-                            value={commentDrafts[feedback.id] ?? ""}
-                            onChange={(e) =>
-                              setCommentDrafts((prev) => ({
-                                ...prev,
-                                [feedback.id]: e.target.value,
-                              }))
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-medium text-slate-700">
+                                내용
+                              </label>
+                              <span className="text-xs text-slate-500">
+                                {editContent.trim().length}/{CONTENT_MAX_LENGTH}
+                              </span>
+                            </div>
+                            <textarea
+                              className="min-h-[120px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              maxLength={CONTENT_MAX_LENGTH}
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => void saveFeedbackEdit(feedback.id)}
+                            >
+                              수정 저장
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => resetEditState()}
+                            >
+                              취소
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm text-slate-700">
+                          {feedback.content}
+                        </p>
+                      )}
+
+                      {canUpdateStatus && (
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm font-medium">상태 변경</label>
+                          <select
+                            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                            value={
+                              feedback.status === "in_progress"
+                                ? "in_review"
+                                : feedback.status
                             }
-                            placeholder="댓글을 입력하세요"
-                          />
-                          <Button
-                            size="sm"
-                            onClick={() => void addComment(feedback.id)}
+                            onChange={(e) =>
+                              void updateFeedbackStatus(
+                                feedback.id,
+                                e.target.value as FeedbackStatus
+                              )
+                            }
                           >
-                            댓글 등록
-                          </Button>
+                            {FEEDBACK_STATUS_FLOW.map((status) => (
+                              <option key={status} value={status}>
+                                {statusLabelMap[status]}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       )}
+
+                      <div className="rounded-md border border-slate-200 bg-slate-50/70 p-3">
+                        <p className="mb-3 text-sm font-medium text-slate-700">
+                          댓글 {comments.length}개
+                        </p>
+
+                        <div className="space-y-2">
+                          {comments.length === 0 ? (
+                            <p className="text-xs text-slate-500">첫 댓글을 남겨주세요.</p>
+                          ) : (
+                            comments.map((comment) => {
+                              const canDeleteComment =
+                                !!user && (comment.user_id === user.id || isAdmin);
+                              return (
+                                <div
+                                  key={comment.id}
+                                  className="rounded-md border border-slate-200 bg-white p-3"
+                                >
+                                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-slate-500">
+                                    <span>
+                                      {comment.nickname} ·{" "}
+                                      {new Date(comment.created_at).toLocaleString("ko-KR")}
+                                    </span>
+                                    {canDeleteComment && (
+                                      <button
+                                        type="button"
+                                        className="text-red-600 hover:underline"
+                                        onClick={() =>
+                                          void deleteComment(comment.id, feedback.id)
+                                        }
+                                      >
+                                        삭제
+                                      </button>
+                                    )}
+                                  </div>
+                                  <p className="whitespace-pre-wrap text-sm text-slate-700">
+                                    {comment.content}
+                                  </p>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {user && feedback.status !== "deleted" && (
+                          <div className="mt-3 space-y-2">
+                            <textarea
+                              className="min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                              value={commentDrafts[feedback.id] ?? ""}
+                              onChange={(e) =>
+                                setCommentDrafts((prev) => ({
+                                  ...prev,
+                                  [feedback.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="댓글을 입력하세요"
+                            />
+                            <Button size="sm" onClick={() => void addComment(feedback.id)}>
+                              댓글 등록
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </article>
               );
             })
           )}
