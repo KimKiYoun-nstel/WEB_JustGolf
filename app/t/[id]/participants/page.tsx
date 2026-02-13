@@ -515,9 +515,14 @@ export default function TournamentParticipantsPage() {
                 <CardDescription>공개된 조편성을 확인하세요.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button asChild variant="outline">
-                  <Link href={`/t/${tournamentId}/groups`}>조편성 보기</Link>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild variant="outline">
+                    <Link href={`/t/${tournamentId}/groups`}>조편성 보기</Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href={`/t/${tournamentId}/draw`}>라이브 조편성</Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

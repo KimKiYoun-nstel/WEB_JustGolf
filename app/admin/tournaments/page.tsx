@@ -162,6 +162,11 @@ export default function AdminTournamentsPage() {
                       </Link>
                     </Button>
                     <Button asChild size="sm" variant="outline">
+                      <Link href={`/admin/tournaments/${row.id}/draw`}>
+                        라이브 조편성
+                      </Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
                       <Link href={`/t/${row.id}/participants`}>참가자 현황</Link>
                     </Button>
                     {row.status !== "deleted" && (
