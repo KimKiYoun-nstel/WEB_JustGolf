@@ -7,7 +7,7 @@ import { createClient } from "../../../../lib/supabaseClient";
 import { replayDrawEvents } from "../../../../lib/draw/reducer";
 import type { DrawEventRecord, DrawSessionSeed } from "../../../../lib/draw/types";
 import { isDrawEventType } from "../../../../lib/draw/types";
-import RouletteAnimator from "../../../../components/draw/RouletteAnimator";
+import LottoAnimator from "../../../../components/draw/LottoAnimator";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent } from "../../../../components/ui/card";
@@ -46,7 +46,7 @@ function toDrawEvent(row: DrawEventRow): DrawEventRecord | null {
     session_id: row.session_id,
     step: row.step,
     event_type: row.event_type,
-    payload: (row.payload ?? {}) as DrawEventRecord["payload"],
+    payload: (row.payload ?? {}) as unknown as DrawEventRecord["payload"],
     created_at: row.created_at,
   };
 }
@@ -341,8 +341,11 @@ export default function TournamentDrawViewerPage() {
               </CardContent>
             </Card>
 
-            <RouletteAnimator
+            <LottoAnimator
               phase={state.phase}
+              mode={state.currentMode}
+              targetGroupNo={state.targetGroupNo}
+              assignGroupNo={state.pendingGroupNo ?? state.targetGroupNo}
               durationMs={state.durationMs}
               startedAt={state.startedAt}
               currentPickLabel={

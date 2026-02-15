@@ -11,7 +11,7 @@ import type {
   DrawSessionSeed,
 } from "../../../../../lib/draw/types";
 import { isDrawEventType } from "../../../../../lib/draw/types";
-import RouletteAnimator from "../../../../../components/draw/RouletteAnimator";
+import LottoAnimator from "../../../../../components/draw/LottoAnimator";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
@@ -55,7 +55,8 @@ type DrawAction =
   | "assign_update"
   | "assign_confirm"
   | "move_member"
-  | "undo_last";
+  | "undo_last"
+  | "reset_draw";
 
 function toEventRecord(row: DrawEventRow): DrawEventRecord | null {
   if (!isDrawEventType(row.event_type)) return null;
@@ -65,7 +66,7 @@ function toEventRecord(row: DrawEventRow): DrawEventRecord | null {
     session_id: row.session_id,
     step: row.step,
     event_type: row.event_type,
-    payload: (row.payload ?? {}) as DrawEventRecord["payload"],
+    payload: (row.payload ?? {}) as unknown as DrawEventRecord["payload"],
     created_at: row.created_at,
   };
 }
@@ -113,9 +114,12 @@ export default function AdminTournamentDrawPage() {
     }
   };
 
-  const loadSnapshot = async () => {
-    setLoading(true);
-    setMsg("");
+  const loadSnapshot = async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent) {
+      setLoading(true);
+      setMsg("");
+    }
 
     const response = await fetch(`/api/admin/tournaments/${tournamentId}/draw`, {
       method: "GET",
@@ -125,7 +129,7 @@ export default function AdminTournamentDrawPage() {
 
     if (!response.ok || data.error) {
       setMsg(data.error ?? "라이브 세션 정보를 불러오지 못했습니다.");
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -152,7 +156,7 @@ export default function AdminTournamentDrawPage() {
       setNicknameByRegistrationId({});
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   useEffect(() => {
@@ -325,7 +329,7 @@ export default function AdminTournamentDrawPage() {
       return false;
     }
 
-    await loadSnapshot();
+    await loadSnapshot({ silent: true });
     setSaving(false);
     return true;
   };
@@ -419,6 +423,22 @@ export default function AdminTournamentDrawPage() {
     });
   };
 
+  const handleResetDraw = async () => {
+    if (!session) return;
+
+    const confirmed = window.confirm(
+      "조편성 전체 리셋을 진행하면 현재 라이브 추첨 기록과 배정 결과가 모두 삭제됩니다. 계속할까요?"
+    );
+    if (!confirmed) return;
+
+    if (autoPickTimerRef.current) {
+      clearTimeout(autoPickTimerRef.current);
+      autoPickTimerRef.current = null;
+    }
+
+    await postAction("reset_draw");
+  };
+
   const selectedTargetGroupNo = Number(targetGroupNo);
   const selectedAssignGroupNo = Number(assignGroupNo);
   const selectedTargetGroupFull = fullGroupNos.has(selectedTargetGroupNo);
@@ -445,7 +465,7 @@ export default function AdminTournamentDrawPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">라이브 조편성 관리</h1>
@@ -506,194 +526,226 @@ export default function AdminTournamentDrawPage() {
               </Card>
             ) : (
               <>
-                {state && (
+                <div className="grid items-start gap-2 lg:grid-cols-[2fr_1fr]">
                   <Card className="border-slate-200/70">
-                    <CardContent className="py-5">
-                      <div className="flex flex-wrap items-center gap-3 text-sm">
-                        <Badge variant="secondary" className="capitalize">
-                          phase: {state.phase}
-                        </Badge>
-                        <Badge variant="outline" className="capitalize">
-                          session: {state.status}
-                        </Badge>
-                        <span className="text-slate-600">
-                          진행: {state.totalPlayers - state.remainingPlayerIds.length}/
-                          {state.totalPlayers}
+                    <CardHeader className="px-4 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <CardTitle className="text-sm">진행 컨트롤</CardTitle>
+                        {state && (
+                          <div className="flex flex-wrap items-center gap-1 text-[11px]">
+                            <Badge variant="secondary" className="h-5 px-2 capitalize">
+                              Phase: {state.phase}
+                            </Badge>
+                            <Badge variant="outline" className="h-5 px-2 capitalize">
+                              Session: {state.status}
+                            </Badge>
+                            <span className="text-slate-600">
+                              진행: {state.totalPlayers - state.remainingPlayerIds.length}/
+                              {state.totalPlayers}
+                            </span>
+                            <span className="text-slate-600">step: {state.currentStep + 1}</span>
+                            {state.targetGroupNo ? (
+                              <span className="text-slate-600">타겟 조: {state.targetGroupNo}조</span>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2 px-4 pb-3 pt-0">
+                      <div className="grid gap-2 md:grid-cols-[170px_130px_160px_auto]">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">모드</label>
+                          <select
+                            value={mode}
+                            onChange={(e) => setMode(e.target.value as DrawMode)}
+                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                          >
+                            <option value="ROUND_ROBIN">ROUND_ROBIN</option>
+                            <option value="TARGET_GROUP">TARGET_GROUP</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">타겟 조</label>
+                          <select
+                            value={targetGroupNo}
+                            onChange={(e) => setTargetGroupNo(e.target.value)}
+                            disabled={mode !== "TARGET_GROUP"}
+                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                          >
+                            {Array.from(
+                              { length: session.group_count },
+                              (_, index) => index + 1
+                            ).map((groupNo) => (
+                              <option
+                                key={groupNo}
+                                value={groupNo}
+                                disabled={fullGroupNos.has(groupNo)}
+                              >
+                                {groupNo}조{fullGroupNos.has(groupNo) ? " (정원)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">연출 시간(ms)</label>
+                          <Input
+                            value={durationMs}
+                            onChange={(e) => setDurationMs(e.target.value)}
+                            placeholder="예: 3500"
+                            className="h-9"
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={lowSpecMode}
+                              onChange={(e) => persistLowSpec(e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            저사양 모드
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          onClick={handleStartStep}
+                          disabled={saving || !canStartStep}
+                          className="h-8 px-3 text-xs"
+                        >
+                          다음 스텝 시작
+                        </Button>
+                        <Button
+                          onClick={handlePick}
+                          disabled={saving || !canPick}
+                          variant="outline"
+                          className="h-8 px-3 text-xs"
+                        >
+                          당첨자 뽑기
+                        </Button>
+                        <Button
+                          onClick={handleUndoLast}
+                          disabled={saving || !canUndo}
+                          variant="outline"
+                          className="h-8 px-3 text-xs"
+                        >
+                          마지막 확정 되돌리기
+                        </Button>
+                        <Button
+                          onClick={handleResetDraw}
+                          disabled={saving}
+                          variant="destructive"
+                          className="h-8 px-3 text-xs"
+                        >
+                          조편성 전체 리셋
+                        </Button>
+                        <span className="text-[11px] text-slate-500">
+                          연출 시간 경과 후 자동으로 당첨자 뽑기가 실행됩니다.
                         </span>
-                        <span className="text-slate-600">step: {state.currentStep + 1}</span>
-                        {state.targetGroupNo ? (
-                          <span className="text-slate-600">타겟 조: {state.targetGroupNo}조</span>
-                        ) : null}
-                        {state.currentPickPlayerId ? (
-                          <span className="font-medium text-slate-800">
-                            현재 당첨: {displayName(state.currentPickPlayerId)}
-                          </span>
-                        ) : null}
+                      </div>
+
+                      <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] md:items-end">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">확정할 조</label>
+                          <select
+                            value={assignGroupNo}
+                            onChange={(e) => setAssignGroupNo(e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm md:max-w-[180px]"
+                          >
+                            {Array.from(
+                              { length: session.group_count },
+                              (_, index) => index + 1
+                            ).map((groupNo) => (
+                              <option
+                                key={groupNo}
+                                value={groupNo}
+                                disabled={fullGroupNos.has(groupNo)}
+                              >
+                                {groupNo}조{fullGroupNos.has(groupNo) ? " (정원)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <Button
+                          onClick={handleAssignUpdate}
+                          disabled={saving || !canAssign}
+                          variant="outline"
+                          className="h-9 px-3 text-xs"
+                        >
+                          배정 조 수정
+                        </Button>
+                        <Button
+                          onClick={handleAssignConfirm}
+                          disabled={saving || !canAssign}
+                          className="h-9 px-3 text-xs"
+                        >
+                          배정 확정
+                        </Button>
+                      </div>
+
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-slate-200/70">
+                    <CardHeader className="px-4 py-2">
+                      <CardTitle className="text-sm">재편성(멤버 이동)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 px-4 pb-3 pt-0">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">이동할 참가자</label>
+                        <select
+                          value={movePlayerId}
+                          onChange={(e) => setMovePlayerId(e.target.value)}
+                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                        >
+                          {assignedMembers.length === 0 ? (
+                            <option value="">이동 가능한 참가자 없음</option>
+                          ) : (
+                            assignedMembers.map((row) => (
+                              <option key={`${row.playerId}-${row.groupNo}`} value={row.playerId}>
+                                {displayName(row.playerId)} (현재 {row.groupNo}조)
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-[120px_auto] gap-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">대상 조</label>
+                          <select
+                            value={moveTargetGroupNo}
+                            onChange={(e) => setMoveTargetGroupNo(e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                          >
+                            {Array.from(
+                              { length: session.group_count },
+                              (_, index) => index + 1
+                            ).map((groupNo) => (
+                              <option key={groupNo} value={groupNo}>
+                                {groupNo}조
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <Button
+                          onClick={handleMoveMember}
+                          disabled={saving || !canMove}
+                          className="h-9 self-end px-3 text-xs"
+                        >
+                          멤버 이동
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
-                )}
-
-                <Card className="border-slate-200/70">
-                  <CardHeader>
-                    <CardTitle className="text-lg">진행 컨트롤</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">모드</label>
-                        <select
-                          value={mode}
-                          onChange={(e) => setMode(e.target.value as DrawMode)}
-                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
-                        >
-                          <option value="ROUND_ROBIN">ROUND_ROBIN</option>
-                          <option value="TARGET_GROUP">TARGET_GROUP</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">타겟 조</label>
-                        <select
-                          value={targetGroupNo}
-                          onChange={(e) => setTargetGroupNo(e.target.value)}
-                          disabled={mode !== "TARGET_GROUP"}
-                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
-                        >
-                          {Array.from(
-                            { length: session.group_count },
-                            (_, index) => index + 1
-                          ).map((groupNo) => (
-                            <option
-                              key={groupNo}
-                              value={groupNo}
-                              disabled={fullGroupNos.has(groupNo)}
-                            >
-                              {groupNo}조{fullGroupNos.has(groupNo) ? " (정원)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">연출 시간(ms)</label>
-                        <Input
-                          value={durationMs}
-                          onChange={(e) => setDurationMs(e.target.value)}
-                          placeholder="예: 3500"
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={lowSpecMode}
-                            onChange={(e) => persistLowSpec(e.target.checked)}
-                            className="h-4 w-4"
-                          />
-                          저사양 모드
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button onClick={handleStartStep} disabled={saving || !canStartStep}>
-                        다음 스텝 시작
-                      </Button>
-                      <Button onClick={handlePick} disabled={saving || !canPick} variant="outline">
-                        당첨자 뽑기
-                      </Button>
-                      <Button onClick={handleUndoLast} disabled={saving || !canUndo} variant="outline">
-                        마지막 확정 되돌리기
-                      </Button>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      다음 스텝 시작 후 연출 시간(ms)이 지나면 당첨자 뽑기가 자동 실행됩니다.
-                    </p>
-
-                    <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">확정할 조</label>
-                        <select
-                          value={assignGroupNo}
-                          onChange={(e) => setAssignGroupNo(e.target.value)}
-                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
-                        >
-                          {Array.from(
-                            { length: session.group_count },
-                            (_, index) => index + 1
-                          ).map((groupNo) => (
-                            <option
-                              key={groupNo}
-                              value={groupNo}
-                              disabled={fullGroupNos.has(groupNo)}
-                            >
-                              {groupNo}조{fullGroupNos.has(groupNo) ? " (정원)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <Button
-                        onClick={handleAssignUpdate}
-                        disabled={saving || !canAssign}
-                        variant="outline"
-                      >
-                        배정 조 수정
-                      </Button>
-                      <Button onClick={handleAssignConfirm} disabled={saving || !canAssign}>
-                        배정 확정
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-slate-200/70">
-                  <CardHeader>
-                    <CardTitle className="text-lg">재편성(멤버 이동)</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">이동할 참가자</label>
-                      <select
-                        value={movePlayerId}
-                        onChange={(e) => setMovePlayerId(e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
-                      >
-                        {assignedMembers.length === 0 ? (
-                          <option value="">이동 가능한 참가자 없음</option>
-                        ) : (
-                          assignedMembers.map((row) => (
-                            <option key={`${row.playerId}-${row.groupNo}`} value={row.playerId}>
-                              {displayName(row.playerId)} (현재 {row.groupNo}조)
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">대상 조</label>
-                      <select
-                        value={moveTargetGroupNo}
-                        onChange={(e) => setMoveTargetGroupNo(e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
-                      >
-                        {Array.from(
-                          { length: session.group_count },
-                          (_, index) => index + 1
-                        ).map((groupNo) => (
-                          <option key={groupNo} value={groupNo}>
-                            {groupNo}조
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <Button onClick={handleMoveMember} disabled={saving || !canMove}>
-                      멤버 이동
-                    </Button>
-                  </CardContent>
-                </Card>
+                </div>
 
                 {state && (
-                  <RouletteAnimator
+                  <LottoAnimator
                     phase={state.phase}
+                    mode={state.currentMode}
+                    targetGroupNo={state.targetGroupNo}
+                    assignGroupNo={state.pendingGroupNo ?? state.targetGroupNo}
                     durationMs={state.durationMs}
                     startedAt={state.startedAt}
                     currentPickLabel={

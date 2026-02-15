@@ -56,3 +56,4 @@ Docs/SCHEMA_VALIDATION.md
 *.tmp
 *.log
 
+artifacts/

@@ -42,7 +42,8 @@ type DrawActionBody = {
     | "assign_update"
     | "assign_confirm"
     | "move_member"
-    | "undo_last";
+    | "undo_last"
+    | "reset_draw";
   sessionId?: number;
   groupCount?: number;
   groupSize?: number;
@@ -73,7 +74,7 @@ function normalizeEventRow(row: DrawEventRow): DrawEventRecord | null {
     session_id: row.session_id,
     step: row.step,
     event_type: row.event_type,
-    payload: (row.payload ?? {}) as DrawEventRecord["payload"],
+    payload: (row.payload ?? {}) as unknown as DrawEventRecord["payload"],
     created_at: row.created_at,
   };
 }
@@ -378,6 +379,164 @@ export async function POST(
     }
 
     const supabaseAdmin = createServiceRoleSupabaseClient();
+
+    if (body.action === "reset_draw") {
+      const latestSessionRes = await supabaseAdmin
+        .from("draw_sessions")
+        .select(
+          "id,tournament_id,status,group_count,group_size,total_players,player_ids,current_step"
+        )
+        .eq("tournament_id", tournamentId)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestSessionRes.error) {
+        return NextResponse.json(
+          { error: latestSessionRes.error.message },
+          { status: 500 }
+        );
+      }
+
+      if (!latestSessionRes.data) {
+        return NextResponse.json(
+          { error: "리셋할 조편성 세션이 없습니다." },
+          { status: 400 }
+        );
+      }
+
+      const latestSession = latestSessionRes.data as DrawSessionRow;
+
+      const regRes = await supabaseAdmin
+        .from("registrations")
+        .select("id")
+        .eq("tournament_id", tournamentId)
+        .eq("status", "approved")
+        .order("id", { ascending: true });
+
+      if (regRes.error) {
+        return NextResponse.json({ error: regRes.error.message }, { status: 500 });
+      }
+
+      const playerIds = ((regRes.data ?? []) as Array<{ id: number }>).map((row) => row.id);
+      if (playerIds.length === 0) {
+        return NextResponse.json(
+          { error: "리셋 후 시작할 승인 참가자가 없습니다." },
+          { status: 400 }
+        );
+      }
+
+      const groupSize = Math.max(1, latestSession.group_size || 4);
+      const groupCount = Math.max(
+        Math.max(1, latestSession.group_count || 1),
+        Math.ceil(playerIds.length / groupSize)
+      );
+
+      const groupsRes = await supabaseAdmin
+        .from("tournament_groups")
+        .select("id")
+        .eq("tournament_id", tournamentId);
+
+      if (groupsRes.error) {
+        return NextResponse.json({ error: groupsRes.error.message }, { status: 500 });
+      }
+
+      const groupIds = ((groupsRes.data ?? []) as Array<{ id: number }>).map((row) => row.id);
+      if (groupIds.length > 0) {
+        const deleteMembersRes = await supabaseAdmin
+          .from("tournament_group_members")
+          .delete()
+          .in("group_id", groupIds);
+        if (deleteMembersRes.error) {
+          return NextResponse.json(
+            { error: deleteMembersRes.error.message },
+            { status: 500 }
+          );
+        }
+      }
+
+      const sessionsRes = await supabaseAdmin
+        .from("draw_sessions")
+        .select("id")
+        .eq("tournament_id", tournamentId);
+
+      if (sessionsRes.error) {
+        return NextResponse.json({ error: sessionsRes.error.message }, { status: 500 });
+      }
+
+      const sessionIds = ((sessionsRes.data ?? []) as Array<{ id: number }>).map((row) => row.id);
+      if (sessionIds.length > 0) {
+        const deleteEventsRes = await supabaseAdmin
+          .from("draw_events")
+          .delete()
+          .in("session_id", sessionIds);
+        if (deleteEventsRes.error) {
+          return NextResponse.json(
+            { error: deleteEventsRes.error.message },
+            { status: 500 }
+          );
+        }
+      }
+
+      const deleteSessionsRes = await supabaseAdmin
+        .from("draw_sessions")
+        .delete()
+        .eq("tournament_id", tournamentId);
+      if (deleteSessionsRes.error) {
+        return NextResponse.json(
+          { error: deleteSessionsRes.error.message },
+          { status: 500 }
+        );
+      }
+
+      await supabaseAdmin
+        .from("tournament_groups")
+        .update({ is_published: false })
+        .eq("tournament_id", tournamentId);
+
+      const restartedAt = new Date().toISOString();
+      const newSessionRes = await supabaseAdmin
+        .from("draw_sessions")
+        .insert({
+          tournament_id: tournamentId,
+          status: "live",
+          group_count: groupCount,
+          group_size: groupSize,
+          total_players: playerIds.length,
+          player_ids: playerIds,
+          current_step: 0,
+          started_at: restartedAt,
+          created_by: guard.user.id,
+        })
+        .select(
+          "id,tournament_id,status,group_count,group_size,total_players,player_ids,current_step"
+        )
+        .single();
+
+      if (newSessionRes.error || !newSessionRes.data) {
+        return NextResponse.json(
+          { error: newSessionRes.error?.message ?? "리셋 후 세션 생성 실패" },
+          { status: 500 }
+        );
+      }
+
+      const sessionStartEventRes = await supabaseAdmin.from("draw_events").insert({
+        session_id: newSessionRes.data.id,
+        step: 0,
+        event_type: "SESSION_STARTED",
+        payload: { startedAt: restartedAt, playerIds },
+        created_by: guard.user.id,
+      });
+
+      if (sessionStartEventRes.error) {
+        return NextResponse.json(
+          { error: sessionStartEventRes.error.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, session: newSessionRes.data }, { status: 200 });
+    }
 
     if (body.action === "start_session") {
       const liveSessionCheck = await supabaseAdmin

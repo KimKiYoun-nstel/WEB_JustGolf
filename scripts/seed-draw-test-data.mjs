@@ -3,6 +3,7 @@
  *
  * Usage:
  *   node scripts/seed-draw-test-data.mjs seed --tournament 12 --count 40
+ *   node scripts/seed-draw-test-data.mjs seed --tournament 12 --count 40 --korean8
  *   node scripts/seed-draw-test-data.mjs cleanup --tournament 12
  *
  * Optional:
@@ -48,6 +49,35 @@ function parseArgs(argv) {
   return args;
 }
 
+const HANGUL_POOL = Array.from("가나다라마바사아자차카타파하");
+
+function randomHangulNickname(length = 8) {
+  let value = "";
+  for (let i = 0; i < length; i += 1) {
+    value += HANGUL_POOL[Math.floor(Math.random() * HANGUL_POOL.length)];
+  }
+  return value;
+}
+
+function buildSeedNicknames({ count, prefix, timestamp, korean8 }) {
+  if (!korean8) {
+    return Array.from({ length: count }, (_, index) => {
+      const seq = String(index + 1).padStart(2, "0");
+      return `${prefix}-${timestamp}-${seq}`;
+    });
+  }
+
+  const used = new Set();
+  return Array.from({ length: count }, () => {
+    let nickname = "";
+    do {
+      nickname = randomHangulNickname(8);
+    } while (used.has(nickname));
+    used.add(nickname);
+    return nickname;
+  });
+}
+
 async function resolveRegisteringUserId(explicit) {
   if (explicit) return explicit;
 
@@ -84,20 +114,26 @@ async function ensureTournamentExists(tournamentId) {
   return data;
 }
 
-async function seed({ tournamentId, count, prefix, registeringUserId }) {
+async function seed({ tournamentId, count, prefix, registeringUserId, korean8 }) {
   const tournament = await ensureTournamentExists(tournamentId);
   const registrarId = await resolveRegisteringUserId(registeringUserId);
   const timestamp = Date.now();
+  const seedTag = `draw-seed:${prefix}:${timestamp}`;
+  const nicknames = buildSeedNicknames({
+    count,
+    prefix,
+    timestamp,
+    korean8,
+  });
 
   const rows = Array.from({ length: count }, (_, index) => {
-    const seq = String(index + 1).padStart(2, "0");
     return {
       tournament_id: tournamentId,
       user_id: null,
       registering_user_id: registrarId,
-      nickname: `${prefix}-${timestamp}-${seq}`,
+      nickname: nicknames[index],
       relation: "draw-seed",
-      memo: "auto seeded for live draw test",
+      memo: `auto seeded for live draw test [${seedTag}]`,
       status: "approved",
       approval_status: "approved",
     };
@@ -116,6 +152,7 @@ async function seed({ tournamentId, count, prefix, registeringUserId }) {
   console.log(`  Tournament: ${tournament.id} (${tournament.title})`);
   console.log(`  Added rows: ${(data ?? []).length}`);
   console.log(`  Prefix: ${prefix}`);
+  console.log(`  Nickname mode: ${korean8 ? "korean8" : "prefixed"}`);
 }
 
 async function cleanup({ tournamentId, prefix }) {
@@ -123,16 +160,24 @@ async function cleanup({ tournamentId, prefix }) {
 
   const { data: targetRows, error: selectError } = await supabase
     .from("registrations")
-    .select("id,nickname")
+    .select("id,nickname,memo")
     .eq("tournament_id", tournamentId)
-    .eq("relation", "draw-seed")
-    .like("nickname", `${prefix}-%`);
+    .eq("relation", "draw-seed");
 
   if (selectError) {
     throw new Error(`Cleanup select failed: ${selectError.message}`);
   }
 
-  const ids = (targetRows ?? []).map((row) => row.id);
+  const ids = (targetRows ?? [])
+    .filter((row) => {
+      const nickname = String(row.nickname ?? "");
+      const memo = String(row.memo ?? "");
+      return (
+        nickname.startsWith(`${prefix}-`) ||
+        memo.includes(`draw-seed:${prefix}:`)
+      );
+    })
+    .map((row) => row.id);
   if (ids.length === 0) {
     console.log("Cleanup done: no matching seed rows");
     return;
@@ -158,6 +203,7 @@ async function main() {
   const tournamentId = Number(args.tournament);
   const count = Number(args.count ?? 40);
   const prefix = String(args.prefix ?? "draw-test");
+  const korean8 = args.korean8 === true;
   const registeringUserId = args["registering-user"]
     ? String(args["registering-user"])
     : null;
@@ -165,7 +211,7 @@ async function main() {
   if (!command || !["seed", "cleanup"].includes(command)) {
     console.log("Usage:");
     console.log(
-      "  node scripts/seed-draw-test-data.mjs seed --tournament <id> [--count 40] [--prefix draw-test] [--registering-user <uuid>]"
+      "  node scripts/seed-draw-test-data.mjs seed --tournament <id> [--count 40] [--prefix draw-test] [--korean8] [--registering-user <uuid>]"
     );
     console.log(
       "  node scripts/seed-draw-test-data.mjs cleanup --tournament <id> [--prefix draw-test]"
@@ -181,7 +227,7 @@ async function main() {
     if (!Number.isInteger(count) || count <= 0) {
       throw new Error("--count must be positive integer");
     }
-    await seed({ tournamentId, count, prefix, registeringUserId });
+    await seed({ tournamentId, count, prefix, registeringUserId, korean8 });
     return;
   }
 
