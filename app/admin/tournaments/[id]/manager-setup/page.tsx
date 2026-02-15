@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../../components/ui/table";
+import { useToast } from "../../../../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -56,6 +57,7 @@ export default function ManagerSetupPage() {
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [msg, setMsg] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const { toast } = useToast();
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 권한이 부여되었습니다.";
@@ -72,6 +74,19 @@ export default function ManagerSetupPage() {
     checkAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, loading, user]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|저장|부여되었습니다|해제되었습니다/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const checkAdmin = async () => {
     const supabase = createClient();
@@ -261,12 +276,6 @@ export default function ManagerSetupPage() {
         </div>
 
         {/* 메시지 */}
-        {msg && (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-            {msg}
-          </div>
-        )}
-
         {/* 안내 */}
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>

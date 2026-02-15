@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
+import { useToast } from "../../../components/ui/toast";
 
 type ProfileRow = {
   id: string;
@@ -39,6 +40,7 @@ export default function AdminUsersPage() {
   const [msg, setMsg] = useState("");
   const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const { toast } = useToast();
 
   const load = async () => {
     setMsg("");
@@ -107,6 +109,19 @@ export default function AdminUsersPage() {
     checkAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, authLoading]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /변경되었습니다|완료|성공/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const updateApproval = async (id: string, approved: boolean) => {
     setMsg("");
@@ -248,8 +263,6 @@ export default function AdminUsersPage() {
                   {approvalRequired ? "자동 승인 켜기" : "자동 승인 끄기"}
                 </Button>
               </div>
-              {msg && <p className="text-sm text-red-600">{msg}</p>}
-
               <Table>
                 <TableHeader>
                   <TableRow>

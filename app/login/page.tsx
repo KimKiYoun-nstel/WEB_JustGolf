@@ -8,6 +8,7 @@ import { getUserFriendlyError } from "../../lib/errorHandler";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import { useToast } from "../../components/ui/toast";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -21,6 +22,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
   const supabase = createClient();
+  const { toast } = useToast();
 
   // 이미 로그인하면 자동으로 /start로 리다이렉트
   useEffect(() => {
@@ -64,6 +66,20 @@ function LoginForm() {
 
     loadApprovalSetting();
   }, [supabase]);
+
+  useEffect(() => {
+    if (!msg) return;
+    if (/(요청 중|처리 중)\.{3}$/.test(msg)) return;
+
+    const isSuccess = /성공|완료|로그인할 수 있습니다/.test(msg);
+    const isError = /실패|오류|필요|없습니다|중복|확인/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const logAuthFailure = async (payload: {
     action: "login_submit" | "signup_submit" | "kakao_login_submit";
@@ -526,15 +542,6 @@ function LoginForm() {
             카카오 계정 연동 기능을 사용하세요.
           </p>
 
-          {msg && (
-            <p
-              className={`text-sm ${
-                msg.includes("실패") ? "text-red-600" : "text-green-600"
-              }`}
-            >
-              {msg}
-            </p>
-          )}
         </CardContent>
       </Card>
     </main>

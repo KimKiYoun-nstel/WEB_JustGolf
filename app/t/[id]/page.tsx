@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
+import { useToast } from "../../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -167,6 +168,7 @@ export default function TournamentDetailPage() {
   const [isApplySheetOpen, setIsApplySheetOpen] = useState(false);
   const [isAddParticipantSheetOpen, setIsAddParticipantSheetOpen] =
     useState(false);
+  const { toast } = useToast();
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 신청했습니다.";
@@ -176,6 +178,20 @@ export default function TournamentDetailPage() {
     }
     return error.message;
   };
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const normalized = msg.replace(/^✅\s*/, "");
+    const isSuccess = msg.startsWith("✅") || /저장되었습니다|완료|변경되었습니다/.test(msg);
+    const isError = /실패|오류|권한|필요|없습니다|중복/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: normalized,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const refresh = async () => {
     const supabase = createClient();
@@ -1434,22 +1450,10 @@ export default function TournamentDetailPage() {
                     <Button onClick={apply} size="sm" disabled={loadingAction === 'apply'}>
                       {loadingAction === 'apply' ? "처리중..." : regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
                     </Button>
-                    <Button onClick={saveExtras} variant="secondary" size="sm">
-                      저장
-                    </Button>
                     <Button onClick={cancelMine} variant="outline" size="sm" disabled={loadingAction === 'cancel-main'}>
                       {loadingAction === 'cancel-main' ? "삭제중..." : "신청 삭제"}
                     </Button>
-                    <Button onClick={refresh} variant="secondary" size="sm">
-                      새로고침
-                    </Button>
                   </div>
-
-                  {msg && (
-                    <div className={`text-sm p-3 rounded-md ${msg.startsWith('✅') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-50 text-slate-700 border border-slate-200'}`}>
-                      {msg}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 

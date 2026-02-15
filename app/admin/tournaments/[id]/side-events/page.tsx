@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../../components/ui/table";
+import { useToast } from "../../../../../components/ui/toast";
 
 type SideEvent = {
   id: number;
@@ -66,6 +67,7 @@ export default function AdminSideEventsPage() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
   const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
   const [sideEventRegs, setSideEventRegs] = useState<
     Map<number, SideEventRegistration[]>
@@ -200,6 +202,19 @@ export default function AdminSideEventsPage() {
     checkAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|저장|삭제되었습니다/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -352,12 +367,6 @@ export default function AdminSideEventsPage() {
             뒤로
           </Button>
         </div>
-
-        {msg && (
-          <Card className="border-green-200/70 bg-green-50/50">
-            <CardContent className="py-3 text-sm text-green-700">{msg}</CardContent>
-          </Card>
-        )}
 
         <Card className="border-slate-200/70">
           <CardHeader>

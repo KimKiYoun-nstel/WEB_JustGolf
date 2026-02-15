@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../../components/ui/table";
+import { useToast } from "../../../../../components/ui/toast";
 
 type Registration = {
   id: number;
@@ -49,6 +50,7 @@ export default function AdminRegistrationsPage() {
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const { toast } = useToast();
 
   const load = async () => {
     const supabase = createClient();
@@ -149,6 +151,20 @@ export default function AdminRegistrationsPage() {
     checkAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const normalized = msg.replace(/^✅\s*/, "");
+    const isSuccess = msg.startsWith("✅") || /완료|저장|변경되었습니다/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: normalized,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const updateStatus = async (
     id: number,
@@ -308,12 +324,6 @@ export default function AdminRegistrationsPage() {
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
-                {msg && (
-                  <div className={`text-sm p-3 rounded-md ${msg.startsWith('✅') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                    {msg}
-                  </div>
-                )}
-
           <Table>
             <TableHeader>
               <TableRow>

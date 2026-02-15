@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
+import { useToast } from "../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -33,6 +34,7 @@ export default function TournamentsPage() {
   const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
   const [applicantCounts, setApplicantCounts] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   const formatStatus = (status: string) => formatRegistrationStatus(status);
 
@@ -105,6 +107,13 @@ export default function TournamentsPage() {
     };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    toast({ variant: "error", title: "대회 조회 실패", description: error });
+    setError("");
+  }, [error, toast]);
+
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-4xl flex-col gap-8 px-6 py-12">
@@ -119,8 +128,6 @@ export default function TournamentsPage() {
             진행 중인 대회를 확인하고 참가 신청하세요.
           </p>
         </header>
-
-        {error && <p className="text-sm text-red-600">Error: {error}</p>}
 
         <section className="grid gap-4">
           {isLoading ? (

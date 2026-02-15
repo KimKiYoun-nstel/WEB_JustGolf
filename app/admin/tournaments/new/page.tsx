@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
 import { formatTournamentStatus } from "../../../../lib/statusLabels";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { Input } from "../../../../components/ui/input";
+import { useToast } from "../../../../components/ui/toast";
 
 type Status = "draft" | "open" | "closed" | "done";
 
@@ -25,6 +26,20 @@ export default function AdminTournamentNewPage() {
   const [closeAt, setCloseAt] = useState("");
   const [status, setStatus] = useState<Status>("draft");
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|성공/.test(msg);
+    const isError = /실패|오류|필요|없어요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const save = async () => {
     const supabase = createClient();
@@ -144,7 +159,6 @@ export default function AdminTournamentNewPage() {
             <Button onClick={save} className="w-full sm:w-auto">저장</Button>
           </div>
 
-          {msg && <p className="text-sm text-slate-600">{msg}</p>}
         </CardContent>
       </Card>
     </main>

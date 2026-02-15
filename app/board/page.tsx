@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import { useToast } from "../../components/ui/toast";
 
 type FeedbackCategory = "bug" | "feature" | "general";
 type FeedbackStatus =
@@ -139,11 +140,19 @@ export default function BoardPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     void loadBoardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!errorMsg) return;
+
+    toast({ variant: "error", title: errorMsg });
+    setErrorMsg("");
+  }, [errorMsg, toast]);
 
   const loadBoardData = async () => {
     const { data: feedbackRows, error: feedbackError } = await supabase
@@ -549,8 +558,6 @@ export default function BoardPage() {
             </CardContent>
           </Card>
         )}
-
-        {errorMsg && <p className="text-sm font-medium text-red-600">{errorMsg}</p>}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button

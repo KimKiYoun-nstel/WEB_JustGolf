@@ -7,6 +7,7 @@ import { createClient } from "../../../../lib/supabaseClient";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
+import { useToast } from "../../../../components/ui/toast";
 
 type Group = {
   id: number;
@@ -42,12 +43,20 @@ export default function TournamentGroupsPage() {
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    toast({ variant: "error", title: msg });
+    setMsg("");
+  }, [msg, toast]);
 
   const load = async () => {
     setLoading(true);
@@ -126,8 +135,6 @@ export default function TournamentGroupsPage() {
             <Link href={`/t/${tournamentId}/participants`}>참가자 현황으로</Link>
           </Button>
         </div>
-
-        {msg && <p className="mb-4 text-sm text-red-600">{msg}</p>}
 
         {loading ? (
           <Card className="border-slate-200/70">

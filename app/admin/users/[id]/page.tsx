@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "../../../../components/ui/table";
+import { useToast } from "../../../../components/ui/toast";
 
 type ProfileDetail = {
   id: string;
@@ -28,6 +29,7 @@ export default function AdminUserDetailPage() {
   const [detail, setDetail] = useState<ProfileDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!userId) return;
@@ -53,6 +55,13 @@ export default function AdminUserDetailPage() {
     loadDetail();
   }, [userId]);
 
+  useEffect(() => {
+    if (!msg) return;
+
+    toast({ variant: "error", title: msg });
+    setMsg("");
+  }, [msg, toast]);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70">
@@ -74,7 +83,6 @@ export default function AdminUserDetailPage() {
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>회원 정보를 불러오지 못했습니다.</p>
-              {msg && <p className="mt-2 text-sm">{msg}</p>}
               <Button asChild variant="outline" className="mt-4">
                 <Link href="/admin/users">회원 관리로 돌아가기</Link>
               </Button>

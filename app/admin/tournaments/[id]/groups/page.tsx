@@ -9,6 +9,7 @@ import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
 import { Input } from "../../../../../components/ui/input";
+import { useToast } from "../../../../../components/ui/toast";
 
 type Group = {
   id: number;
@@ -45,6 +46,7 @@ export default function AdminTournamentGroupsPage() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
@@ -73,6 +75,19 @@ export default function AdminTournamentGroupsPage() {
 
     checkAdminAndLoad();
   }, [tournamentId, user?.id, authLoading]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|저장|삭제되었습니다|공개/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const loadAll = async () => {
     const supabase = createClient();
@@ -342,8 +357,6 @@ export default function AdminTournamentGroupsPage() {
             </Button>
           </div>
         </div>
-
-        {msg && <p className="mb-4 text-sm text-red-600">{msg}</p>}
 
         {groups.length === 0 ? (
           <Card className="border-slate-200/70">

@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../../components/ui/table";
+import { useToast } from "../../../../../components/ui/toast";
 
 type MealOption = {
   id: number;
@@ -35,7 +36,9 @@ export default function AdminMealOptionsPage() {
   const [options, setOptions] = useState<MealOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const { toast } = useToast();
 
   // 새 메뉴 추가용 상태
   const [newMenuName, setNewMenuName] = useState("");
@@ -77,7 +80,11 @@ export default function AdminMealOptionsPage() {
       .order("display_order", { ascending: true });
 
     if (error) {
-      setMsg(`불러오기 실패: ${error.message}`);
+      toast({
+        variant: "error",
+        title: "불러오기 실패",
+        description: error.message,
+      });
       setLoading(false);
       return;
     }
@@ -88,12 +95,11 @@ export default function AdminMealOptionsPage() {
 
   const addOption = async () => {
     if (!newMenuName.trim()) {
-      setMsg("메뉴명을 입력하세요");
+      toast({ variant: "error", title: "메뉴명을 입력하세요" });
       return;
     }
 
     const supabase = createClient();
-    setMsg("");
     const maxOrder = options.length > 0 ? Math.max(...options.map((o) => o.display_order)) : 0;
 
     const { error } = await supabase.from("tournament_meal_options").insert({
@@ -104,11 +110,15 @@ export default function AdminMealOptionsPage() {
     });
 
     if (error) {
-      setMsg(`추가 실패: ${error.message}`);
+      toast({
+        variant: "error",
+        title: "추가 실패",
+        description: error.message,
+      });
       return;
     }
 
-    setMsg("메뉴 옵션이 추가되었습니다");
+    toast({ variant: "success", title: "메뉴 옵션이 추가되었습니다" });
     setNewMenuName("");
     await loadOptions();
   };
@@ -117,15 +127,19 @@ export default function AdminMealOptionsPage() {
     const supabase = createClient();
     const { error } = await supabase
       .from("tournament_meal_options")
-      .update({ is_active: !currentActive })
+      .update({ is_active: !currentActive }, { returning: "minimal" })
       .eq("id", id);
 
     if (error) {
-      setMsg(`상태 변경 실패: ${error.message}`);
+      toast({
+        variant: "error",
+        title: "상태 변경 실패",
+        description: error.message,
+      });
       return;
     }
 
-    setMsg("상태가 변경되었습니다");
+    toast({ variant: "success", title: "상태가 변경되었습니다" });
     await loadOptions();
   };
 
@@ -141,13 +155,20 @@ export default function AdminMealOptionsPage() {
     const target = options[targetIdx];
 
     // 순서 교환
-    const { error } = await supabase.from("tournament_meal_options").upsert([
-      { id: current.id, display_order: target.display_order },
-      { id: target.id, display_order: current.display_order },
-    ]);
+    const { error } = await supabase.from("tournament_meal_options").upsert(
+      [
+        { id: current.id, display_order: target.display_order },
+        { id: target.id, display_order: current.display_order },
+      ],
+      { returning: "minimal" }
+    );
 
     if (error) {
-      setMsg(`순서 변경 실패: ${error.message}`);
+      toast({
+        variant: "error",
+        title: "순서 변경 실패",
+        description: error.message,
+      });
       return;
     }
 
@@ -160,15 +181,56 @@ export default function AdminMealOptionsPage() {
     const supabase = createClient();
     const { error } = await supabase
       .from("tournament_meal_options")
-      .delete()
+      .delete({ returning: "minimal" })
       .eq("id", id);
 
     if (error) {
-      setMsg(`삭제 실패: ${error.message}`);
+      toast({
+        variant: "error",
+        title: "삭제 실패",
+        description: error.message,
+      });
       return;
     }
 
-    setMsg("삭제되었습니다");
+    toast({ variant: "success", title: "삭제되었습니다" });
+    await loadOptions();
+  };
+
+  const startEdit = (opt: MealOption) => {
+    setEditingId(opt.id);
+    setEditingName(opt.menu_name);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingName("");
+  };
+
+  const saveEdit = async (id: number) => {
+    const name = editingName.trim();
+    if (!name) {
+      toast({ variant: "error", title: "메뉴명을 입력하세요" });
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("tournament_meal_options")
+      .update({ menu_name: name }, { returning: "minimal" })
+      .eq("id", id);
+
+    if (error) {
+      toast({
+        variant: "error",
+        title: "수정 실패",
+        description: error.message,
+      });
+      return;
+    }
+
+    toast({ variant: "success", title: "메뉴명이 수정되었습니다" });
+    cancelEdit();
     await loadOptions();
   };
 
@@ -261,7 +323,17 @@ export default function AdminMealOptionsPage() {
                   {options.map((opt, idx) => (
                     <TableRow key={opt.id}>
                       <TableCell className="font-medium">{idx + 1}</TableCell>
-                      <TableCell>{opt.menu_name}</TableCell>
+                      <TableCell>
+                        {editingId === opt.id ? (
+                          <Input
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            placeholder="메뉴명"
+                          />
+                        ) : (
+                          opt.menu_name
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={opt.is_active ? "default" : "secondary"}>
                           {opt.is_active ? "활성" : "비활성"}
@@ -269,36 +341,56 @@ export default function AdminMealOptionsPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex justify-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => moveOrder(opt.id, "up")}
-                            disabled={idx === 0}
-                          >
-                            ↑
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => moveOrder(opt.id, "down")}
-                            disabled={idx === options.length - 1}
-                          >
-                            ↓
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={opt.is_active ? "secondary" : "default"}
-                            onClick={() => toggleActive(opt.id, opt.is_active)}
-                          >
-                            {opt.is_active ? "비활성화" : "활성화"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => deleteOption(opt.id)}
-                          >
-                            삭제
-                          </Button>
+                          {editingId === opt.id ? (
+                            <>
+                              <Button size="sm" onClick={() => saveEdit(opt.id)}>
+                                저장
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={cancelEdit}>
+                                취소
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => moveOrder(opt.id, "up")}
+                                disabled={idx === 0}
+                              >
+                                ↑
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => moveOrder(opt.id, "down")}
+                                disabled={idx === options.length - 1}
+                              >
+                                ↓
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={opt.is_active ? "secondary" : "default"}
+                                onClick={() => toggleActive(opt.id, opt.is_active)}
+                              >
+                                {opt.is_active ? "비활성화" : "활성화"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => startEdit(opt)}
+                              >
+                                수정
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => deleteOption(opt.id)}
+                              >
+                                삭제
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -307,9 +399,6 @@ export default function AdminMealOptionsPage() {
               </Table>
             )}
 
-            {msg && (
-              <p className="mt-4 text-sm text-slate-600 text-center">{msg}</p>
-            )}
           </CardContent>
         </Card>
       </div>

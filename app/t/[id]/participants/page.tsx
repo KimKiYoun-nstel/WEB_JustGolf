@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../components/ui/table";
+import { useToast } from "../../../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -85,6 +86,7 @@ export default function TournamentParticipantsPage() {
   const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
   const hasMyActiveRegistration = rows.some(
     (r) => r.user_id === user?.id && r.status !== "canceled"
   );
@@ -243,6 +245,13 @@ export default function TournamentParticipantsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
 
+  useEffect(() => {
+    if (!msg) return;
+
+    toast({ variant: "error", title: msg });
+    setMsg("");
+  }, [msg, toast]);
+
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
@@ -288,12 +297,6 @@ export default function TournamentParticipantsPage() {
                 {t.event_date} · 참가자 현황
               </p>
             </div>
-
-            {msg && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                {msg}
-              </div>
-            )}
 
             <Card className="border-slate-200/70">
               <CardHeader>

@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../../../components/ui/card";
+import { useToast } from "../../../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -79,6 +80,7 @@ export default function MyStatusPage() {
   const [selectedActivities, setSelectedActivities] = useState<TournamentExtra[]>([]);
   const [msg, setMsg] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
@@ -92,6 +94,17 @@ export default function MyStatusPage() {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, loading, user]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isError = /실패|오류|권한|필요|없습니다/.test(msg);
+    toast({
+      variant: isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const fetchData = async () => {
     const supabase = createClient();

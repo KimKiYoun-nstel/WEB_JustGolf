@@ -6,6 +6,7 @@ import { useAuth } from "../../lib/auth";
 import { createClient } from "../../lib/supabaseClient";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { useToast } from "../../components/ui/toast";
 
 type AdminProfile = {
   is_admin: boolean;
@@ -22,6 +23,7 @@ export default function AdminLayout({
   const [isAdmin, setIsAdmin] = useState(false);
   const [nickname, setNickname] = useState("");
   const [error, setError] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (loading) return;
@@ -54,6 +56,13 @@ export default function AdminLayout({
     })();
   }, [loading, user?.id]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    toast({ variant: "error", title: "관리자 권한 확인 실패", description: error });
+    setError("");
+  }, [error, toast]);
+
   if (loading || checking) {
     return (
       <main className="min-h-screen bg-slate-50/70 px-6 py-10">
@@ -84,7 +93,6 @@ export default function AdminLayout({
       <main className="min-h-screen bg-slate-50/70 px-6 py-10">
         <Card className="mx-auto max-w-3xl border-slate-200/70 p-6">
           <p className="text-sm text-slate-600">관리자 권한이 없습니다.</p>
-          {error && <p className="mt-2 text-sm text-red-600">Error: {error}</p>}
           <Button asChild variant="outline" className="mt-4">
             <Link href="/start">홈으로 이동</Link>
           </Button>
