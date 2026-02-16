@@ -3,6 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LoginPage from './page';
 
+type MockArgs = unknown[];
+
 // Mock Supabase
 const mockSignInWithPassword = vi.fn();
 const mockSignUp = vi.fn();
@@ -16,18 +18,18 @@ const mockUpdate = vi.fn();
 vi.mock('../../lib/supabaseClient', () => {
   const client = {
     auth: {
-      signInWithPassword: (...args: any[]) => mockSignInWithPassword(...args),
-      signUp: (...args: any[]) => mockSignUp(...args),
+      signInWithPassword: (...args: MockArgs) => mockSignInWithPassword(...args),
+      signUp: (...args: MockArgs) => mockSignUp(...args),
       signOut: vi.fn(),
     },
-    rpc: (...args: any[]) => mockRpc(...args),
-    from: (...args: any[]) => {
+    rpc: (...args: MockArgs) => mockRpc(...args),
+    from: (...args: MockArgs) => {
       mockFrom(...args);
       return {
-        select: (...selectArgs: any[]) => {
+        select: (...selectArgs: MockArgs) => {
           mockSelect(...selectArgs);
           return {
-            eq: (...eqArgs: any[]) => {
+            eq: (...eqArgs: MockArgs) => {
               mockEq(...eqArgs);
               return {
                 single: () => mockSingle(),
@@ -35,10 +37,10 @@ vi.mock('../../lib/supabaseClient', () => {
             },
           };
         },
-        update: (...updateArgs: any[]) => {
+        update: (...updateArgs: MockArgs) => {
           mockUpdate(...updateArgs);
           return {
-            eq: (...eqArgs: any[]) => {
+            eq: (...eqArgs: MockArgs) => {
               mockEq(...eqArgs);
               return Promise.resolve({ data: null, error: null });
             },
@@ -75,14 +77,15 @@ vi.mock('next/navigation', () => ({
 describe('Login Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.localStorage = {
+    const mockStorage: Storage = {
       getItem: vi.fn(),
       setItem: vi.fn(),
       removeItem: vi.fn(),
       clear: vi.fn(),
       key: vi.fn(),
       length: 0,
-    } as any;
+    };
+    global.localStorage = mockStorage;
     mockRpc.mockResolvedValue({ data: true, error: null });
     mockSingle.mockResolvedValue({ data: { value: true }, error: null });
   });
@@ -206,8 +209,10 @@ describe('Login Page', () => {
       });
 
       // Mock window.location
-      delete (window as any).location;
-      (window as any).location = { href: '' };
+      Object.defineProperty(window, "location", {
+        value: { href: "" } as Location,
+        writable: true,
+      });
 
       render(<LoginPage />);
 
@@ -294,8 +299,10 @@ describe('Login Page', () => {
         error: null,
       });
 
-      delete (window as any).location;
-      (window as any).location = { href: '' };
+      Object.defineProperty(window, "location", {
+        value: { href: "" } as Location,
+        writable: true,
+      });
 
       render(<LoginPage />);
 
@@ -319,10 +326,12 @@ describe('Login Page', () => {
         data: null,
         error: { message: 'Invalid login credentials' },
       });
-      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue({
         ok: true,
         json: async () => ({ exists: true, profileExists: false }),
-      });
+      } as unknown as Response) as typeof fetch;
 
       render(<LoginPage />);
 
@@ -346,10 +355,12 @@ describe('Login Page', () => {
         data: null,
         error: { message: 'Invalid login credentials' },
       });
-      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue({
         ok: true,
         json: async () => ({ exists: false, profileExists: false }),
-      });
+      } as unknown as Response) as typeof fetch;
 
       render(<LoginPage />);
 
@@ -373,10 +384,12 @@ describe('Login Page', () => {
         data: null,
         error: { message: 'Invalid login credentials' },
       });
-      (globalThis as any).fetch = vi.fn().mockResolvedValue({
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue({
         ok: true,
         json: async () => ({ exists: false, profileExists: true }),
-      });
+      } as unknown as Response) as typeof fetch;
 
       render(<LoginPage />);
 

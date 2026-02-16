@@ -33,6 +33,29 @@ type Registration = {
   created_at: string;
 };
 
+type RegistrationActivitySelectionRow = {
+  selected?: boolean | null;
+  tournament_extras?: { activity_name?: string | null } | null;
+};
+
+type RegistrationRow = {
+  id: number;
+  user_id: string | null;
+  registering_user_id: string;
+  nickname: string;
+  status: Registration["status"];
+  memo: string | null;
+  meal_option_id: number | null;
+  tournament_meal_options?: { menu_name?: string | null } | null;
+  registration_activity_selections?: RegistrationActivitySelectionRow[] | null;
+  created_at: string;
+};
+
+type ProfileRow = {
+  id: string;
+  nickname: string | null;
+};
+
 const statuses: Registration["status"][] = [
   "applied",
   "approved",
@@ -80,9 +103,10 @@ export default function AdminRegistrationsPage() {
     }
 
     // 등록자 닉네임 조회 (profiles)
-    const registeringUserIds = [...new Set(
-      (data ?? []).map((row: any) => row.registering_user_id).filter(Boolean)
-    )];
+    const dataRows = (data ?? []) as RegistrationRow[];
+    const registeringUserIds = [
+      ...new Set(dataRows.map((row) => row.registering_user_id).filter(Boolean)),
+    ];
     
     const { data: profiles } = await supabase
       .from("profiles")
@@ -90,15 +114,15 @@ export default function AdminRegistrationsPage() {
       .in("id", registeringUserIds);
     
     const profileMap = new Map(
-      (profiles ?? []).map((p: any) => [p.id, p.nickname])
+      ((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p.nickname])
     );
 
     // Transform data to include meal_name, activities, and registering_user_nickname
-    const transformed = (data ?? []).map((row: any) => {
+    const transformed = dataRows.map((row) => {
       const activities = (row.registration_activity_selections ?? [])
-        .filter((sel: any) => sel?.selected)
-        .map((sel: any) => sel?.tournament_extras?.activity_name)
-        .filter((name: string | null) => Boolean(name));
+        .filter((sel) => sel?.selected)
+        .map((sel) => sel?.tournament_extras?.activity_name)
+        .filter((name): name is string => Boolean(name));
 
       return {
         id: row.id,

@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
@@ -29,6 +30,15 @@ type GroupMember = {
   nickname: string | null;
 };
 
+type GroupMemberRow = {
+  id: number;
+  group_id: number;
+  registration_id: number;
+  position: number;
+  role: string | null;
+  registrations?: { nickname?: string | null } | null;
+};
+
 type Registration = {
   id: number;
   nickname: string;
@@ -48,48 +58,7 @@ export default function AdminTournamentGroupsPage() {
   const [msg, setMsg] = useState("");
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (!Number.isFinite(tournamentId)) return;
-    if (authLoading) return;
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-
-    const checkAdminAndLoad = async () => {
-      const supabase = createClient();
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile?.is_admin) {
-        setUnauthorized(true);
-        setLoading(false);
-        return;
-      }
-
-      await loadAll();
-    };
-
-    checkAdminAndLoad();
-  }, [tournamentId, user?.id, authLoading]);
-
-  useEffect(() => {
-    if (!msg) return;
-
-    const isSuccess = /완료|저장|삭제되었습니다|공개/.test(msg);
-    const isError = /실패|오류|없습니다|필요/.test(msg);
-
-    toast({
-      variant: isSuccess ? "success" : isError ? "error" : "default",
-      title: msg,
-    });
-    setMsg("");
-  }, [msg, toast]);
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     const supabase = createClient();
     setMsg("");
     setLoading(true);
@@ -142,7 +111,7 @@ export default function AdminTournamentGroupsPage() {
       return;
     }
 
-    const mapped = (memberRes.data ?? []).map((row: any) => ({
+    const mapped = ((memberRes.data ?? []) as GroupMemberRow[]).map((row) => ({
       id: row.id,
       group_id: row.group_id,
       registration_id: row.registration_id,
@@ -151,9 +120,51 @@ export default function AdminTournamentGroupsPage() {
       nickname: row.registrations?.nickname ?? null,
     }));
 
-    setMembers(mapped as GroupMember[]);
+    setMembers(mapped);
     setLoading(false);
-  };
+  }, [tournamentId]);
+
+  useEffect(() => {
+    if (!Number.isFinite(tournamentId)) return;
+    if (authLoading) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const checkAdminAndLoad = async () => {
+      const supabase = createClient();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.is_admin) {
+        setUnauthorized(true);
+        setLoading(false);
+        return;
+      }
+
+      await loadAll();
+    };
+
+    checkAdminAndLoad();
+  }, [tournamentId, user?.id, authLoading, loadAll]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|저장|삭제되었습니다|공개/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
+
 
   const createGroup = async () => {
     const supabase = createClient();
@@ -361,7 +372,7 @@ export default function AdminTournamentGroupsPage() {
         {groups.length === 0 ? (
           <Card className="border-slate-200/70">
             <CardContent className="py-10 text-center text-sm text-slate-500">
-              아직 조가 없습니다. "조 추가" 버튼을 눌러 생성하세요.
+              아직 조가 없습니다. &quot;조 추가&quot; 버튼을 눌러 생성하세요.
             </CardContent>
           </Card>
         ) : (

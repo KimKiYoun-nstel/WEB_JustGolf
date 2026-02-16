@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
@@ -43,6 +44,29 @@ export default function AdminMealOptionsPage() {
   // 새 메뉴 추가용 상태
   const [newMenuName, setNewMenuName] = useState("");
 
+  const loadOptions = useCallback(async () => {
+    const supabase = createClient();
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("tournament_meal_options")
+      .select("*")
+      .eq("tournament_id", tournamentId)
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      toast({
+        variant: "error",
+        title: "불러오기 실패",
+        description: error.message,
+      });
+      setLoading(false);
+      return;
+    }
+
+    setOptions(data || []);
+    setLoading(false);
+  }, [tournamentId, toast]);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user?.id) {
@@ -68,30 +92,7 @@ export default function AdminMealOptionsPage() {
     };
 
     checkAdminAndLoad();
-  }, [tournamentId, user?.id, authLoading]);
-
-  const loadOptions = async () => {
-    const supabase = createClient();
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("tournament_meal_options")
-      .select("*")
-      .eq("tournament_id", tournamentId)
-      .order("display_order", { ascending: true });
-
-    if (error) {
-      toast({
-        variant: "error",
-        title: "불러오기 실패",
-        description: error.message,
-      });
-      setLoading(false);
-      return;
-    }
-
-    setOptions(data || []);
-    setLoading(false);
-  };
+  }, [tournamentId, user?.id, authLoading, loadOptions]);
 
   const addOption = async () => {
     if (!newMenuName.trim()) {

@@ -59,6 +59,7 @@ type SideEvent = {
 
 type SideEventRegistration = {
   id: number;
+  side_event_id: number;
   nickname: string;
   status: string;
   meal_selected: boolean;
@@ -153,7 +154,7 @@ export default function TournamentParticipantsPage() {
       const activities = (row.registration_activity_selections ?? [])
         .filter((sel) => sel?.selected)
         .map((sel) => sel?.tournament_extras?.activity_name)
-        .filter((name: string | null | undefined) => Boolean(name));
+        .filter((name): name is string => Boolean(name));
 
       return {
       id: row.id,
@@ -183,21 +184,30 @@ export default function TournamentParticipantsPage() {
       .order("round_type,id", { ascending: true });
 
     if (!seRes.error) {
-      setSideEvents((seRes.data ?? []) as SideEvent[]);
+      const sideEvents = (seRes.data ?? []) as SideEvent[];
+      setSideEvents(sideEvents);
 
       const seRegMap = new Map<number, SideEventRegistration[]>();
-      for (const se of (seRes.data ?? []) as SideEvent[]) {
+      const sideEventIds = sideEvents.map((se) => se.id);
+
+      if (sideEventIds.length > 0) {
         const serRes = await supabase
           .from("side_event_registrations")
-          .select("id,nickname,status,meal_selected,lodging_selected")
-          .eq("side_event_id", se.id)
+          .select("id,side_event_id,nickname,status,meal_selected,lodging_selected")
+          .in("side_event_id", sideEventIds)
           .neq("status", "canceled")
+          .order("side_event_id", { ascending: true })
           .order("id", { ascending: true });
 
         if (!serRes.error) {
-          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
+          for (const row of (serRes.data ?? []) as SideEventRegistration[]) {
+            const bucket = seRegMap.get(row.side_event_id) ?? [];
+            bucket.push(row);
+            seRegMap.set(row.side_event_id, bucket);
+          }
         }
       }
+
       setSideEventRegs(seRegMap);
     }
 

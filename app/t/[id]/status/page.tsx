@@ -210,27 +210,44 @@ export default function MyStatusPage() {
             lodging_selected: boolean;
           }>;
 
-          const enrichedRegs: SideEventReg[] = [];
-          for (const sr of sideRegs) {
+          const sideEventIds = Array.from(
+            new Set(sideRegs.map((sr) => sr.side_event_id))
+          );
+          const sideEventMap = new Map<
+            number,
+            { title: string; round_type: string; tournament_id: number }
+          >();
+
+          if (sideEventIds.length > 0) {
             const seRes = await supabase
               .from("side_events")
               .select("id,tournament_id,title,round_type")
-              .eq("id", sr.side_event_id)
-              .single();
+              .in("id", sideEventIds);
 
-            if (
-              !seRes.error &&
-              seRes.data &&
-              seRes.data.tournament_id === tournamentId
-            ) {
+            if (!seRes.error && seRes.data) {
+              for (const se of seRes.data as Array<{
+                id: number;
+                tournament_id: number;
+                title: string;
+                round_type: string;
+              }>) {
+                sideEventMap.set(se.id, se);
+              }
+            }
+          }
+
+          const enrichedRegs: SideEventReg[] = [];
+          for (const sr of sideRegs) {
+            const se = sideEventMap.get(sr.side_event_id);
+            if (se && se.tournament_id === tournamentId) {
               enrichedRegs.push({
                 id: sr.id,
                 side_event_id: sr.side_event_id,
                 registration_id: sr.registration_id,
                 participant_nickname:
                   regNameMap.get(sr.registration_id) ?? "알 수 없음",
-                side_event_title: seRes.data.title,
-                round_type: seRes.data.round_type,
+                side_event_title: se.title,
+                round_type: se.round_type,
                 status: sr.status,
                 memo: sr.memo,
                 meal_selected: sr.meal_selected,

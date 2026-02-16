@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../../lib/supabaseClient";
@@ -25,6 +27,17 @@ type Tournament = {
   tee_time: string | null;
   notes: string | null;
   status: string;
+};
+
+type RegistrationCountRow = {
+  tournament_id: number;
+  status: string;
+};
+
+type RegistrationStatusRow = {
+  tournament_id: number;
+  status: string;
+  relation: string | null;
 };
 
 export default function TournamentsPage() {
@@ -66,7 +79,7 @@ export default function TournamentsPage() {
 
       if (!countError) {
         const nextCounts: Record<number, number> = {};
-        (countData ?? []).forEach((row: any) => {
+        ((countData ?? []) as RegistrationCountRow[]).forEach((row) => {
           nextCounts[row.tournament_id] = (nextCounts[row.tournament_id] ?? 0) + 1;
         });
         setApplicantCounts(nextCounts);
@@ -95,7 +108,7 @@ export default function TournamentsPage() {
       }
 
       const nextStatuses: Record<number, string> = {};
-      (regData ?? []).forEach((row: any) => {
+      ((regData ?? []) as RegistrationStatusRow[]).forEach((row) => {
         nextStatuses[row.tournament_id] = row.status;
       });
       setMyStatuses(nextStatuses);

@@ -138,20 +138,31 @@ export default function ManagerSetupPage() {
     if (mgrRes.error) {
       setMsg(`관리자 조회 실패: ${friendlyError(mgrRes.error)}`);
     } else {
-      // 각 관리자의 nickname 조회
-      const managersWithNick: ManagerPermission[] = [];
-      for (const mgr of (mgrRes.data ?? [])) {
+      const mgrRows = (mgrRes.data ?? []) as Array<Omit<ManagerPermission, "nickname">>;
+      const userIds = mgrRows.map((mgr) => mgr.user_id);
+      const nicknameMap = new Map<string, string>();
+
+      if (userIds.length > 0) {
         const profileRes = await supabase
           .from("profiles")
-          .select("nickname")
-          .eq("id", mgr.user_id)
-          .single();
+          .select("id,nickname")
+          .in("id", userIds);
 
-        managersWithNick.push({
-          ...mgr,
-          nickname: profileRes.data?.nickname ?? "Unknown",
-        } as ManagerPermission);
+        if (!profileRes.error && profileRes.data) {
+          for (const profile of profileRes.data as Array<{
+            id: string;
+            nickname: string | null;
+          }>) {
+            nicknameMap.set(profile.id, profile.nickname ?? "Unknown");
+          }
+        }
       }
+
+      const managersWithNick = mgrRows.map((mgr) => ({
+        ...mgr,
+        nickname: nicknameMap.get(mgr.user_id) ?? "Unknown",
+      })) as ManagerPermission[];
+
       setManagers(managersWithNick);
     }
   };

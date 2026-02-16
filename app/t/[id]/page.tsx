@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
@@ -73,6 +74,7 @@ type SideEvent = {
 
 type SideEventRegistration = {
   id: number;
+  side_event_id: number;
   registration_id: number;
   user_id: string | null;
   nickname: string;
@@ -316,39 +318,53 @@ export default function TournamentDetailPage() {
     if (seRes.error)
       setMsg(`라운드 조회 실패: ${friendlyError(seRes.error)}`);
     else {
-      setSideEvents((seRes.data ?? []) as SideEvent[]);
+      const sideEvents = (seRes.data ?? []) as SideEvent[];
+      setSideEvents(sideEvents);
 
-      // Load registrations for each side event
+      // Load registrations for each side event in a single query
       const seRegMap = new Map<number, SideEventRegistration[]>();
       const defaultTargetRegId = mainRegIdForExtras ?? activeMyRegIds[0] ?? null;
       const nextTargetMap = new Map<number, number | null>();
       const nextMealMap = new Map<number, boolean | null>();
       const nextLodgingMap = new Map<number, boolean | null>();
-      for (const se of (seRes.data ?? []) as SideEvent[]) {
+      const sideEventIds = sideEvents.map((se) => se.id);
+
+      if (sideEventIds.length > 0) {
         const serRes = await supabase
           .from("side_event_registrations")
-          .select("id,registration_id,user_id,nickname,status,memo,meal_selected,lodging_selected")
-          .eq("side_event_id", se.id)
+          .select(
+            "id,side_event_id,registration_id,user_id,nickname,status,memo,meal_selected,lodging_selected"
+          )
+          .in("side_event_id", sideEventIds)
+          .order("side_event_id", { ascending: true })
           .order("id", { ascending: true });
 
         if (!serRes.error) {
           const seRows = (serRes.data ?? []) as SideEventRegistration[];
-          seRegMap.set(se.id, seRows);
-
-          const prevTargetRegId = sideEventTargetRegistrationIds.get(se.id) ?? null;
-          const resolvedTargetRegId =
-            prevTargetRegId && activeMyRegIds.includes(prevTargetRegId)
-              ? prevTargetRegId
-              : defaultTargetRegId;
-
-          nextTargetMap.set(se.id, resolvedTargetRegId);
-          const myDefaultSideReg = resolvedTargetRegId
-            ? seRows.find((row) => row.registration_id === resolvedTargetRegId)
-            : undefined;
-          nextMealMap.set(se.id, myDefaultSideReg?.meal_selected ?? null);
-          nextLodgingMap.set(se.id, myDefaultSideReg?.lodging_selected ?? null);
+          for (const row of seRows) {
+            const bucket = seRegMap.get(row.side_event_id) ?? [];
+            bucket.push(row);
+            seRegMap.set(row.side_event_id, bucket);
+          }
         }
       }
+
+      for (const se of sideEvents) {
+        const seRows = seRegMap.get(se.id) ?? [];
+        const prevTargetRegId = sideEventTargetRegistrationIds.get(se.id) ?? null;
+        const resolvedTargetRegId =
+          prevTargetRegId && activeMyRegIds.includes(prevTargetRegId)
+            ? prevTargetRegId
+            : defaultTargetRegId;
+
+        nextTargetMap.set(se.id, resolvedTargetRegId);
+        const myDefaultSideReg = resolvedTargetRegId
+          ? seRows.find((row) => row.registration_id === resolvedTargetRegId)
+          : undefined;
+        nextMealMap.set(se.id, myDefaultSideReg?.meal_selected ?? null);
+        nextLodgingMap.set(se.id, myDefaultSideReg?.lodging_selected ?? null);
+      }
+
       setSideEventRegs(seRegMap);
       setSideEventTargetRegistrationIds(nextTargetMap);
       setSideEventMealSelections(nextMealMap);
