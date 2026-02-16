@@ -41,7 +41,7 @@ export function TableOfContents({
   return (
     <>
       {/* 모바일: FAB (Floating Action Button) */}
-      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+      <div className="fixed bottom-6 right-6 z-50 md:hidden">
         <button
           onClick={() => setOpen(!open)}
           className="h-12 w-12 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all duration-200 flex items-center justify-center font-bold text-lg"

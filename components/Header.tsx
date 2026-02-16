@@ -86,10 +86,10 @@ export default function Header() {
           </Link>
 
           {/* PC 네비게이션 (md 이상에서만 표시) */}
-          <nav className="hidden gap-2 md:flex">
+          <nav className="hidden gap-2 md:flex md:items-center">
             {user && (
               <>
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-slate-700 px-2 py-1.5">
                   {profileNickname ? `${profileNickname}님` : "닉네임 없음"}
                 </span>
                 {!isAdmin && (

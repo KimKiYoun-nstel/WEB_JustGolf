@@ -1502,7 +1502,7 @@ export default function TournamentDetailPage() {
                   <CardContent>
                     {/* 데스크톱: 테이블, 모바일: 카드 */}
                     <div className="hidden lg:block">
-                      <div className="overflow-x-auto rounded-md border border-slate-200">
+                      <div className="max-h-[600px] overflow-y-auto overflow-x-auto rounded-md border border-slate-200">
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-slate-50">
@@ -1552,7 +1552,7 @@ export default function TournamentDetailPage() {
                     </div>
                     
                     {/* 모바일: 카드 리스트 */}
-                    <div className="lg:hidden space-y-2">
+                    <div className="lg:hidden max-h-[600px] overflow-y-auto space-y-2">
                       {myParticipantList.map((p) => (
                         <div key={p.id} className="rounded-md border border-slate-200 p-3 space-y-2">
                           <div className="flex items-center justify-between gap-2">
