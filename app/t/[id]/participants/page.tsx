@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "../../../../components/ui/table";
 import { useToast } from "../../../../components/ui/toast";
+import { TableOfContents, useTableOfContents, type TOCItem } from "../../../../components/TableOfContents";
 
 type Tournament = {
   id: number;
@@ -262,8 +263,23 @@ export default function TournamentParticipantsPage() {
     setMsg("");
   }, [msg, toast]);
 
+  // TableOfContents 아이템 정의
+  const tocItems: TOCItem[] = [
+    { id: "registrations-section", label: "참가자 목록", icon: "👥" },
+    ...(sideEvents.length > 0
+      ? [{ id: "side-events-section", label: "라운드", icon: "🌅" }]
+      : []),
+    ...(prizes.length > 0
+      ? [{ id: "prizes-section", label: "경품", icon: "🎁" }]
+      : []),
+    { id: "groups-section", label: "조편성", icon: "🧩" },
+  ];
+
+  const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+
   return (
     <main className="min-h-screen bg-slate-50/70">
+      <TableOfContents items={tocItems} activeSection={activeSection} />
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
         {(loading || authLoading) && (
           <Card className="border-slate-200/70">
@@ -308,7 +324,7 @@ export default function TournamentParticipantsPage() {
               </p>
             </div>
 
-            <Card className="border-slate-200/70">
+            <Card id="registrations-section" className="border-slate-200/70">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
@@ -420,7 +436,7 @@ export default function TournamentParticipantsPage() {
             </Card>
 
             {sideEvents.length > 0 && (
-              <Card className="border-slate-200/70">
+              <Card id="side-events-section" className="border-slate-200/70">
                 <CardHeader>
                   <CardTitle>사전/사후 라운드 참가자 현황</CardTitle>
                   <CardDescription>
@@ -479,7 +495,7 @@ export default function TournamentParticipantsPage() {
               </Card>
             )}
 
-            <Card className="border-slate-200/70">
+            <Card id="prizes-section" className="border-slate-200/70">
               <CardHeader>
                 <CardTitle>경품 지원 현황</CardTitle>
                 <CardDescription>
@@ -522,7 +538,7 @@ export default function TournamentParticipantsPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200/70">
+            <Card id="groups-section" className="border-slate-200/70">
               <CardHeader>
                 <CardTitle>조편성</CardTitle>
                 <CardDescription>공개된 조편성을 확인하세요.</CardDescription>

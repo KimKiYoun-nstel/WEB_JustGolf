@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "../../../components/ui/table";
 import { useToast } from "../../../components/ui/toast";
+import { TableOfContents, useTableOfContents, type TOCItem } from "../../../components/TableOfContents";
 
 type Tournament = {
   id: number;
@@ -1191,8 +1192,23 @@ export default function TournamentDetailPage() {
     formatRegistrationStatus(status);
   const applicantCount = regs.filter((r) => r.status === "applied").length;
 
+  // TableOfContents 아이템 정의
+  const tocItems: TOCItem[] = [
+    { id: "tournament-info", label: "대회 정보", icon: "📌" },
+    { id: "main-registration", label: "참가 신청", icon: "🎮" },
+    ...(sideEvents.length > 0
+      ? [{ id: "round-section", label: "라운드", icon: "🌅" }]
+      : []),
+    ...(files.length > 0
+      ? [{ id: "files-section", label: "파일", icon: "📥" }]
+      : []),
+  ];
+
+  const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+
   return (
     <main className="min-h-screen bg-slate-50/70">
+      <TableOfContents items={tocItems} activeSection={activeSection} />
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
         {!t ? (
           <Card>
@@ -1202,7 +1218,7 @@ export default function TournamentDetailPage() {
           </Card>
         ) : (
           <>
-            <Card className="border-slate-200/70">
+            <Card id="tournament-info" className="border-slate-200/70">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between gap-3">
                   <span>{t.title}</span>
@@ -1231,7 +1247,7 @@ export default function TournamentDetailPage() {
               </CardContent>
             </Card>
 
-            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+            <div id="main-registration" className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="flex justify-center lg:hidden">
                 <Button
                   onClick={() => setIsApplySheetOpen(true)}
@@ -1881,7 +1897,7 @@ export default function TournamentDetailPage() {
               </Card>
             )}
 
-            <Card className="border-slate-200/70">
+            <Card id="files-section" className="border-slate-200/70">
               <CardHeader>
                 <CardTitle>첨부파일</CardTitle>
                 <CardDescription>조편성/안내 파일을 확인하세요.</CardDescription>
@@ -1935,7 +1951,7 @@ export default function TournamentDetailPage() {
 
 
             {sideEvents.length > 0 && (
-              <div className="space-y-4">
+              <div id="round-section" className="space-y-4">
                 <h2 className="text-2xl font-bold text-slate-900">
                   사전/사후 라운드
                 </h2>

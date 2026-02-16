@@ -379,66 +379,74 @@ export default function AdminTournamentGroupsPage() {
           <div className="space-y-4">
             {groups.map((group) => (
               <Card key={group.id} className="border-slate-200/70">
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle className="flex items-center gap-3">
-                    <span>{group.group_no}조</span>
-                    <Badge variant={group.is_published ? "default" : "secondary"}>
-                      {group.is_published ? "공개" : "비공개"}
-                    </Badge>
-                  </CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => togglePublish(group)}>
-                      {group.is_published ? "비공개" : "공개"}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => updateGroup(group)}>
-                      티오프 저장
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={() => deleteGroup(group)}>
-                      삭제
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">티오프 시간</label>
-                      <Input
-                        value={group.tee_time ?? ""}
-                        placeholder="예: 08:10"
-                        onChange={(e) => updateGroupField(group.id, "tee_time", e.target.value)}
-                      />
+                <details className="group">
+                  <summary className="cursor-pointer select-none [&>*]:pointer-events-none">
+                    <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <CardTitle className="flex items-center gap-3">
+                        <span>{group.group_no}조</span>
+                        <Badge variant={group.is_published ? "default" : "secondary"}>
+                          {group.is_published ? "공개" : "비공개"}
+                        </Badge>
+                        <span className="text-sm font-normal text-slate-500 group-open:hidden">
+                          ({members.filter(m => m.group_id === group.id).length}명)
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                  </summary>
+                  <CardContent className="space-y-4 pt-0">
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <Button size="sm" variant="outline" onClick={() => togglePublish(group)}>
+                        {group.is_published ? "비공개" : "공개"}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => updateGroup(group)}>
+                        티오프 저장
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteGroup(group)}>
+                        삭제
+                      </Button>
                     </div>
-                  </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {[1, 2, 3, 4].map((position) => {
-                      const member = memberFor(group.id, position);
-                      return (
-                        <div key={position} className="space-y-2">
-                          <label className="text-sm font-medium">{position}번</label>
-                          <select
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-                            value={member?.registration_id ?? ""}
-                            onChange={(e) =>
-                              updateMember(
-                                group.id,
-                                position,
-                                e.target.value ? Number(e.target.value) : null
-                              )
-                            }
-                          >
-                            <option value="">배정 안 함</option>
-                            {confirmedRegs.map((reg) => (
-                              <option key={reg.id} value={reg.id}>
-                                {reg.nickname}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">티오프 시간</label>
+                        <Input
+                          value={group.tee_time ?? ""}
+                          placeholder="예: 08:10"
+                          onChange={(e) => updateGroupField(group.id, "tee_time", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {[1, 2, 3, 4].map((position) => {
+                        const member = memberFor(group.id, position);
+                        return (
+                          <div key={position} className="space-y-2">
+                            <label className="text-sm font-medium">{position}번</label>
+                            <select
+                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                              value={member?.registration_id ?? ""}
+                              onChange={(e) =>
+                                updateMember(
+                                  group.id,
+                                  position,
+                                  e.target.value ? Number(e.target.value) : null
+                                )
+                              }
+                            >
+                              <option value="">배정 안 함</option>
+                              {confirmedRegs.map((reg) => (
+                                <option key={reg.id} value={reg.id}>
+                                  {reg.nickname}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </details>
               </Card>
             ))}
           </div>

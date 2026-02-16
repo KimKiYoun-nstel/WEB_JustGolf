@@ -4,9 +4,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { Menu } from "lucide-react";
 import { createClient } from "../lib/supabaseClient";
 import { useAuth } from "../lib/auth";
 import { Button } from "./ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "./ui/sheet";
 
 export default function Header() {
   const router = useRouter();
@@ -14,6 +16,7 @@ export default function Header() {
   const { user, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileNickname, setProfileNickname] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const supabase = createClient();
   const headerClassName =
     "sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85";
@@ -73,7 +76,8 @@ export default function Header() {
   }
 
   return (
-    <header className={headerClassName}>
+    <>
+      <header className={headerClassName}>
       <div className="mx-auto max-w-6xl px-4 py-4">
         <div className="flex items-center justify-between">
           {/* 로고/홈 */}
@@ -81,8 +85,8 @@ export default function Header() {
             <span className="text-xl font-bold text-slate-900">⛳ Just Golf</span>
           </Link>
 
-          {/* 네비게이션 */}
-          <nav className="flex items-center gap-2">
+          {/* PC 네비게이션 (md 이상에서만 표시) */}
+          <nav className="hidden gap-2 md:flex">
             {user && (
               <>
                 <span className="text-sm font-medium text-slate-700">
@@ -112,6 +116,17 @@ export default function Header() {
               </Button>
             )}
           </nav>
+
+          {/* 모바일 햄버거 버튼 (md 미만에서만 표시) */}
+          {user && (
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden inline-flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-slate-100"
+              aria-label="메뉴 열기"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+          )}
         </div>
 
         {/* 상태 바 (현재 페이지 설명) - 데스크톱만 표시 */}
@@ -144,5 +159,70 @@ export default function Header() {
         </div>
       </div>
     </header>
+
+    {/* 모바일 메뉴 드로어 */}
+    <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+      <SheetContent className="w-64">
+        <SheetHeader>
+          <SheetTitle>메뉴</SheetTitle>
+          <SheetClose onClick={() => setMobileMenuOpen(false)} />
+        </SheetHeader>
+
+        <nav className="mt-6 space-y-2">
+          {user && (
+            <>
+              <div className="border-b border-slate-200 pb-4">
+                <p className="text-sm font-medium text-slate-700">
+                  {profileNickname ? `${profileNickname}님` : "닉네임 없음"}
+                </p>
+              </div>
+
+              {!isAdmin && (
+                <Button
+                  asChild
+                  className="w-full justify-start"
+                  variant="ghost"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Link href="/start">🏠 홈</Link>
+                </Button>
+              )}
+              {isAdmin && (
+                <Button
+                  asChild
+                  className="w-full justify-start"
+                  variant="ghost"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Link href="/admin">👨‍💼 관리자</Link>
+                </Button>
+              )}
+
+              <Button
+                asChild
+                className="w-full justify-start"
+                variant="ghost"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Link href="/profile">👤 내 프로필</Link>
+              </Button>
+
+              <div className="border-t border-slate-200 pt-2">
+                <Button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full justify-start"
+                  variant="ghost"
+                >
+                  🚪 로그아웃
+                </Button>
+              </div>
+            </>
+          )}
+        </nav>
+      </SheetContent>
+    </Sheet>    </>
   );
 }
