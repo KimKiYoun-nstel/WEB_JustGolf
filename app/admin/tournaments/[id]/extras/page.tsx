@@ -220,13 +220,10 @@ export default function TournamentExtrasPage() {
 
     const { error } = await supabase
       .from("tournament_extras")
-      .update(
-        {
-          activity_name: name,
-          description: editingDescription.trim() || null,
-        },
-        { returning: "minimal" }
-      )
+      .update({
+        activity_name: name,
+        description: editingDescription.trim() || null,
+      })
       .eq("id", id);
 
     if (error) {

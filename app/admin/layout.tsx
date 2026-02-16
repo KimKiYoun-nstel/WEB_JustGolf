@@ -59,7 +59,12 @@ export default function AdminLayout({
   useEffect(() => {
     if (!error) return;
 
-    toast({ variant: "error", title: "관리자 권한 확인 실패", description: error });
+    toast({
+      variant: "error",
+      title: "관리자 권한 확인 실패",
+      description: error,
+      duration: 1800,
+    });
     setError("");
   }, [error, toast]);
 

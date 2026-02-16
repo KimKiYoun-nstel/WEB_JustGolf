@@ -12,7 +12,7 @@ type Toast = {
   duration: number;
 };
 
-type ToastOptions = Omit<Toast, "id"> & { duration?: number };
+type ToastOptions = Omit<Toast, "id" | "duration"> & { duration?: number };
 
 type ToastContextValue = {
   toasts: Toast[];

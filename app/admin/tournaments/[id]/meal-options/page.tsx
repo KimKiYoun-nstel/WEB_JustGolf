@@ -127,7 +127,7 @@ export default function AdminMealOptionsPage() {
     const supabase = createClient();
     const { error } = await supabase
       .from("tournament_meal_options")
-      .update({ is_active: !currentActive }, { returning: "minimal" })
+      .update({ is_active: !currentActive })
       .eq("id", id);
 
     if (error) {
@@ -155,13 +155,10 @@ export default function AdminMealOptionsPage() {
     const target = options[targetIdx];
 
     // 순서 교환
-    const { error } = await supabase.from("tournament_meal_options").upsert(
-      [
-        { id: current.id, display_order: target.display_order },
-        { id: target.id, display_order: current.display_order },
-      ],
-      { returning: "minimal" }
-    );
+    const { error } = await supabase.from("tournament_meal_options").upsert([
+      { id: current.id, display_order: target.display_order },
+      { id: target.id, display_order: current.display_order },
+    ]);
 
     if (error) {
       toast({
@@ -181,7 +178,7 @@ export default function AdminMealOptionsPage() {
     const supabase = createClient();
     const { error } = await supabase
       .from("tournament_meal_options")
-      .delete({ returning: "minimal" })
+      .delete()
       .eq("id", id);
 
     if (error) {
@@ -217,7 +214,7 @@ export default function AdminMealOptionsPage() {
     const supabase = createClient();
     const { error } = await supabase
       .from("tournament_meal_options")
-      .update({ menu_name: name }, { returning: "minimal" })
+      .update({ menu_name: name })
       .eq("id", id);
 
     if (error) {
