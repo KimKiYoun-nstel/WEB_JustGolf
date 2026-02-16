@@ -3,6 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { createClient } from "../../lib/supabaseClient";
@@ -21,6 +22,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [nickname, setNickname] = useState("");
@@ -108,35 +110,10 @@ export default function AdminLayout({
     );
   }
 
+  // 간소화된 AdminLayout: 권한 체크만 수행, 레이아웃은 children에게 위임
   return (
     <div className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 md:px-6 lg:px-8 py-10">
-        <header className="border-b border-slate-200/70 pb-4">
-          <div className="flex-1">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-              관리자 콘솔
-            </p>
-            <h1 className="text-2xl font-semibold text-slate-900">관리자</h1>
-            <p className="text-sm text-slate-500">
-              {nickname ? `${nickname}님` : "관리자 계정"}
-            </p>
-          </div>
-
-          {/* PC 네비게이션 (lg 이상에서만 표시) */}
-          <nav className="hidden gap-2 lg:flex mt-4">
-            <Button asChild variant="secondary">
-              <Link href="/start">🏠 홈</Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/admin">📊 대시보드</Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/admin/tournaments">📋 대회 관리</Link>
-            </Button>
-          </nav>
-        </header>
-        {children}
-      </div>
+      {children}
     </div>
   );
 }

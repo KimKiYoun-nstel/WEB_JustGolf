@@ -317,7 +317,7 @@ export default function AdminTournamentGroupsPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
@@ -331,7 +331,7 @@ export default function AdminTournamentGroupsPage() {
   if (unauthorized) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
@@ -347,7 +347,7 @@ export default function AdminTournamentGroupsPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-5xl px-4 md:px-6 lg:px-8 py-10">
+      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">조편성 관리</h1>

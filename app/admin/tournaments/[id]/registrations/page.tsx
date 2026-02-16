@@ -279,18 +279,24 @@ export default function AdminRegistrationsPage() {
 
   // TableOfContents 아이템
   const tocItems: TOCItem[] = [
-    ...(groupedByStatus.applied.length > 0 ? [{ id: "applied-section", label: "신청 (신청)", icon: "📋" }] : []),
-    ...(groupedByStatus.approved.length > 0 ? [{ id: "approved-section", label: "확정 (승인)", icon: "✅" }] : []),
-    ...(groupedByStatus.waitlisted.length > 0 ? [{ id: "waitlisted-section", label: "대기 (대기)", icon: "⏳" }] : []),
-    ...(groupedByStatus.canceled.length > 0 ? [{ id: "canceled-section", label: "취소 (취소)", icon: "❌" }] : []),
+    ...(groupedByStatus.applied.length > 0 ? [{ id: "applied-section", label: "신청" }] : []),
+    ...(groupedByStatus.approved.length > 0 ? [{ id: "approved-section", label: "확정" }] : []),
+    ...(groupedByStatus.waitlisted.length > 0 ? [{ id: "waitlisted-section", label: "대기" }] : []),
+    ...(groupedByStatus.canceled.length > 0 ? [{ id: "canceled-section", label: "취소" }] : []),
   ];
 
   const activeSection = useTableOfContents(tocItems.map((item) => item.id));
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <TableOfContents items={tocItems} activeSection={activeSection} />
-      <div className="mx-auto max-w-5xl px-4 md:px-6 lg:px-8 py-10">
+      <TableOfContents
+        items={tocItems}
+        activeSection={activeSection}
+        fabIcon="☰"
+        panelTitle="섹션 메뉴"
+        showIcons={false}
+      />
+      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
         {loading && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">

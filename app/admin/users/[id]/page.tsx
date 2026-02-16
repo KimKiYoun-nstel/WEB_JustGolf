@@ -67,7 +67,7 @@ export default function AdminUserDetailPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-4xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩 중...</p>
@@ -81,7 +81,7 @@ export default function AdminUserDetailPage() {
   if (!detail) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-4xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>회원 정보를 불러오지 못했습니다.</p>
@@ -119,7 +119,7 @@ export default function AdminUserDetailPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-10">
+      <div className="mx-auto max-w-7xl space-y-4 px-3 md:px-4 lg:px-6 py-8">
         <Card className="border-slate-200/70">
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>

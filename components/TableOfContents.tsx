@@ -12,10 +12,23 @@ export interface TOCItem {
 interface TableOfContentsProps {
   items: TOCItem[];
   activeSection?: string;
+  fabIcon?: string;
+  panelTitle?: string;
+  showIcons?: boolean;
 }
 
-export function TableOfContents({ items, activeSection }: TableOfContentsProps) {
+export function TableOfContents({
+  items,
+  activeSection,
+  fabIcon = "📑",
+  panelTitle = "목차",
+  showIcons = true,
+}: TableOfContentsProps) {
   const [open, setOpen] = useState(false);
+
+  if (items.length === 0) {
+    return null;
+  }
 
   const handleClick = (id: string) => {
     const element = document.getElementById(id);
@@ -32,15 +45,15 @@ export function TableOfContents({ items, activeSection }: TableOfContentsProps) 
         <button
           onClick={() => setOpen(!open)}
           className="h-12 w-12 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all duration-200 flex items-center justify-center font-bold text-lg"
-          aria-label="목차 토글"
-          title="목차"
+          aria-label={`${panelTitle} 토글`}
+          title={panelTitle}
         >
-          📑
+          {fabIcon}
         </button>
 
         {open && (
           <div className="fixed inset-x-4 bottom-20 max-h-[50vh] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-xl animate-fade-in">
-            <h3 className="font-semibold text-slate-900 mb-3">목차</h3>
+            <h3 className="font-semibold text-slate-900 mb-3">{panelTitle}</h3>
             <nav className="space-y-1">
               {items.map((item) => (
                 <button
@@ -53,7 +66,7 @@ export function TableOfContents({ items, activeSection }: TableOfContentsProps) 
                   }`}
                   style={{ paddingLeft: `${(item.level || 0) * 1 + 0.75}rem` }}
                 >
-                  {item.icon && <span className="mr-2">{item.icon}</span>}
+                  {showIcons && item.icon && <span className="mr-2">{item.icon}</span>}
                   {item.label}
                 </button>
               ))}
@@ -64,7 +77,7 @@ export function TableOfContents({ items, activeSection }: TableOfContentsProps) 
 
       {/* PC: 고정 사이드바 */}
       <div className="hidden md:block fixed right-4 top-24 w-64 max-h-[calc(100vh-120px)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="mb-4 font-bold text-slate-900">📑 목차</h3>
+        <h3 className="mb-4 font-bold text-slate-900">{panelTitle}</h3>
         <nav className="space-y-1">
           {items.map((item) => (
             <button
@@ -77,7 +90,7 @@ export function TableOfContents({ items, activeSection }: TableOfContentsProps) 
               }`}
               style={{ paddingLeft: `${(item.level || 0) * 1 + 0.75}rem` }}
             >
-              {item.icon && <span className="mr-2">{item.icon}</span>}
+              {showIcons && item.icon && <span className="mr-2">{item.icon}</span>}
               {item.label}
             </button>
           ))}

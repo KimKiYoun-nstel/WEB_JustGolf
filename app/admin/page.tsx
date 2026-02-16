@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 export default function AdminHomePage() {
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-4xl flex-col gap-8 px-6 py-12">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-3 md:px-4 lg:px-6 py-8">
         {/* 헤더 */}
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">

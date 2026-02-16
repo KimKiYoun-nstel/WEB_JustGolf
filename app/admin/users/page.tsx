@@ -218,7 +218,7 @@ export default function AdminUsersPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-5xl px-6 py-10">
+      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
         {loading && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">

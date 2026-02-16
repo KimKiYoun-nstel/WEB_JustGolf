@@ -98,9 +98,14 @@ export default function Header() {
                   </Button>
                 )}
                 {isAdmin && (
-                  <Button asChild size="sm" variant="outline">
-                    <Link href="/admin">관리자</Link>
-                  </Button>
+                  <>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/admin/tournaments">대회 관리</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/admin/users">회원 관리</Link>
+                    </Button>
+                  </>
                 )}
                 <Button asChild size="sm" variant="outline">
                   <Link href="/profile">내 프로필</Link>
@@ -189,39 +194,25 @@ export default function Header() {
               )}
               {isAdmin && (
                 <>
+                  <div className="border-b border-slate-200 pb-2 mb-2">
+                    <p className="text-xs font-semibold text-slate-600 px-3 py-1">관리자 메뉴</p>
+                  </div>
                   <Button
                     asChild
                     className="w-full justify-start"
                     variant="ghost"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    <Link href="/admin">👨‍💼 관리자</Link>
+                    <Link href="/admin/tournaments">🏆 대회 관리</Link>
                   </Button>
-                  
-                  {/* 관리자 추가 메뉴 */}
-                  {pathname.startsWith('/admin') && (
-                    <div className="border-y border-slate-200 py-2">
-                      <p className="text-xs font-semibold text-slate-600 px-3 py-1">관리자 메뉴</p>
-                      <Button
-                        asChild
-                        className="w-full justify-start"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <Link href="/admin">📊 대시보드</Link>
-                      </Button>
-                      <Button
-                        asChild
-                        className="w-full justify-start"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <Link href="/admin/tournaments">📋 대회 관리</Link>
-                      </Button>
-                    </div>
-                  )}
+                  <Button
+                    asChild
+                    className="w-full justify-start"
+                    variant="ghost"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Link href="/admin/users">👥 회원 관리</Link>
+                  </Button>
                 </>
               )}
 
@@ -250,6 +241,7 @@ export default function Header() {
           )}
         </nav>
       </SheetContent>
-    </Sheet>    </>
+    </Sheet>
+    </>
   );
 }

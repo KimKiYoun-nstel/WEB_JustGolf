@@ -338,8 +338,8 @@ export default function AdminSideEventsPage() {
 
   // TableOfContents 아이템
   const tocItems: TOCItem[] = [
-    ...(groupedByRoundType.pre.length > 0 ? [{ id: "pre-round-section", label: "🌅 사전 라운드", icon: "🌅" }] : []),
-    ...(groupedByRoundType.post.length > 0 ? [{ id: "post-round-section", label: "🌆 사후 라운드", icon: "🌆" }] : []),
+    ...(groupedByRoundType.pre.length > 0 ? [{ id: "pre-round-section", label: "사전 라운드" }] : []),
+    ...(groupedByRoundType.post.length > 0 ? [{ id: "post-round-section", label: "사후 라운드" }] : []),
   ];
 
   const activeSection = useTableOfContents(tocItems.map((item) => item.id));
@@ -347,7 +347,7 @@ export default function AdminSideEventsPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <p className="text-sm text-slate-500">로딩중...</p>
         </div>
       </main>
@@ -357,7 +357,7 @@ export default function AdminSideEventsPage() {
   if (unauthorized) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
@@ -373,8 +373,14 @@ export default function AdminSideEventsPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <TableOfContents items={tocItems} activeSection={activeSection} />
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 md:px-6 lg:px-8 py-10">
+      <TableOfContents
+        items={tocItems}
+        activeSection={activeSection}
+        fabIcon="☰"
+        panelTitle="섹션 메뉴"
+        showIcons={false}
+      />
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-slate-900">
             사전/사후 라운드 관리

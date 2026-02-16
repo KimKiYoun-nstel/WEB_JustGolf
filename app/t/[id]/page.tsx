@@ -1112,14 +1112,14 @@ export default function TournamentDetailPage() {
         .eq("id", existing.id);
 
       if (error) {
-        setMsg(`라운드 신청 실패: ${friendlyError(error)}`);
+        setMsg(`❌ 라운드 신청 실패: ${friendlyError(error)}`);
         return;
       }
 
       setMsg(
         existing.status === "canceled"
-          ? "라운드 재신청 완료!"
-          : "라운드 신청 정보가 수정되었습니다!"
+          ? "✅ 라운드 재신청 완료!"
+          : "✅ 라운드 신청 정보가 수정되었습니다!"
       );
       await refresh();
       return;
@@ -1138,9 +1138,9 @@ export default function TournamentDetailPage() {
         lodging_selected: lodgingSelected,
       });
 
-    if (error) setMsg(`라운드 신청 실패: ${friendlyError(error)}`);
+    if (error) setMsg(`❌ 라운드 신청 실패: ${friendlyError(error)}`);
     else {
-      setMsg("라운드 신청 완료!");
+      setMsg("✅ 라운드 신청 완료!");
       await refresh();
     }
   };
@@ -1173,9 +1173,9 @@ export default function TournamentDetailPage() {
       .update({ status: "canceled" })
       .eq("id", mine.id);
 
-    if (error) setMsg(`취소 실패: ${friendlyError(error)}`);
+    if (error) setMsg(`❌ 라운드 취소 실패: ${friendlyError(error)}`);
     else {
-      setMsg("라운드 취소 완료");
+      setMsg("✅ 라운드 취소 완료!");
       await refresh();
     }
   };
@@ -1269,30 +1269,31 @@ export default function TournamentDetailPage() {
               <Card
                 className={`border-slate-200/70 ${
                   isApplySheetOpen
-                    ? "fixed inset-x-2 bottom-2 z-50 max-h-[88vh] overflow-hidden rounded-2xl lg:static lg:max-h-none lg:rounded-xl"
+                    ? "fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl lg:static lg:max-h-none lg:rounded-xl lg:inset-auto"
                     : "hidden lg:block"
                 }`}
               >
-                <CardHeader>
-                  <CardTitle>참가 신청</CardTitle>
-                  <CardDescription>
-                    현황은 공개(A). 신청은 로그인 필요.
-                  </CardDescription>
-                  <div className="lg:hidden">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsApplySheetOpen(false)}
-                    >
-                      닫기
-                    </Button>
+                <CardHeader className="border-b border-slate-200 flex flex-row items-center justify-between gap-4 space-y-0">
+                  <div className="flex-1">
+                    <CardTitle>참가 신청</CardTitle>
+                    <CardDescription>
+                      현황은 공개(A). 신청은 로그인 필요.
+                    </CardDescription>
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsApplySheetOpen(false)}
+                    className="lg:hidden shrink-0 px-2"
+                  >
+                    ✕ 닫기
+                  </Button>
                 </CardHeader>
                 <CardContent
                   className={`space-y-4 overflow-x-hidden ${
                     isApplySheetOpen
-                      ? "max-h-[calc(88vh-180px)] overflow-y-auto pb-6"
+                      ? "max-h-[calc(90vh-150px)] overflow-y-auto pb-6"
                       : ""
                   }`}
                 >
@@ -1499,52 +1500,96 @@ export default function TournamentDetailPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto rounded-md border border-slate-200 lg:overflow-x-visible">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50">
-                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">닉네임</TableHead>
-                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">관계</TableHead>
-                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center">상태</TableHead>
-                            <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center w-[160px]">액션</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {myParticipantList.map((p) => (
-                            <TableRow key={p.id}>
-                              <TableCell className="px-4">{p.nickname}</TableCell>
-                              <TableCell className="px-4">{p.relation ?? "-"}</TableCell>
-                              <TableCell className="px-4 text-center align-middle">
-                                <Badge variant={p.status === "approved" ? "default" : "outline"}>
-                                  {formatStatus(p.status)}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="px-4 text-center align-middle whitespace-nowrap w-[160px]">
-                                <div className="inline-flex items-center justify-center gap-2 w-full">
-                                  {p.user_id === null && (
+                    {/* 데스크톱: 테이블, 모바일: 카드 */}
+                    <div className="hidden lg:block">
+                      <div className="overflow-x-auto rounded-md border border-slate-200">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50">
+                              <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">닉네임</TableHead>
+                              <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600">관계</TableHead>
+                              <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center">상태</TableHead>
+                              <TableHead className="px-4 py-2 text-xs font-semibold text-slate-600 text-center w-[160px]">액션</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {myParticipantList.map((p) => (
+                              <TableRow key={p.id}>
+                                <TableCell className="px-4">{p.nickname}</TableCell>
+                                <TableCell className="px-4">{p.relation ?? "-"}</TableCell>
+                                <TableCell className="px-4 text-center align-middle">
+                                  <Badge variant={p.status === "approved" ? "default" : "outline"}>
+                                    {formatStatus(p.status)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="px-4 text-center align-middle whitespace-nowrap">
+                                  <div className="inline-flex items-center justify-center gap-2">
+                                    {p.user_id === null && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => startEditParticipant(p.id)}
+                                        disabled={!!loadingAction}
+                                      >
+                                        수정
+                                      </Button>
+                                    )}
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => startEditParticipant(p.id)}
-                                      disabled={!!loadingAction}
+                                      onClick={() => deleteParticipant(p.id)}
+                                      disabled={loadingAction === `delete-${p.id}`}
                                     >
-                                      수정
+                                      {loadingAction === `delete-${p.id}` ? "삭제중..." : "삭제"}
                                     </Button>
-                                  )}
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => deleteParticipant(p.id)}
-                                    disabled={loadingAction === `delete-${p.id}`}
-                                  >
-                                    {loadingAction === `delete-${p.id}` ? "삭제중..." : "삭제"}
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                    
+                    {/* 모바일: 카드 리스트 */}
+                    <div className="lg:hidden space-y-2">
+                      {myParticipantList.map((p) => (
+                        <div key={p.id} className="rounded-md border border-slate-200 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-slate-900 truncate">{p.nickname}</p>
+                              {p.relation && (
+                                <p className="text-xs text-slate-500">{p.relation}</p>
+                              )}
+                            </div>
+                            <Badge variant={p.status === "approved" ? "default" : "outline"}>
+                              {formatStatus(p.status)}
+                            </Badge>
+                          </div>
+                          <div className="flex gap-2 pt-2 border-t border-slate-100">
+                            {p.user_id === null && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startEditParticipant(p.id)}
+                                disabled={!!loadingAction}
+                                className="flex-1"
+                              >
+                                수정
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => deleteParticipant(p.id)}
+                              disabled={loadingAction === `delete-${p.id}`}
+                              className={p.user_id === null ? "flex-1" : "flex-1"}
+                            >
+                              {loadingAction === `delete-${p.id}` ? "삭제중..." : "삭제"}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
@@ -1682,30 +1727,31 @@ export default function TournamentDetailPage() {
                   <Card
                     className={`border-slate-200/70 ${
                       isAddParticipantSheetOpen
-                        ? "fixed inset-x-2 bottom-2 z-50 max-h-[88vh] overflow-hidden rounded-2xl lg:static lg:max-h-none lg:rounded-xl"
+                        ? "fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl lg:static lg:max-h-none lg:rounded-xl lg:inset-auto"
                         : "hidden lg:block"
                     }`}
                   >
-                    <CardHeader>
-                      <CardTitle>추가 참가자 등록 (제3자)</CardTitle>
-                      <CardDescription>
-                        본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
-                      </CardDescription>
-                      <div className="lg:hidden">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsAddParticipantSheetOpen(false)}
-                        >
-                          닫기
-                        </Button>
+                    <CardHeader className="border-b border-slate-200 flex flex-row items-center justify-between gap-4 space-y-0">
+                      <div className="flex-1">
+                        <CardTitle>추가 참가자 등록 (제3자)</CardTitle>
+                        <CardDescription>
+                          본인이 아닌 다른 분들을 대신 등록할 수 있습니다 (비회원 가능)
+                        </CardDescription>
                       </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsAddParticipantSheetOpen(false)}
+                        className="lg:hidden shrink-0 px-2"
+                      >
+                        ✕ 닫기
+                      </Button>
                     </CardHeader>
                     <CardContent
                       className={`space-y-3 overflow-x-hidden ${
                         isAddParticipantSheetOpen
-                          ? "max-h-[calc(88vh-180px)] overflow-y-auto pb-6"
+                          ? "max-h-[calc(90vh-150px)] overflow-y-auto pb-6"
                           : ""
                       }`}
                     >
@@ -2022,14 +2068,45 @@ export default function TournamentDetailPage() {
                                   ))}
                                 </select>
                                 {selectedTargetParticipant && (
-                                  <p className="text-xs text-slate-500">
-                                    선택됨: {selectedTargetParticipant.nickname}
-                                    {selectedTargetSideReg
-                                      ? ` · 현재 라운드 상태: ${formatStatus(
-                                          selectedTargetSideReg.status as Registration["status"]
-                                        )}`
-                                      : " · 현재 라운드 신청 없음"}
-                                  </p>
+                                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-slate-900">
+                                          {selectedTargetParticipant.nickname}
+                                        </span>
+                                        {selectedTargetParticipant.user_id === null && (
+                                          <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
+                                            제3자
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="text-slate-600">현재 라운드 상태: </span>
+                                      {selectedTargetSideReg ? (
+                                        <Badge 
+                                          variant={
+                                            selectedTargetSideReg.status === "confirmed"
+                                              ? "default"
+                                              : "secondary"
+                                          }
+                                        >
+                                          {formatStatus(
+                                            selectedTargetSideReg.status as Registration["status"]
+                                          )}
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="bg-slate-100 text-slate-700">
+                                          신청 없음
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {selectedTargetParticipant.relation && (
+                                      <p className="text-xs text-slate-500">
+                                        관계: {selectedTargetParticipant.relation}
+                                      </p>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}

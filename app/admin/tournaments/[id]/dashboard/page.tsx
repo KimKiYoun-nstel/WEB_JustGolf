@@ -131,7 +131,7 @@ export default function TournamentDashboardPage() {
   if (loading_) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
           <Card>
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
@@ -145,7 +145,7 @@ export default function TournamentDashboardPage() {
   if (!t) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
           <Card>
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">대회를 찾을 수 없습니다</p>
@@ -158,7 +158,7 @@ export default function TournamentDashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
         {/* 헤더 */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
