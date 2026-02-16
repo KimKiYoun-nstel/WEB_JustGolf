@@ -188,14 +188,41 @@ export default function Header() {
                 </Button>
               )}
               {isAdmin && (
-                <Button
-                  asChild
-                  className="w-full justify-start"
-                  variant="ghost"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Link href="/admin">👨‍💼 관리자</Link>
-                </Button>
+                <>
+                  <Button
+                    asChild
+                    className="w-full justify-start"
+                    variant="ghost"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Link href="/admin">👨‍💼 관리자</Link>
+                  </Button>
+                  
+                  {/* 관리자 추가 메뉴 */}
+                  {pathname.startsWith('/admin') && (
+                    <div className="border-y border-slate-200 py-2">
+                      <p className="text-xs font-semibold text-slate-600 px-3 py-1">관리자 메뉴</p>
+                      <Button
+                        asChild
+                        className="w-full justify-start"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <Link href="/admin">📊 대시보드</Link>
+                      </Button>
+                      <Button
+                        asChild
+                        className="w-full justify-start"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        <Link href="/admin/tournaments">📋 대회 관리</Link>
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
 
               <Button

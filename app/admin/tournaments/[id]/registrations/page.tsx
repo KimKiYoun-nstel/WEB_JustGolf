@@ -290,7 +290,7 @@ export default function AdminRegistrationsPage() {
   return (
     <main className="min-h-screen bg-slate-50/70">
       <TableOfContents items={tocItems} activeSection={activeSection} />
-      <div className="mx-auto max-w-5xl px-6 py-10">
+      <div className="mx-auto max-w-5xl px-4 md:px-6 lg:px-8 py-10">
         {loading && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">

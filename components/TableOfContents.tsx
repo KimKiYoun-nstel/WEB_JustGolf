@@ -27,32 +27,37 @@ export function TableOfContents({ items, activeSection }: TableOfContentsProps) 
 
   return (
     <>
-      {/* 모바일: 드로어 메뉴 */}
-      <div className="md:hidden mb-4">
+      {/* 모바일: FAB (Floating Action Button) */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
         <button
           onClick={() => setOpen(!open)}
-          className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-left font-medium text-slate-900 hover:bg-slate-50"
+          className="h-12 w-12 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all duration-200 flex items-center justify-center font-bold text-lg"
+          aria-label="목차 토글"
+          title="목차"
         >
-          📑 목차 {open ? "▼" : "▶"}
+          📑
         </button>
 
         {open && (
-          <div className="mt-2 space-y-1 rounded-lg border border-slate-200 bg-white p-4">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleClick(item.id)}
-                className={`block w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                  activeSection === item.id
-                    ? "bg-blue-100 font-semibold text-blue-900"
-                    : "text-slate-700 hover:bg-slate-100"
-                }`}
-                style={{ paddingLeft: `${(item.level || 0) * 1 + 0.75}rem` }}
-              >
-                {item.icon && <span className="mr-2">{item.icon}</span>}
-                {item.label}
-              </button>
-            ))}
+          <div className="fixed inset-x-4 bottom-20 max-h-[50vh] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-xl animate-fade-in">
+            <h3 className="font-semibold text-slate-900 mb-3">목차</h3>
+            <nav className="space-y-1">
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleClick(item.id)}
+                  className={`block w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                    activeSection === item.id
+                      ? "bg-blue-100 font-semibold text-blue-900"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                  style={{ paddingLeft: `${(item.level || 0) * 1 + 0.75}rem` }}
+                >
+                  {item.icon && <span className="mr-2">{item.icon}</span>}
+                  {item.label}
+                </button>
+              ))}
+            </nav>
           </div>
         )}
       </div>

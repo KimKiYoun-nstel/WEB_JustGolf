@@ -347,7 +347,7 @@ export default function AdminTournamentGroupsPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-5xl px-6 py-10">
+      <div className="mx-auto max-w-5xl px-4 md:px-6 lg:px-8 py-10">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">조편성 관리</h1>
