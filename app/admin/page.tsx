@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 export default function AdminHomePage() {
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-4xl flex-col gap-8 px-6 py-12">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-3 md:px-4 lg:px-6 py-8">
         {/* 헤더 */}
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">
@@ -90,13 +90,13 @@ export default function AdminHomePage() {
             <div>
               <p className="font-semibold">1️⃣ 새 대회 생성</p>
               <p className="ml-4 text-slate-600">
-                대회 관리 → "새 대회 만들기" 클릭 → 필수정보 입력
+                대회 관리 → &quot;새 대회 만들기&quot; 클릭 → 필수정보 입력
               </p>
             </div>
             <div>
               <p className="font-semibold">2️⃣ 대회 상태 변경</p>
               <p className="ml-4 text-slate-600">
-                대회 수정 → 상태를 '모집중'으로 변경 → 신청 받기 시작
+                대회 수정 → 상태를 &apos;모집중&apos;으로 변경 → 신청 받기 시작
               </p>
             </div>
             <div>
@@ -108,25 +108,25 @@ export default function AdminHomePage() {
             <div>
               <p className="font-semibold">4️⃣ 참가자 관리</p>
               <p className="ml-4 text-slate-600">
-                세부 대회 → "신청자 관리" → 상태 변경 (확정/대기)
+                세부 대회 → &quot;신청자 관리&quot; → 상태 변경 (확정/대기)
               </p>
             </div>
             <div>
               <p className="font-semibold">5️⃣ 라운드 추가 (선택)</p>
               <p className="ml-4 text-slate-600">
-                세부 대회 → "라운드 관리" → 사전/사후 라운드 생성
+                세부 대회 → &quot;라운드 관리&quot; → 사전/사후 라운드 생성
               </p>
             </div>
             <div>
               <p className="font-semibold">6️⃣ 조편성 공개 (선택)</p>
               <p className="ml-4 text-slate-600">
-                세부 대회 → "조편성" → 멤버 배정 → 공개
+                세부 대회 → &quot;조편성&quot; → 멤버 배정 → 공개
               </p>
             </div>
             <div>
               <p className="font-semibold">7️⃣ 파일 업로드 (선택)</p>
               <p className="ml-4 text-slate-600">
-                세부 대회 → "파일 관리" → 조편성/안내문 업로드
+                세부 대회 → &quot;파일 관리&quot; → 조편성/안내문 업로드
               </p>
             </div>
           </CardContent>

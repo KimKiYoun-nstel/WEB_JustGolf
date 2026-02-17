@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../lib/supabaseClient";
@@ -12,6 +14,7 @@ import {
   CardTitle,
 } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
+import { useToast } from "../../../components/ui/toast";
 
 const APPROVAL_WAITING_MESSAGE = "관리자 승인 대기 중입니다.";
 
@@ -35,6 +38,7 @@ export default function OnboardingPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
 
   const navigateWithFallback = (target: string) => {
     router.replace(target);
@@ -91,6 +95,19 @@ export default function OnboardingPage() {
 
     void loadOnboardingData();
   }, [router, supabase]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|성공/.test(msg);
+    const isError = /실패|오류|필요|없습니다|중복/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const completeOnboarding = async () => {
     setMsg("");
@@ -339,18 +356,6 @@ export default function OnboardingPage() {
               disabled={saving}
             />
           </div>
-
-          {msg && (
-            <p
-              className={`text-sm ${
-                msg.includes("실패") || msg.includes("오류")
-                  ? "text-red-600"
-                  : "text-slate-600"
-              }`}
-            >
-              {msg}
-            </p>
-          )}
 
           <Button onClick={completeOnboarding} disabled={saving} className="w-full">
             {saving ? "처리 중..." : "저장하고 시작하기"}

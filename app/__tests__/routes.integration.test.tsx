@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // Mock Next.js navigation
@@ -58,11 +58,17 @@ vi.mock('../../lib/auth', () => ({
 describe('WEB_JustGolf - Route Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useRouter as any).mockReturnValue({
+    const mockedUseRouter = useRouter as unknown as {
+      mockReturnValue: (value: { push: () => void; refresh: () => void }) => void;
+    };
+    mockedUseRouter.mockReturnValue({
       push: vi.fn(),
       refresh: vi.fn(),
     });
-    (useSearchParams as any).mockReturnValue({
+    const mockedUseSearchParams = useSearchParams as unknown as {
+      mockReturnValue: (value: { get: (key: string) => string | null }) => void;
+    };
+    mockedUseSearchParams.mockReturnValue({
       get: vi.fn(() => null),
     });
   });

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../../../lib/supabaseClient";
@@ -20,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
+import { useToast } from "../../../components/ui/toast";
 
 type TournamentRow = {
   id: number;
@@ -31,6 +34,7 @@ type TournamentRow = {
 export default function AdminTournamentsPage() {
   const [rows, setRows] = useState<TournamentRow[]>([]);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   const load = async () => {
     setMsg("");
@@ -87,6 +91,20 @@ export default function AdminTournamentsPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (!msg) return;
+
+    const normalized = msg.replace(/^✅\s*/, "");
+    const isSuccess = msg.startsWith("✅") || /완료|삭제되었습니다/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: normalized,
+    });
+    setMsg("");
+  }, [msg, toast]);
+
   return (
     <main>
       <Card className="border-slate-200/70">
@@ -97,12 +115,6 @@ export default function AdminTournamentsPage() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {msg && (
-            <p className={`text-sm ${msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
-              {msg}
-            </p>
-          )}
-
           <div className="space-y-3">
             {rows.map((row) => (
               <Card key={row.id} className="border-slate-200/70">

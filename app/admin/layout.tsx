@@ -1,11 +1,15 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { createClient } from "../../lib/supabaseClient";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { useToast } from "../../components/ui/toast";
 
 type AdminProfile = {
   is_admin: boolean;
@@ -18,10 +22,12 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [nickname, setNickname] = useState("");
   const [error, setError] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (loading) return;
@@ -54,9 +60,21 @@ export default function AdminLayout({
     })();
   }, [loading, user?.id]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    toast({
+      variant: "error",
+      title: "관리자 권한 확인 실패",
+      description: error,
+      duration: 1800,
+    });
+    setError("");
+  }, [error, toast]);
+
   if (loading || checking) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-6 py-10">
+      <main className="min-h-screen bg-slate-50/70 px-4 md:px-6 lg:px-8 py-10">
         <Card className="mx-auto max-w-3xl border-slate-200/70 p-6">
           <p className="text-sm text-slate-500">관리자 권한 확인 중...</p>
         </Card>
@@ -66,7 +84,7 @@ export default function AdminLayout({
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-6 py-10">
+      <main className="min-h-screen bg-slate-50/70 px-4 md:px-6 lg:px-8 py-10">
         <Card className="mx-auto max-w-3xl border-slate-200/70 p-6">
           <p className="text-sm text-slate-600">
             관리자 페이지는 로그인 후 이용 가능해요.
@@ -81,10 +99,9 @@ export default function AdminLayout({
 
   if (!isAdmin) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-6 py-10">
+      <main className="min-h-screen bg-slate-50/70 px-4 md:px-6 lg:px-8 py-10">
         <Card className="mx-auto max-w-3xl border-slate-200/70 p-6">
           <p className="text-sm text-slate-600">관리자 권한이 없습니다.</p>
-          {error && <p className="mt-2 text-sm text-red-600">Error: {error}</p>}
           <Button asChild variant="outline" className="mt-4">
             <Link href="/start">홈으로 이동</Link>
           </Button>
@@ -93,33 +110,10 @@ export default function AdminLayout({
     );
   }
 
+  // 간소화된 AdminLayout: 권한 체크만 수행, 레이아웃은 children에게 위임
   return (
     <div className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10">
-        <header className="flex flex-col gap-4 border-b border-slate-200/70 pb-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-              관리자 콘솔
-            </p>
-            <h1 className="text-2xl font-semibold text-slate-900">관리자</h1>
-            <p className="text-sm text-slate-500">
-              {nickname ? `${nickname}님` : "관리자 계정"}
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-2">
-            <Button asChild variant="secondary">
-              <Link href="/start">홈</Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/admin">대시보드</Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/admin/tournaments">대회 관리</Link>
-            </Button>
-          </nav>
-        </header>
-        {children}
-      </div>
+      {children}
     </div>
   );
 }

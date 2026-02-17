@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import { useToast } from "../../components/ui/toast";
 
 function ProfileContent() {
   const { user, loading } = useAuth();
@@ -32,6 +33,7 @@ function ProfileContent() {
   const [authProvider, setAuthProvider] = useState("email");
   const [hasKakaoLinked, setHasKakaoLinked] = useState(false);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -45,6 +47,19 @@ function ProfileContent() {
       setMsg(queryMessage);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /저장되었습니다|변경되었습니다|완료되었습니다/.test(msg);
+    const isError = /실패|필요|입력|일치하지|없습니다|중복/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   useEffect(() => {
     if (loading) return;
@@ -280,12 +295,6 @@ function ProfileContent() {
               : "이메일 계정으로 로그인 중입니다. 프로필 정보를 수정할 수 있습니다."}
           </p>
         </div>
-
-        {msg && (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-            {msg}
-          </div>
-        )}
 
         <Card className="border-slate-200/70">
           <CardHeader>

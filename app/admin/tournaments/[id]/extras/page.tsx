@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../../components/ui/table";
+import { useToast } from "../../../../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -51,6 +52,10 @@ export default function TournamentExtrasPage() {
   const [description, setDescription] = useState("");
   const [msg, setMsg] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingDescription, setEditingDescription] = useState("");
+  const { toast } = useToast();
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 같은 이름의 활동이 있습니다.";
@@ -92,7 +97,6 @@ export default function TournamentExtrasPage() {
 
   const fetchData = async () => {
     const supabase = createClient();
-    setMsg("");
 
     // 1. 토너먼트 정보
     const tRes = await supabase
@@ -102,7 +106,11 @@ export default function TournamentExtrasPage() {
       .single();
 
     if (tRes.error) {
-      setMsg(`대회 조회 실패: ${friendlyError(tRes.error)}`);
+      toast({
+        variant: "error",
+        title: "대회 조회 실패",
+        description: friendlyError(tRes.error),
+      });
       return;
     }
     setT(tRes.data as Tournament);
@@ -116,7 +124,11 @@ export default function TournamentExtrasPage() {
       .order("display_order", { ascending: true });
 
     if (extrasRes.error) {
-      setMsg(`활동 조회 실패: ${friendlyError(extrasRes.error)}`);
+      toast({
+        variant: "error",
+        title: "활동 조회 실패",
+        description: friendlyError(extrasRes.error),
+      });
     } else {
       setExtras((extrasRes.data ?? []) as TournamentExtra[]);
     }
@@ -124,16 +136,18 @@ export default function TournamentExtrasPage() {
 
   const addActivity = async () => {
     const supabase = createClient();
-    setMsg("");
 
     const name = activityName.trim();
     if (!name) {
-      setMsg("활동명을 입력해주세요");
+      toast({ variant: "error", title: "활동명을 입력해주세요" });
       return;
     }
 
     if (extras.length >= 3) {
-      setMsg("활동은 최대 3개까지만 등록할 수 있습니다");
+      toast({
+        variant: "error",
+        title: "활동은 최대 3개까지만 등록할 수 있습니다",
+      });
       return;
     }
 
@@ -150,9 +164,13 @@ export default function TournamentExtrasPage() {
     });
 
     if (error) {
-      setMsg(`추가 실패: ${friendlyError(error)}`);
+      toast({
+        variant: "error",
+        title: "추가 실패",
+        description: friendlyError(error),
+      });
     } else {
-      setMsg("활동이 추가되었습니다");
+      toast({ variant: "success", title: "활동이 추가되었습니다" });
       setActivityName("");
       setDescription("");
       await fetchData();
@@ -161,20 +179,65 @@ export default function TournamentExtrasPage() {
 
   const deleteActivity = async (id: number) => {
     const supabase = createClient();
-    setMsg("");
 
     // is_active를 false로 변경 (soft delete)
+    const { error } = await supabase.rpc("admin_soft_delete_tournament_extra", {
+      extra_id: id,
+    });
+
+    if (error) {
+      toast({
+        variant: "error",
+        title: "삭제 실패",
+        description: friendlyError(error),
+      });
+    } else {
+      toast({ variant: "success", title: "활동이 삭제되었습니다" });
+      await fetchData();
+    }
+  };
+
+  const startEdit = (extra: TournamentExtra) => {
+    setEditingId(extra.id);
+    setEditingName(extra.activity_name);
+    setEditingDescription(extra.description ?? "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingName("");
+    setEditingDescription("");
+  };
+
+  const saveEdit = async (id: number) => {
+    const name = editingName.trim();
+    if (!name) {
+      toast({ variant: "error", title: "활동명을 입력해주세요" });
+      return;
+    }
+
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("tournament_extras")
-      .update({ is_active: false })
+      .update({
+        activity_name: name,
+        description: editingDescription.trim() || null,
+      })
       .eq("id", id);
 
     if (error) {
-      setMsg(`삭제 실패: ${friendlyError(error)}`);
-    } else {
-      setMsg("활동이 삭제되었습니다");
-      await fetchData();
+      toast({
+        variant: "error",
+        title: "수정 실패",
+        description: friendlyError(error),
+      });
+      return;
     }
+
+    toast({ variant: "success", title: "활동이 수정되었습니다" });
+    cancelEdit();
+    await fetchData();
   };
 
   const moveUp = async (id: number) => {
@@ -224,7 +287,7 @@ export default function TournamentExtrasPage() {
   if (!isAdmin) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
           <Card>
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">{msg || "권한 확인 중..."}</p>
@@ -238,7 +301,7 @@ export default function TournamentExtrasPage() {
   if (!t) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
           <Card>
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
@@ -251,7 +314,7 @@ export default function TournamentExtrasPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
         {/* 헤더 */}
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">
@@ -259,13 +322,6 @@ export default function TournamentExtrasPage() {
           </h1>
           <p className="text-sm text-slate-500">{t.event_date} · 추가 활동 관리</p>
         </div>
-
-        {/* 메시지 */}
-        {msg && (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-            {msg}
-          </div>
-        )}
 
         {/* 활동 추가 */}
         <Card className="border-slate-200/70">
@@ -331,35 +387,81 @@ export default function TournamentExtrasPage() {
                   {extras.map((extra, idx) => (
                     <TableRow key={extra.id}>
                       <TableCell className="font-medium">{idx + 1}</TableCell>
-                      <TableCell>{extra.activity_name}</TableCell>
+                      <TableCell>
+                        {editingId === extra.id ? (
+                          <Input
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            placeholder="활동명"
+                          />
+                        ) : (
+                          extra.activity_name
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm text-slate-600">
-                        {extra.description || "-"}
+                        {editingId === extra.id ? (
+                          <textarea
+                            className="min-h-[64px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                            value={editingDescription}
+                            onChange={(e) => setEditingDescription(e.target.value)}
+                            placeholder="설명"
+                          />
+                        ) : (
+                          extra.description || "-"
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex justify-center gap-2">
-                          <Button
-                            onClick={() => moveUp(extra.id)}
-                            size="sm"
-                            variant="outline"
-                            disabled={idx === 0}
-                          >
-                            ↑
-                          </Button>
-                          <Button
-                            onClick={() => moveDown(extra.id)}
-                            size="sm"
-                            variant="outline"
-                            disabled={idx === extras.length - 1}
-                          >
-                            ↓
-                          </Button>
-                          <Button
-                            onClick={() => deleteActivity(extra.id)}
-                            size="sm"
-                            variant="destructive"
-                          >
-                            삭제
-                          </Button>
+                          {editingId === extra.id ? (
+                            <>
+                              <Button
+                                onClick={() => saveEdit(extra.id)}
+                                size="sm"
+                              >
+                                저장
+                              </Button>
+                              <Button
+                                onClick={cancelEdit}
+                                size="sm"
+                                variant="outline"
+                              >
+                                취소
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                onClick={() => moveUp(extra.id)}
+                                size="sm"
+                                variant="outline"
+                                disabled={idx === 0}
+                              >
+                                ↑
+                              </Button>
+                              <Button
+                                onClick={() => moveDown(extra.id)}
+                                size="sm"
+                                variant="outline"
+                                disabled={idx === extras.length - 1}
+                              >
+                                ↓
+                              </Button>
+                              <Button
+                                onClick={() => startEdit(extra)}
+                                size="sm"
+                                variant="secondary"
+                              >
+                                수정
+                              </Button>
+                              <Button
+                                onClick={() => deleteActivity(extra.id)}
+                                size="sm"
+                                variant="destructive"
+                              >
+                                삭제
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

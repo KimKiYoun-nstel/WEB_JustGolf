@@ -9,6 +9,7 @@ import { formatTournamentStatus } from "../../../../../lib/statusLabels";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
 import { Input } from "../../../../../components/ui/input";
+import { useToast } from "../../../../../components/ui/toast";
 
 type Status = "draft" | "open" | "closed" | "done" | "deleted";
 
@@ -39,6 +40,7 @@ export default function AdminTournamentEditPage() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   const [title, setTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -114,6 +116,19 @@ export default function AdminTournamentEditPage() {
     checkAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|저장|복제|삭제되었습니다/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const save = async () => {
     const supabase = createClient();
@@ -345,7 +360,6 @@ export default function AdminTournamentEditPage() {
             )}
           </div>
 
-          {msg && <p className="text-sm text-slate-600">{msg}</p>}
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../../lib/supabaseClient";
@@ -14,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
+import { useToast } from "../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -26,6 +29,17 @@ type Tournament = {
   status: string;
 };
 
+type RegistrationCountRow = {
+  tournament_id: number;
+  status: string;
+};
+
+type RegistrationStatusRow = {
+  tournament_id: number;
+  status: string;
+  relation: string | null;
+};
+
 export default function TournamentsPage() {
   const { user } = useAuth();
   const [rows, setRows] = useState<Tournament[]>([]);
@@ -33,6 +47,7 @@ export default function TournamentsPage() {
   const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
   const [applicantCounts, setApplicantCounts] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   const formatStatus = (status: string) => formatRegistrationStatus(status);
 
@@ -64,7 +79,7 @@ export default function TournamentsPage() {
 
       if (!countError) {
         const nextCounts: Record<number, number> = {};
-        (countData ?? []).forEach((row: any) => {
+        ((countData ?? []) as RegistrationCountRow[]).forEach((row) => {
           nextCounts[row.tournament_id] = (nextCounts[row.tournament_id] ?? 0) + 1;
         });
         setApplicantCounts(nextCounts);
@@ -93,7 +108,7 @@ export default function TournamentsPage() {
       }
 
       const nextStatuses: Record<number, string> = {};
-      (regData ?? []).forEach((row: any) => {
+      ((regData ?? []) as RegistrationStatusRow[]).forEach((row) => {
         nextStatuses[row.tournament_id] = row.status;
       });
       setMyStatuses(nextStatuses);
@@ -104,6 +119,13 @@ export default function TournamentsPage() {
       active = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!error) return;
+
+    toast({ variant: "error", title: "대회 조회 실패", description: error });
+    setError("");
+  }, [error, toast]);
 
   return (
     <main className="min-h-screen bg-slate-50/70">
@@ -119,8 +141,6 @@ export default function TournamentsPage() {
             진행 중인 대회를 확인하고 참가 신청하세요.
           </p>
         </header>
-
-        {error && <p className="text-sm text-red-600">Error: {error}</p>}
 
         <section className="grid gap-4">
           {isLoading ? (

@@ -123,3 +123,166 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 마이크로 인터랙션 애니메이션 */
+@layer utilities {
+  /* 부드러운 스크롤 동작 */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* 버튼 호버 애니메이션 */
+  button, [role="button"] {
+    @apply transition-all duration-150 ease-in-out;
+  }
+
+  button:hover, [role="button"]:hover {
+    @apply scale-[1.02];
+  }
+
+  button:active, [role="button"]:active {
+    @apply scale-[0.98];
+  }
+
+  /* 입력 필드 포커스 애니메이션 */
+  input, select, textarea {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    @apply ring-2 ring-blue-500/30;
+  }
+
+  /* 섹션 전환 애니메이션 */
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-in {
+    animation: slideIn 300ms ease-out forwards;
+  }
+
+  /* 드로어 슬라이드 애니메이션 */
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 300ms ease-out forwards;
+  }
+
+  /* 페이드 인 애니메이션 */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 200ms ease-out forwards;
+  }
+
+  /* 뱃지 펄스 애니메이션 */
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* 로딩 스켈레톤 */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(200, 200, 200, 0.2) 0%,
+      rgba(255, 255, 255, 0.3) 50%,
+      rgba(200, 200, 200, 0.2) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* 스케일 호버 (카드) */
+  .hover-scale {
+    @apply transition-transform duration-200;
+  }
+
+  .hover-scale:hover {
+    @apply scale-105;
+  }
+
+  /* 부드러운 색상 전환 */
+  .transition-color-fast {
+    @apply transition-colors duration-150 ease-in-out;
+  }
+
+  .transition-color-smooth {
+    @apply transition-colors duration-300 ease-in-out;
+  }
+
+  /* 섹션 헤더 호버 */
+  [role="heading"] {
+    @apply transition-all duration-200;
+  }
+
+  [role="heading"]:hover {
+    @apply text-blue-600;
+  }
+
+  /* 링크 호버 */
+  a {
+    @apply transition-colors duration-150;
+  }
+
+  a:hover {
+    @apply text-blue-600 underline;
+  }
+
+  /* 백드롭 페이드 */
+  @keyframes backdropFade {
+    from {
+      backdrop-filter: blur(0px);
+      opacity: 0;
+    }
+    to {
+      backdrop-filter: blur(4px);
+      opacity: 1;
+    }
+  }
+
+  .backdrop-fade {
+    animation: backdropFade 200ms ease-out forwards;
+  }
+}

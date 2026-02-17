@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../../components/ui/table";
+import { useToast } from "../../../../../components/ui/toast";
 
 type Tournament = {
   id: number;
@@ -56,6 +57,7 @@ export default function ManagerSetupPage() {
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [msg, setMsg] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const { toast } = useToast();
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 권한이 부여되었습니다.";
@@ -72,6 +74,19 @@ export default function ManagerSetupPage() {
     checkAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, loading, user]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    const isSuccess = /완료|저장|부여되었습니다|해제되었습니다/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
 
   const checkAdmin = async () => {
     const supabase = createClient();
@@ -123,20 +138,31 @@ export default function ManagerSetupPage() {
     if (mgrRes.error) {
       setMsg(`관리자 조회 실패: ${friendlyError(mgrRes.error)}`);
     } else {
-      // 각 관리자의 nickname 조회
-      const managersWithNick: ManagerPermission[] = [];
-      for (const mgr of (mgrRes.data ?? [])) {
+      const mgrRows = (mgrRes.data ?? []) as Array<Omit<ManagerPermission, "nickname">>;
+      const userIds = mgrRows.map((mgr) => mgr.user_id);
+      const nicknameMap = new Map<string, string>();
+
+      if (userIds.length > 0) {
         const profileRes = await supabase
           .from("profiles")
-          .select("nickname")
-          .eq("id", mgr.user_id)
-          .single();
+          .select("id,nickname")
+          .in("id", userIds);
 
-        managersWithNick.push({
-          ...mgr,
-          nickname: profileRes.data?.nickname ?? "Unknown",
-        } as ManagerPermission);
+        if (!profileRes.error && profileRes.data) {
+          for (const profile of profileRes.data as Array<{
+            id: string;
+            nickname: string | null;
+          }>) {
+            nicknameMap.set(profile.id, profile.nickname ?? "Unknown");
+          }
+        }
       }
+
+      const managersWithNick = mgrRows.map((mgr) => ({
+        ...mgr,
+        nickname: nicknameMap.get(mgr.user_id) ?? "Unknown",
+      })) as ManagerPermission[];
+
       setManagers(managersWithNick);
     }
   };
@@ -224,7 +250,7 @@ export default function ManagerSetupPage() {
   if (!isAdmin) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
           <Card>
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">{msg || "권한 확인 중..."}</p>
@@ -238,7 +264,7 @@ export default function ManagerSetupPage() {
   if (!t) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
           <Card>
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
@@ -251,7 +277,7 @@ export default function ManagerSetupPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
         {/* 헤더 */}
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">
@@ -261,12 +287,6 @@ export default function ManagerSetupPage() {
         </div>
 
         {/* 메시지 */}
-        {msg && (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-            {msg}
-          </div>
-        )}
-
         {/* 안내 */}
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>

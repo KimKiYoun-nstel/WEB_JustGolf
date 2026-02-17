@@ -7,6 +7,7 @@ import { createClient } from "../../../../lib/supabaseClient";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
+import { useToast } from "../../../../components/ui/toast";
 
 type Group = {
   id: number;
@@ -42,12 +43,20 @@ export default function TournamentGroupsPage() {
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId]);
+
+  useEffect(() => {
+    if (!msg) return;
+
+    toast({ variant: "error", title: msg });
+    setMsg("");
+  }, [msg, toast]);
 
   const load = async () => {
     setLoading(true);
@@ -127,8 +136,6 @@ export default function TournamentGroupsPage() {
           </Button>
         </div>
 
-        {msg && <p className="mb-4 text-sm text-red-600">{msg}</p>}
-
         {loading ? (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
@@ -145,46 +152,53 @@ export default function TournamentGroupsPage() {
           <div className="space-y-4">
             {groups.map((group) => (
               <Card key={group.id} className="border-slate-200/70">
-                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <span>{group.group_no}조</span>
-                    <Badge variant="default">공개</Badge>
-                  </CardTitle>
-                  {group.tee_time && (
-                    <span className="text-sm text-slate-500">
-                      티오프: {group.tee_time}
-                    </span>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {membersFor(group.id).length === 0 ? (
-                    <p className="text-sm text-slate-500">
-                      배정된 멤버가 없습니다.
-                    </p>
-                  ) : (
-                    <div className="overflow-hidden rounded-md border border-slate-200">
-                      <div className="grid grid-cols-2 bg-slate-100/80 text-xs font-semibold text-slate-700">
-                        <div className="px-3 py-2 text-center">순번</div>
-                        <div className="px-3 py-2 text-center">닉네임</div>
+                <details className="group">
+                  <summary className="cursor-pointer">
+                    <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between select-none">
+                      <CardTitle className="flex items-center gap-2">
+                        <span>{group.group_no}조</span>
+                        <Badge variant="default">공개</Badge>
+                        <span className="text-sm font-normal text-slate-500 group-open:hidden">
+                          ({membersFor(group.id).length}명)
+                        </span>
+                      </CardTitle>
+                      {group.tee_time && (
+                        <span className="text-sm text-slate-500">
+                          티오프: {group.tee_time}
+                        </span>
+                      )}
+                    </CardHeader>
+                  </summary>
+                  <CardContent className="pt-0">
+                    {membersFor(group.id).length === 0 ? (
+                      <p className="text-sm text-slate-500">
+                        배정된 멤버가 없습니다.
+                      </p>
+                    ) : (
+                      <div className="overflow-hidden rounded-md border border-slate-200">
+                        <div className="grid grid-cols-2 bg-slate-100/80 text-xs font-semibold text-slate-700">
+                          <div className="px-3 py-2 text-center">순번</div>
+                          <div className="px-3 py-2 text-center">닉네임</div>
+                        </div>
+                        <ul className="divide-y divide-slate-100">
+                          {membersFor(group.id).map((member) => (
+                            <li
+                              key={member.id}
+                              className="grid grid-cols-2 bg-white text-sm text-slate-700"
+                            >
+                              <span className="px-3 py-2 text-center">
+                                {member.position}
+                              </span>
+                              <span className="px-3 py-2 text-center">
+                                {member.nickname ?? "-"}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <ul className="divide-y divide-slate-100">
-                        {membersFor(group.id).map((member) => (
-                          <li
-                            key={member.id}
-                            className="grid grid-cols-2 bg-white text-sm text-slate-700"
-                          >
-                            <span className="px-3 py-2 text-center">
-                              {member.position}
-                            </span>
-                            <span className="px-3 py-2 text-center">
-                              {member.nickname ?? "-"}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </CardContent>
+                    )}
+                  </CardContent>
+                </details>
               </Card>
             ))}
           </div>

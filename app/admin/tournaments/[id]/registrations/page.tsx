@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
@@ -17,6 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../../components/ui/table";
+import { useToast } from "../../../../../components/ui/toast";
+import { TableOfContents, useTableOfContents, type TOCItem } from "../../../../../components/TableOfContents";
 
 type Registration = {
   id: number;
@@ -30,6 +32,29 @@ type Registration = {
   meal_name: string | null;
   activities: string[];                  // 참여 활동 목록
   created_at: string;
+};
+
+type RegistrationActivitySelectionRow = {
+  selected?: boolean | null;
+  tournament_extras?: { activity_name?: string | null } | null;
+};
+
+type RegistrationRow = {
+  id: number;
+  user_id: string | null;
+  registering_user_id: string;
+  nickname: string;
+  status: Registration["status"];
+  memo: string | null;
+  meal_option_id: number | null;
+  tournament_meal_options?: { menu_name?: string | null } | null;
+  registration_activity_selections?: RegistrationActivitySelectionRow[] | null;
+  created_at: string;
+};
+
+type ProfileRow = {
+  id: string;
+  nickname: string | null;
 };
 
 const statuses: Registration["status"][] = [
@@ -49,6 +74,7 @@ export default function AdminRegistrationsPage() {
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const { toast } = useToast();
 
   const load = async () => {
     const supabase = createClient();
@@ -78,9 +104,10 @@ export default function AdminRegistrationsPage() {
     }
 
     // 등록자 닉네임 조회 (profiles)
-    const registeringUserIds = [...new Set(
-      (data ?? []).map((row: any) => row.registering_user_id).filter(Boolean)
-    )];
+    const dataRows = (data ?? []) as RegistrationRow[];
+    const registeringUserIds = [
+      ...new Set(dataRows.map((row) => row.registering_user_id).filter(Boolean)),
+    ];
     
     const { data: profiles } = await supabase
       .from("profiles")
@@ -88,15 +115,15 @@ export default function AdminRegistrationsPage() {
       .in("id", registeringUserIds);
     
     const profileMap = new Map(
-      (profiles ?? []).map((p: any) => [p.id, p.nickname])
+      ((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p.nickname])
     );
 
     // Transform data to include meal_name, activities, and registering_user_nickname
-    const transformed = (data ?? []).map((row: any) => {
+    const transformed = dataRows.map((row) => {
       const activities = (row.registration_activity_selections ?? [])
-        .filter((sel: any) => sel?.selected)
-        .map((sel: any) => sel?.tournament_extras?.activity_name)
-        .filter((name: string | null) => Boolean(name));
+        .filter((sel) => sel?.selected)
+        .map((sel) => sel?.tournament_extras?.activity_name)
+        .filter((name): name is string => Boolean(name));
 
       return {
         id: row.id,
@@ -150,7 +177,21 @@ export default function AdminRegistrationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
 
-  const updateStatus = async (
+  useEffect(() => {
+    if (!msg) return;
+
+    const normalized = msg.replace(/^✅\s*/, "");
+    const isSuccess = msg.startsWith("✅") || /완료|저장|변경되었습니다/.test(msg);
+    const isError = /실패|오류|없습니다|필요/.test(msg);
+
+    toast({
+      variant: isSuccess ? "success" : isError ? "error" : "default",
+      title: normalized,
+    });
+    setMsg("");
+  }, [msg, toast]);
+
+  const updateStatus = useCallback(async (
     id: number,
     status: Registration["status"]
   ) => {
@@ -166,9 +207,9 @@ export default function AdminRegistrationsPage() {
       setMsg("✅ 상태 변경 완료");
       await load();
     }
-  };
+  }, []);
 
-  const updateSelectedStatus = async (status: Registration["status"]) => {
+  const updateSelectedStatus = useCallback(async (status: Registration["status"]) => {
     if (selectedIds.size === 0) {
       setMsg("신청자를 선택해주세요.");
       return;
@@ -187,25 +228,27 @@ export default function AdminRegistrationsPage() {
       setSelectedIds(new Set());
       await load();
     }
-  };
+  }, [selectedIds]);
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === rows.length) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(rows.map((r) => r.id)));
     }
-  };
+  }, [selectedIds.size, rows.length, rows]);
 
-  const toggleSelect = (id: number) => {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
-    }
-    setSelectedIds(newSet);
-  };
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  }, []);
 
   // 통계 계산
   const stats = useMemo(() => {
@@ -226,9 +269,34 @@ export default function AdminRegistrationsPage() {
     return { statusCount, mealCount };
   }, [rows]);
 
+  // 상태별 그룹화
+  const groupedByStatus = {
+    applied: rows.filter(r => r.status === "applied"),
+    approved: rows.filter(r => r.status === "approved"),
+    waitlisted: rows.filter(r => r.status === "waitlisted"),
+    canceled: rows.filter(r => r.status === "canceled"),
+  };
+
+  // TableOfContents 아이템
+  const tocItems: TOCItem[] = [
+    ...(groupedByStatus.applied.length > 0 ? [{ id: "applied-section", label: "신청" }] : []),
+    ...(groupedByStatus.approved.length > 0 ? [{ id: "approved-section", label: "확정" }] : []),
+    ...(groupedByStatus.waitlisted.length > 0 ? [{ id: "waitlisted-section", label: "대기" }] : []),
+    ...(groupedByStatus.canceled.length > 0 ? [{ id: "canceled-section", label: "취소" }] : []),
+  ];
+
+  const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-5xl px-6 py-10">
+      <TableOfContents
+        items={tocItems}
+        activeSection={activeSection}
+        fabIcon="☰"
+        panelTitle="섹션 메뉴"
+        showIcons={false}
+      />
+      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
         {loading && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
@@ -250,7 +318,7 @@ export default function AdminRegistrationsPage() {
 
         {!loading && !unauthorized && (
           <>
-            <Card className="border-slate-200/70 mb-6">
+            <Card className="border-slate-200/70">
               <CardHeader>
                 <CardTitle>신청 현황 통계</CardTitle>
               </CardHeader>
@@ -290,133 +358,292 @@ export default function AdminRegistrationsPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200/70">
-              <CardHeader>
-                <CardTitle>신청자 관리</CardTitle>
-                {selectedIds.size > 0 && (
-                  <div className="flex gap-2 mt-4">
-                    <Button onClick={() => updateSelectedStatus("approved")} size="sm">
-                      선택 확정 ({selectedIds.size})
-                    </Button>
-                    <Button onClick={() => updateSelectedStatus("waitlisted")} size="sm" variant="outline">
-                      선택 대기 ({selectedIds.size})
-                    </Button>
-                    <Button onClick={() => updateSelectedStatus("canceled")} size="sm" variant="outline">
-                      선택 취소 ({selectedIds.size})
-                    </Button>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {msg && (
-                  <div className={`text-sm p-3 rounded-md ${msg.startsWith('✅') ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                    {msg}
-                  </div>
-                )}
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={rows.length > 0 && selectedIds.size === rows.length}
-                    onChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>닉네임</TableHead>
-                <TableHead>구분</TableHead>
-                <TableHead>등록자</TableHead>
-                <TableHead>상태</TableHead>
-                <TableHead>식사 메뉴</TableHead>
-                <TableHead>참여 활동</TableHead>
-                <TableHead>메모</TableHead>
-                <TableHead>변경</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={selectedIds.has(row.id)}
-                      onChange={() => toggleSelect(row.id)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{row.nickname}</TableCell>
-                  <TableCell>
-                    {row.user_id ? (
-                      <Badge variant="outline" className="bg-slate-50 text-slate-700">
-                        회원
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                        제3자
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-600">
-                    {row.registering_user_nickname ?? "-"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={row.status === "approved" ? "default" : "secondary"} 
-                      className="capitalize"
-                    >
-                      {formatRegistrationStatus(row.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-slate-600">
-                    {row.meal_name ? (
-                      <span className="text-sm">{row.meal_name}</span>
-                    ) : (
-                      <span className="text-slate-400 text-xs">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-slate-600">
-                    {row.activities.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {row.activities.map((activity, idx) => (
-                          <Badge key={idx} variant="outline" className="text-xs">
-                            {activity}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 text-xs">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-slate-500 text-sm">
-                    {row.memo ?? "-"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {statuses.map((status) => (
-                        <Button
-                          key={status}
-                          onClick={() => updateStatus(row.id, status)}
-                          disabled={row.status === status}
-                          size="sm"
-                          variant={row.status === status ? "secondary" : "ghost"}
-                        >
-                          {formatRegistrationStatus(status)}
-                        </Button>
+            {rows.filter(r => r.status === "applied").length > 0 && (
+              <Card id="applied-section" className="border-slate-200/70">
+                <CardHeader>
+                  <CardTitle>📋 신청 ({rows.filter(r => r.status === "applied").length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={rows.filter(r => r.status === "applied").every(r => selectedIds.has(r.id))}
+                          />
+                        </TableHead>
+                        <TableHead>닉네임</TableHead>
+                        <TableHead>구분</TableHead>
+                        <TableHead>등록자</TableHead>
+                        <TableHead>상태</TableHead>
+                        <TableHead>식사 메뉴</TableHead>
+                        <TableHead>참여 활동</TableHead>
+                        <TableHead>메모</TableHead>
+                        <TableHead>변경</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.filter(r => r.status === "applied").map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={selectedIds.has(row.id)}
+                              onChange={() => toggleSelect(row.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{row.nickname}</TableCell>
+                          <TableCell>
+                            {row.user_id ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700">회원</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700">제3자</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {row.registering_user_nickname ?? "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">
+                              {formatRegistrationStatus(row.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.meal_name ? <span className="text-sm">{row.meal_name}</span> : <span className="text-slate-400 text-xs">-</span>}
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.activities.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {row.activities.map((activity, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">{activity}</Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              <Button onClick={() => updateStatus(row.id, "approved")} size="sm" variant="ghost">
+                                {formatRegistrationStatus("approved")}
+                              </Button>
+                              <Button onClick={() => updateStatus(row.id, "waitlisted")} size="sm" variant="ghost">
+                                {formatRegistrationStatus("waitlisted")}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
 
-          <Button onClick={load} variant="secondary">
-            새로고침
-          </Button>
-            </CardContent>
-          </Card>
+            {rows.filter(r => r.status === "approved").length > 0 && (
+              <Card id="approved-section" className="border-slate-200/70">
+                <CardHeader>
+                  <CardTitle>✅ 확정 ({rows.filter(r => r.status === "approved").length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>닉네임</TableHead>
+                        <TableHead>구분</TableHead>
+                        <TableHead>등록자</TableHead>
+                        <TableHead>상태</TableHead>
+                        <TableHead>식사 메뉴</TableHead>
+                        <TableHead>참여 활동</TableHead>
+                        <TableHead>메모</TableHead>
+                        <TableHead>변경</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.filter(r => r.status === "approved").map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="font-medium">{row.nickname}</TableCell>
+                          <TableCell>
+                            {row.user_id ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700">회원</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700">제3자</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {row.registering_user_nickname ?? "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="default" className="capitalize">
+                              {formatRegistrationStatus(row.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.meal_name ? <span className="text-sm">{row.meal_name}</span> : <span className="text-slate-400 text-xs">-</span>}
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.activities.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {row.activities.map((activity, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">{activity}</Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                          <TableCell>
+                            <Button onClick={() => updateStatus(row.id, "canceled")} size="sm" variant="ghost">
+                              취소
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {rows.filter(r => r.status === "waitlisted").length > 0 && (
+              <Card id="waitlisted-section" className="border-slate-200/70">
+                <CardHeader>
+                  <CardTitle>⏳ 대기 ({rows.filter(r => r.status === "waitlisted").length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>닉네임</TableHead>
+                        <TableHead>구분</TableHead>
+                        <TableHead>등록자</TableHead>
+                        <TableHead>상태</TableHead>
+                        <TableHead>식사 메뉴</TableHead>
+                        <TableHead>참여 활동</TableHead>
+                        <TableHead>메모</TableHead>
+                        <TableHead>변경</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.filter(r => r.status === "waitlisted").map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="font-medium">{row.nickname}</TableCell>
+                          <TableCell>
+                            {row.user_id ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700">회원</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700">제3자</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {row.registering_user_nickname ?? "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">
+                              {formatRegistrationStatus(row.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.meal_name ? <span className="text-sm">{row.meal_name}</span> : <span className="text-slate-400 text-xs">-</span>}
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.activities.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {row.activities.map((activity, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">{activity}</Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              <Button onClick={() => updateStatus(row.id, "approved")} size="sm" variant="ghost">
+                                승인
+                              </Button>
+                              <Button onClick={() => updateStatus(row.id, "canceled")} size="sm" variant="ghost">
+                                취소
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {rows.filter(r => r.status === "canceled").length > 0 && (
+              <Card id="canceled-section" className="border-slate-200/70">
+                <CardHeader>
+                  <CardTitle>❌ 취소 ({rows.filter(r => r.status === "canceled").length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>닉네임</TableHead>
+                        <TableHead>구분</TableHead>
+                        <TableHead>등록자</TableHead>
+                        <TableHead>상태</TableHead>
+                        <TableHead>식사 메뉴</TableHead>
+                        <TableHead>참여 활동</TableHead>
+                        <TableHead>메모</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.filter(r => r.status === "canceled").map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="font-medium">{row.nickname}</TableCell>
+                          <TableCell>
+                            {row.user_id ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700">회원</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700">제3자</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {row.registering_user_nickname ?? "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">
+                              {formatRegistrationStatus(row.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.meal_name ? <span className="text-sm">{row.meal_name}</span> : <span className="text-slate-400 text-xs">-</span>}
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            {row.activities.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {row.activities.map((activity, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">{activity}</Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            <Button onClick={load} variant="secondary">
+              새로고침
+            </Button>
           </>
         )}
       </div>

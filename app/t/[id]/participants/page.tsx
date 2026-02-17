@@ -23,6 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from "../../../../components/ui/table";
+import { useToast } from "../../../../components/ui/toast";
+import { TableOfContents, useTableOfContents, type TOCItem } from "../../../../components/TableOfContents";
 
 type Tournament = {
   id: number;
@@ -58,6 +60,7 @@ type SideEvent = {
 
 type SideEventRegistration = {
   id: number;
+  side_event_id: number;
   nickname: string;
   status: string;
   meal_selected: boolean;
@@ -85,6 +88,7 @@ export default function TournamentParticipantsPage() {
   const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
   const hasMyActiveRegistration = rows.some(
     (r) => r.user_id === user?.id && r.status !== "canceled"
   );
@@ -151,7 +155,7 @@ export default function TournamentParticipantsPage() {
       const activities = (row.registration_activity_selections ?? [])
         .filter((sel) => sel?.selected)
         .map((sel) => sel?.tournament_extras?.activity_name)
-        .filter((name: string | null | undefined) => Boolean(name));
+        .filter((name): name is string => Boolean(name));
 
       return {
       id: row.id,
@@ -181,21 +185,30 @@ export default function TournamentParticipantsPage() {
       .order("round_type,id", { ascending: true });
 
     if (!seRes.error) {
-      setSideEvents((seRes.data ?? []) as SideEvent[]);
+      const sideEvents = (seRes.data ?? []) as SideEvent[];
+      setSideEvents(sideEvents);
 
       const seRegMap = new Map<number, SideEventRegistration[]>();
-      for (const se of (seRes.data ?? []) as SideEvent[]) {
+      const sideEventIds = sideEvents.map((se) => se.id);
+
+      if (sideEventIds.length > 0) {
         const serRes = await supabase
           .from("side_event_registrations")
-          .select("id,nickname,status,meal_selected,lodging_selected")
-          .eq("side_event_id", se.id)
+          .select("id,side_event_id,nickname,status,meal_selected,lodging_selected")
+          .in("side_event_id", sideEventIds)
           .neq("status", "canceled")
+          .order("side_event_id", { ascending: true })
           .order("id", { ascending: true });
 
         if (!serRes.error) {
-          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
+          for (const row of (serRes.data ?? []) as SideEventRegistration[]) {
+            const bucket = seRegMap.get(row.side_event_id) ?? [];
+            bucket.push(row);
+            seRegMap.set(row.side_event_id, bucket);
+          }
         }
       }
+
       setSideEventRegs(seRegMap);
     }
 
@@ -243,8 +256,30 @@ export default function TournamentParticipantsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
 
+  useEffect(() => {
+    if (!msg) return;
+
+    toast({ variant: "error", title: msg });
+    setMsg("");
+  }, [msg, toast]);
+
+  // TableOfContents 아이템 정의
+  const tocItems: TOCItem[] = [
+    { id: "registrations-section", label: "참가자 목록", icon: "👥" },
+    ...(sideEvents.length > 0
+      ? [{ id: "side-events-section", label: "라운드", icon: "🌅" }]
+      : []),
+    ...(prizes.length > 0
+      ? [{ id: "prizes-section", label: "경품", icon: "🎁" }]
+      : []),
+    { id: "groups-section", label: "조편성", icon: "🧩" },
+  ];
+
+  const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+
   return (
     <main className="min-h-screen bg-slate-50/70">
+      <TableOfContents items={tocItems} activeSection={activeSection} />
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
         {(loading || authLoading) && (
           <Card className="border-slate-200/70">
@@ -289,13 +324,7 @@ export default function TournamentParticipantsPage() {
               </p>
             </div>
 
-            {msg && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                {msg}
-              </div>
-            )}
-
-            <Card className="border-slate-200/70">
+            <Card id="registrations-section" className="border-slate-200/70">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
@@ -407,7 +436,7 @@ export default function TournamentParticipantsPage() {
             </Card>
 
             {sideEvents.length > 0 && (
-              <Card className="border-slate-200/70">
+              <Card id="side-events-section" className="border-slate-200/70">
                 <CardHeader>
                   <CardTitle>사전/사후 라운드 참가자 현황</CardTitle>
                   <CardDescription>
@@ -466,7 +495,7 @@ export default function TournamentParticipantsPage() {
               </Card>
             )}
 
-            <Card className="border-slate-200/70">
+            <Card id="prizes-section" className="border-slate-200/70">
               <CardHeader>
                 <CardTitle>경품 지원 현황</CardTitle>
                 <CardDescription>
@@ -509,7 +538,7 @@ export default function TournamentParticipantsPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-200/70">
+            <Card id="groups-section" className="border-slate-200/70">
               <CardHeader>
                 <CardTitle>조편성</CardTitle>
                 <CardDescription>공개된 조편성을 확인하세요.</CardDescription>

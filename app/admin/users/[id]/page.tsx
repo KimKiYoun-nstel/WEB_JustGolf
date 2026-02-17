@@ -1,11 +1,14 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "../../../../components/ui/table";
+import { useToast } from "../../../../components/ui/toast";
 
 type ProfileDetail = {
   id: string;
@@ -28,6 +31,7 @@ export default function AdminUserDetailPage() {
   const [detail, setDetail] = useState<ProfileDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!userId) return;
@@ -53,10 +57,17 @@ export default function AdminUserDetailPage() {
     loadDetail();
   }, [userId]);
 
+  useEffect(() => {
+    if (!msg) return;
+
+    toast({ variant: "error", title: msg });
+    setMsg("");
+  }, [msg, toast]);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-4xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩 중...</p>
@@ -70,11 +81,10 @@ export default function AdminUserDetailPage() {
   if (!detail) {
     return (
       <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-4xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>회원 정보를 불러오지 못했습니다.</p>
-              {msg && <p className="mt-2 text-sm">{msg}</p>}
               <Button asChild variant="outline" className="mt-4">
                 <Link href="/admin/users">회원 관리로 돌아가기</Link>
               </Button>
@@ -109,7 +119,7 @@ export default function AdminUserDetailPage() {
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-10">
+      <div className="mx-auto max-w-7xl space-y-4 px-3 md:px-4 lg:px-6 py-8">
         <Card className="border-slate-200/70">
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
