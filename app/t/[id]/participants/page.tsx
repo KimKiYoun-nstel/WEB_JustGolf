@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../../lib/supabaseClient";
@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "../../../../components/ui/table";
 import { useToast } from "../../../../components/ui/toast";
-import { TableOfContents, useTableOfContents, type TOCItem } from "../../../../components/TableOfContents";
+import { useTableOfContents, type TOCItem } from "../../../../components/TableOfContents";
 
 type Tournament = {
   id: number;
@@ -261,26 +261,64 @@ export default function TournamentParticipantsPage() {
 
     toast({ variant: "error", title: msg });
     setMsg("");
-  }, [msg, toast]);
-
-  // TableOfContents 아이템 정의
+  }, [msg, toast]);  // Section anchor items
   const tocItems: TOCItem[] = [
-    { id: "registrations-section", label: "참가자 목록", icon: "👥" },
-    ...(sideEvents.length > 0
-      ? [{ id: "side-events-section", label: "라운드", icon: "🌅" }]
-      : []),
-    ...(prizes.length > 0
-      ? [{ id: "prizes-section", label: "경품", icon: "🎁" }]
-      : []),
-    { id: "groups-section", label: "조편성", icon: "🧩" },
+    { id: "registrations-section", label: "참가자 목록" },
+    ...(sideEvents.length > 0 ? [{ id: "side-events-section", label: "라운드" }] : []),
+    ...(prizes.length > 0 ? [{ id: "prizes-section", label: "경품" }] : []),
+    { id: "groups-section", label: "조편성" },
   ];
 
   const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+  const scrollToSection = useCallback((sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (!element) return;
+    const top = element.getBoundingClientRect().top + window.scrollY - 138;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <TableOfContents items={tocItems} activeSection={activeSection} />
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+      <section className="sticky top-16 z-30 border-b border-slate-200/70 bg-slate-50/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-3 md:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                참가자 현황
+              </p>
+              <h1 className="truncate text-2xl font-semibold text-slate-900">
+                {t?.title ?? "대회"}
+              </h1>
+              {t ? <p className="text-xs text-slate-500">{t.event_date}</p> : null}
+            </div>
+            {t ? (
+              <Badge variant="secondary" className="capitalize">
+                {formatTournamentStatus(t.status)}
+              </Badge>
+            ) : null}
+          </div>
+          {t ? (
+            <nav className="flex flex-wrap items-center gap-1" aria-label="페이지 목차">
+              {tocItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => scrollToSection(item.id)}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    activeSection === item.id
+                      ? "border-sky-300 bg-sky-100 text-sky-900"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-6">
         {(loading || authLoading) && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
@@ -310,20 +348,6 @@ export default function TournamentParticipantsPage() {
 
         {!loading && t && user && (
           <>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <h1 className="text-3xl font-semibold text-slate-900">
-                  {t.title}
-                </h1>
-                <Badge variant="secondary" className="capitalize">
-                  {formatTournamentStatus(t.status)}
-                </Badge>
-              </div>
-              <p className="text-sm text-slate-500">
-                {t.event_date} · 참가자 현황
-              </p>
-            </div>
-
             <Card id="registrations-section" className="border-slate-200/70">
               <CardHeader>
                 <div className="flex items-start justify-between">

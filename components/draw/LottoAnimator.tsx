@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import type { AnimatorProps } from "../../lib/draw/animators/Animator";
+import type { AnimatorCandidate, AnimatorProps } from "../../lib/draw/animators/Animator";
 import PixiStage from "./PixiStage";
 import { PixiLottoAnimator } from "../../lib/draw/animators/pixi/PixiLottoAnimator";
 import { PixiRouletteAnimator } from "../../lib/draw/animators/pixi/PixiRouletteAnimator";
@@ -67,6 +67,8 @@ export default function LottoAnimator({
   assignGroupNo,
   durationMs,
   startedAt,
+  currentPickCandidateId,
+  candidates: candidateItems,
   currentPickLabel,
   candidateLabels = [],
   currentStep,
@@ -76,12 +78,40 @@ export default function LottoAnimator({
   const variant: AnimatorVariant = "lotto";
   const quality = resolveQuality(lowSpecMode);
   const spinning = phase === "configured" || phase === "spinning";
-  const pickedLabel = currentPickLabel ? normalizeLabel(currentPickLabel) : null;
 
-  const candidates = useMemo(
-    () => candidateLabels.map(normalizeLabel).filter((label) => label.length > 0),
-    [candidateLabels]
-  );
+  const normalizedCandidateItems = useMemo<AnimatorCandidate[]>(() => {
+    if (candidateItems && candidateItems.length > 0) {
+      const normalized: AnimatorCandidate[] = [];
+      candidateItems.forEach((item, index) => {
+        const label = normalizeLabel(item.label ?? "");
+        if (!label) return;
+        normalized.push({
+          id: String(item.id ?? `${index}`),
+          label,
+          slotNo: item.slotNo,
+        });
+      });
+      return normalized;
+    }
+
+    return candidateLabels
+      .map(normalizeLabel)
+      .filter((label) => label.length > 0)
+      .map((label, index) => ({ id: String(index), label }));
+  }, [candidateItems, candidateLabels]);
+
+  const pickedCandidateId = currentPickCandidateId
+    ? String(currentPickCandidateId)
+    : null;
+
+  const pickedLabel = useMemo(() => {
+    if (pickedCandidateId) {
+      const found = normalizedCandidateItems.find((item) => item.id === pickedCandidateId);
+      if (found) return found.label;
+    }
+
+    return currentPickLabel ? normalizeLabel(currentPickLabel) : null;
+  }, [currentPickLabel, pickedCandidateId, normalizedCandidateItems]);
 
   const [frame, setFrame] = useState<PixiFrameState>({
     spinning: false,
@@ -105,8 +135,8 @@ export default function LottoAnimator({
   }, [animator]);
 
   const candidatesForStep = useMemo<CandidateItem[]>(
-    () => candidates.map((label, idx) => ({ id: `${idx}:${label}`, label })),
-    [candidates]
+    () => normalizedCandidateItems.map((item) => ({ id: item.id, label: item.label })),
+    [normalizedCandidateItems]
   );
 
   const stepTokenRef = useRef<string | null>(null);
@@ -122,6 +152,7 @@ export default function LottoAnimator({
       quality,
       variant,
       durationMs ?? "default",
+      candidatesForStep.map((item) => item.id).join(","),
     ].join(":");
     if (stepTokenRef.current === token) return;
     stepTokenRef.current = token;
@@ -152,34 +183,52 @@ export default function LottoAnimator({
   ]);
 
   useEffect(() => {
-    if (phase !== "picked" || !pickedLabel) return;
-    const token = `${currentStep}:${pickedLabel}:${candidatesForStep.length}`;
+    if (phase !== "picked") return;
+    const token = `${currentStep}:${pickedCandidateId ?? "none"}:${pickedLabel ?? "none"}:${candidatesForStep.length}`;
     if (pickTokenRef.current === token) return;
     pickTokenRef.current = token;
 
-    const winner = candidatesForStep.find((item) => item.label === pickedLabel) ?? {
-      id: `winner:${pickedLabel}`,
-      label: pickedLabel,
-    };
+    let winner = pickedCandidateId
+      ? candidatesForStep.find((item) => item.id === pickedCandidateId)
+      : undefined;
+    if (!winner && pickedLabel) {
+      winner = candidatesForStep.find((item) => item.label === pickedLabel);
+    }
+    if (!winner && pickedCandidateId) {
+      winner = { id: pickedCandidateId, label: pickedLabel ?? pickedCandidateId };
+    }
+    if (!winner && pickedLabel) {
+      winner = { id: `winner:${pickedLabel}`, label: pickedLabel };
+    }
+    if (!winner) return;
 
     animator.onPickResult({
       step: currentStep,
       playerId: winner.id,
       label: winner.label,
     });
-  }, [animator, phase, pickedLabel, currentStep, candidatesForStep]);
+  }, [animator, phase, pickedCandidateId, pickedLabel, currentStep, candidatesForStep]);
 
   useEffect(() => {
-    if ((phase !== "confirmed" && phase !== "finished") || !pickedLabel) return;
+    if (phase !== "confirmed" && phase !== "finished") return;
     const resolvedGroupNo = assignGroupNo ?? targetGroupNo ?? null;
-    const token = `${phase}:${currentStep}:${pickedLabel}:${resolvedGroupNo ?? "null"}`;
+    const token = `${phase}:${currentStep}:${pickedCandidateId ?? "none"}:${pickedLabel ?? "none"}:${resolvedGroupNo ?? "null"}`;
     if (assignTokenRef.current === token) return;
     assignTokenRef.current = token;
 
-    const winner = candidatesForStep.find((item) => item.label === pickedLabel) ?? {
-      id: `winner:${pickedLabel}`,
-      label: pickedLabel,
-    };
+    let winner = pickedCandidateId
+      ? candidatesForStep.find((item) => item.id === pickedCandidateId)
+      : undefined;
+    if (!winner && pickedLabel) {
+      winner = candidatesForStep.find((item) => item.label === pickedLabel);
+    }
+    if (!winner && pickedCandidateId) {
+      winner = { id: pickedCandidateId, label: pickedLabel ?? pickedCandidateId };
+    }
+    if (!winner && pickedLabel) {
+      winner = { id: `winner:${pickedLabel}`, label: pickedLabel };
+    }
+    if (!winner) return;
 
     animator.onAssignConfirmed({
       step: currentStep,
@@ -190,6 +239,7 @@ export default function LottoAnimator({
   }, [
     animator,
     phase,
+    pickedCandidateId,
     pickedLabel,
     currentStep,
     assignGroupNo,
@@ -197,14 +247,21 @@ export default function LottoAnimator({
     candidatesForStep,
   ]);
 
-  const candidateCount = candidates.length;
+  const candidateLabelsForView = useMemo(
+    () => normalizedCandidateItems.map((item) => item.label),
+    [normalizedCandidateItems]
+  );
+
+  const candidateCount = candidateLabelsForView.length;
   const spinPosition = frame.spinPosition;
   const baseIndex = Math.floor(spinPosition);
   const fraction = spinPosition - baseIndex;
 
   const centerLabel =
     frame.centerLabel ??
-    (candidateCount > 0 ? candidates[wrapIndex(baseIndex, candidateCount)] : null);
+    (candidateCount > 0
+      ? candidateLabelsForView[wrapIndex(baseIndex, candidateCount)]
+      : null);
   const displayWinnerLabel = frame.winnerLabel ?? pickedLabel;
   const progress = spinning ? frame.progress : 0;
 
@@ -214,11 +271,11 @@ export default function LottoAnimator({
     }
     return Array.from({ length: 7 }, (_, row) => {
       const offset = row - 3;
-      const label = candidates[wrapIndex(baseIndex + offset, candidateCount)];
+      const label = candidateLabelsForView[wrapIndex(baseIndex + offset, candidateCount)];
       const y = SLOT_CENTER_Y + (offset - fraction) * SLOT_CARD_HEIGHT;
       return { key: `${row}-${baseIndex}-${label}`, label, y };
     });
-  }, [candidateCount, candidates, baseIndex, fraction]);
+  }, [candidateCount, candidateLabelsForView, baseIndex, fraction]);
 
   const slotTrackStyle: CSSProperties = {
     height: `${SLOT_VIEWPORT_HEIGHT}px`,

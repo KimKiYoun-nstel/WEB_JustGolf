@@ -13,6 +13,10 @@ import type {
   DrawSessionSeed,
 } from "../../../../../../lib/draw/types";
 import { isDrawEventType } from "../../../../../../lib/draw/types";
+import {
+  deriveDrawSeed,
+  resolveScoreboardCursorIndex,
+} from "../../../../../../lib/draw/animators/scoreboard/path";
 
 type DrawSessionRow = {
   id: number;
@@ -37,6 +41,7 @@ type DrawEventRow = {
 type DrawActionBody = {
   action?:
     | "start_session"
+    | "shuffle_deck"
     | "start_step"
     | "pick_result"
     | "assign_update"
@@ -54,6 +59,8 @@ type DrawActionBody = {
   groupNo?: number;
   playerId?: number;
   toGroupNo?: number;
+  cursorIndex?: number;
+  pickedAtMs?: number;
 };
 
 function parseTournamentId(raw: string): number | null {
@@ -298,6 +305,51 @@ function findNextAvailableGroupNo(params: {
   }
 
   return null;
+}
+
+function createStepSeed() {
+  return Math.floor(Math.random() * 0xffffffff) >>> 0;
+}
+
+function isSameOrder(left: number[], right: number[]) {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+function createStepPrng(seed: number) {
+  let state = (seed ^ 0xa5a5a5a5) >>> 0;
+  if (state === 0) state = 0x9e3779b9;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 0x100000000;
+  };
+}
+
+function shuffleDeckWithSeed(playerIds: number[], seed: number) {
+  const out = [...playerIds];
+  const random = createStepPrng(seed);
+  for (let index = out.length - 1; index > 0; index -= 1) {
+    const swapWith = Math.floor(random() * (index + 1));
+    [out[index], out[swapWith]] = [out[swapWith], out[index]];
+  }
+  return out;
+}
+
+function resolveStepCandidatePool(state: { remainingPlayerIds: number[]; stepDeckPlayerIds?: number[] | null }) {
+  const deck = state.stepDeckPlayerIds;
+  if (
+    Array.isArray(deck) &&
+    deck.length === state.remainingPlayerIds.length &&
+    deck.length > 0
+  ) {
+    return deck;
+  }
+  return state.remainingPlayerIds;
 }
 
 export async function GET(
@@ -668,17 +720,80 @@ export async function POST(
       );
     }
 
-    if (body.action === "start_step") {
-      if (state.remainingPlayerIds.length === 0) {
+    if (body.action === "shuffle_deck") {
+      if (state.phase === "configured" || state.phase === "picked") {
         return NextResponse.json(
-          { error: "No remaining participants." },
+          { error: "Cannot shuffle deck during active pick step." },
           { status: 409 }
         );
       }
 
-      if (state.phase === "picked") {
+      if (state.remainingPlayerIds.length <= 1) {
         return NextResponse.json(
-          { error: "Current step already has picked participant." },
+          { error: "Not enough remaining participants to shuffle." },
+          { status: 409 }
+        );
+      }
+
+      const original = [...state.remainingPlayerIds];
+      let shuffled = original;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        shuffled = shuffleDeckWithSeed(original, createStepSeed());
+        if (!isSameOrder(shuffled, original)) break;
+      }
+      if (isSameOrder(shuffled, original) && original.length > 1) {
+        shuffled = [...original];
+        const lastIndex = shuffled.length - 1;
+        [shuffled[0], shuffled[lastIndex]] = [shuffled[lastIndex], shuffled[0]];
+      }
+
+      const remainingSet = new Set(state.remainingPlayerIds);
+      const assignedInSessionOrder = (session.player_ids ?? []).filter(
+        (playerId) => Number.isInteger(playerId) && !remainingSet.has(playerId)
+      );
+      const nextPlayerIds = [...shuffled, ...assignedInSessionOrder];
+
+      const updateRes = await supabaseAdmin
+        .from("draw_sessions")
+        .update({ player_ids: nextPlayerIds })
+        .eq("id", session.id);
+
+      if (updateRes.error) {
+        return NextResponse.json({ error: updateRes.error.message }, { status: 500 });
+      }
+
+      // State is rebuilt from event replay; keep SESSION_STARTED payload in sync with shuffled order.
+      const sessionStartedEvent = events.find((event) => event.event_type === "SESSION_STARTED");
+      if (sessionStartedEvent?.id) {
+        const startedAt =
+          typeof (sessionStartedEvent.payload as { startedAt?: unknown })?.startedAt === "string"
+            ? String((sessionStartedEvent.payload as { startedAt?: string }).startedAt)
+            : new Date().toISOString();
+        const syncEventRes = await supabaseAdmin
+          .from("draw_events")
+          .update({
+            payload: {
+              startedAt,
+              playerIds: nextPlayerIds,
+            },
+          })
+          .eq("id", sessionStartedEvent.id);
+
+        if (syncEventRes.error) {
+          return NextResponse.json({ error: syncEventRes.error.message }, { status: 500 });
+        }
+      }
+
+      return NextResponse.json(
+        { ok: true, shuffledCount: shuffled.length },
+        { status: 200 }
+      );
+    }
+
+    if (body.action === "start_step") {
+      if (state.remainingPlayerIds.length === 0) {
+        return NextResponse.json(
+          { error: "No remaining participants." },
           { status: 409 }
         );
       }
@@ -688,7 +803,7 @@ export async function POST(
       const step = completedCount;
       const durationMs = Math.min(
         15000,
-        Math.max(1000, normalizePositiveInt(body.durationMs) ?? 3500)
+        Math.max(1000, normalizePositiveInt(body.durationMs) ?? 6500)
       );
       const resolvedTargetGroupNo = resolveTargetGroupNo({
         step,
@@ -720,6 +835,13 @@ export async function POST(
         }
       }
       const startedAt = new Date().toISOString();
+      const seed = createStepSeed();
+      const deckOrder = [...state.remainingPlayerIds];
+      const tempo = {
+        baseHz: 10,
+        slowdownMs: Math.min(7500, Math.max(1300, Math.round(durationMs * 0.62))),
+        nearMiss: 0,
+      };
 
       const eventRes = await supabaseAdmin
         .from("draw_events")
@@ -727,7 +849,16 @@ export async function POST(
           session_id: session.id,
           step,
           event_type: "STEP_CONFIGURED",
-          payload: { mode, targetGroupNo, startedAt, durationMs },
+          payload: {
+            mode,
+            targetGroupNo,
+            startedAt,
+            durationMs,
+            seed,
+            pattern: "scoreboard-chase-v1",
+            tempo,
+            deckOrder,
+          },
           created_by: guard.user.id,
         })
         .select("id,session_id,step,event_type,payload,created_at")
@@ -749,9 +880,9 @@ export async function POST(
     }
 
     if (body.action === "pick_result") {
-      if (state.phase !== "configured") {
+      if (state.phase !== "configured" && state.phase !== "picked") {
         return NextResponse.json(
-          { error: "Current step is not configurable for pick." },
+          { error: "Current step is not ready for pick." },
           { status: 409 }
         );
       }
@@ -763,8 +894,53 @@ export async function POST(
         );
       }
 
-      const randomIndex = Math.floor(Math.random() * state.remainingPlayerIds.length);
-      const playerId = state.remainingPlayerIds[randomIndex];
+      const candidatePool = resolveStepCandidatePool(state);
+      if (candidatePool.length === 0) {
+        return NextResponse.json(
+          { error: "No candidates available for this step." },
+          { status: 409 }
+        );
+      }
+
+      const explicitCursorIndex =
+        Number.isInteger(body.cursorIndex) &&
+        Number(body.cursorIndex) >= 0 &&
+        Number(body.cursorIndex) < candidatePool.length
+          ? Number(body.cursorIndex)
+          : null;
+      const pickedAtMs =
+        typeof body.pickedAtMs === "number" && Number.isFinite(body.pickedAtMs)
+          ? body.pickedAtMs
+          : Date.now();
+      const startedAtMs = state.startedAt ? new Date(state.startedAt).getTime() : Date.now();
+      const durationMs = Math.min(30000, Math.max(800, state.durationMs ?? 3500));
+      const stepSeed =
+        typeof state.stepSeed === "number" && Number.isFinite(state.stepSeed)
+          ? state.stepSeed
+          : deriveDrawSeed([
+              "scoreboard-v1",
+              state.currentStep,
+              state.startedAt ?? "none",
+              durationMs,
+              candidatePool.join(","),
+            ]);
+      const resolvedCursorIndex =
+        explicitCursorIndex ??
+        resolveScoreboardCursorIndex({
+          candidateCount: candidatePool.length,
+          durationMs,
+          seed: stepSeed,
+          tempo: state.stepTempo ?? undefined,
+          startedAtMs,
+          atMs: pickedAtMs,
+        });
+      const playerId = candidatePool[resolvedCursorIndex];
+      if (!playerId) {
+        return NextResponse.json(
+          { error: "Failed to resolve picked player." },
+          { status: 500 }
+        );
+      }
 
       const eventRes = await supabaseAdmin
         .from("draw_events")

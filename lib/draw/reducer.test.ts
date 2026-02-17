@@ -509,4 +509,97 @@ describe("draw reducer", () => {
     expect(state.currentPickPlayerId).toBe(601);
     expect(state.status).toBe("live");
   });
+
+  it("does not apply PICK_RESULT before STEP_CONFIGURED for same step", () => {
+    let state = createInitialDrawState({
+      ...baseSeed,
+      totalPlayers: 2,
+      playerIds: [901, 902],
+    });
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 0,
+      event_type: "SESSION_STARTED",
+      payload: { startedAt: "2026-02-13T13:00:00.000Z" },
+    });
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 1,
+      event_type: "PICK_RESULT",
+      payload: { playerId: 901 },
+    });
+
+    expect(state.phase).toBe("idle");
+    expect(state.currentPickPlayerId).toBeNull();
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 1,
+      event_type: "STEP_CONFIGURED",
+      payload: {
+        mode: "ROUND_ROBIN",
+        startedAt: "2026-02-13T13:00:01.000Z",
+        durationMs: 1500,
+      },
+    });
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 1,
+      event_type: "PICK_RESULT",
+      payload: { playerId: 901 },
+    });
+
+    expect(state.phase).toBe("picked");
+    expect(state.currentPickPlayerId).toBe(901);
+  });
+
+  it("allows re-pick during picked phase before assignment confirmation", () => {
+    let state = createInitialDrawState({
+      ...baseSeed,
+      totalPlayers: 3,
+      playerIds: [1001, 1002, 1003],
+    });
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 0,
+      event_type: "SESSION_STARTED",
+      payload: { startedAt: "2026-02-18T09:00:00.000Z" },
+    });
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 0,
+      event_type: "STEP_CONFIGURED",
+      payload: {
+        mode: "ROUND_ROBIN",
+        startedAt: "2026-02-18T09:00:01.000Z",
+        durationMs: 1800,
+      },
+    });
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 0,
+      event_type: "PICK_RESULT",
+      payload: { playerId: 1001 },
+    });
+
+    expect(state.phase).toBe("picked");
+    expect(state.currentPickPlayerId).toBe(1001);
+
+    state = applyDrawEvent(state, {
+      session_id: 1,
+      step: 0,
+      event_type: "PICK_RESULT",
+      payload: { playerId: 1003 },
+    });
+
+    expect(state.phase).toBe("picked");
+    expect(state.currentPickPlayerId).toBe(1003);
+    expect(state.remainingPlayerIds).toEqual([1001, 1002, 1003]);
+  });
 });

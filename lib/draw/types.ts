@@ -43,6 +43,16 @@ export interface StepConfiguredPayload {
   targetGroupNo?: number | null;
   startedAt: string;
   durationMs: number;
+  seed?: number;
+  pattern?: string;
+  tempo?: StepConfiguredTempo;
+  deckOrder?: number[];
+}
+
+export interface StepConfiguredTempo {
+  baseHz?: number;
+  slowdownMs?: number;
+  nearMiss?: number;
 }
 
 export interface PickResultPayload {
@@ -115,6 +125,10 @@ export interface DrawState {
   pendingGroupNo: number | null;
   startedAt: string | null;
   durationMs: number | null;
+  stepSeed: number | null;
+  stepPattern: string | null;
+  stepTempo: StepConfiguredTempo | null;
+  stepDeckPlayerIds: number[] | null;
   phase: DrawPhase;
   remainingPlayerIds: number[];
   groups: Record<number, number[]>;

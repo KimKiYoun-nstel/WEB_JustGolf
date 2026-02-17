@@ -55,6 +55,54 @@ function removePlayerFromAllGroups(
   return nextGroups;
 }
 
+function normalizeTempoPayload(tempo: StepConfiguredPayload["tempo"]) {
+  if (!tempo || typeof tempo !== "object") return null;
+  const baseHz =
+    typeof tempo.baseHz === "number" && Number.isFinite(tempo.baseHz)
+      ? tempo.baseHz
+      : undefined;
+  const slowdownMs =
+    typeof tempo.slowdownMs === "number" && Number.isFinite(tempo.slowdownMs)
+      ? tempo.slowdownMs
+      : undefined;
+  const nearMiss =
+    typeof tempo.nearMiss === "number" && Number.isFinite(tempo.nearMiss)
+      ? tempo.nearMiss
+      : undefined;
+
+  if (baseHz === undefined && slowdownMs === undefined && nearMiss === undefined) {
+    return null;
+  }
+
+  return { baseHz, slowdownMs, nearMiss };
+}
+
+function normalizeDeckOrderPayload(
+  deckOrder: StepConfiguredPayload["deckOrder"],
+  remainingPlayerIds: number[]
+) {
+  if (!Array.isArray(deckOrder) || deckOrder.length === 0) return null;
+  if (deckOrder.length !== remainingPlayerIds.length) return null;
+
+  const parsed: number[] = [];
+  for (const value of deckOrder) {
+    if (!Number.isInteger(value) || value <= 0) return null;
+    parsed.push(value);
+  }
+
+  const uniqueDeckSize = new Set(parsed).size;
+  if (uniqueDeckSize !== parsed.length) return null;
+
+  const remainingSet = new Set(remainingPlayerIds);
+  if (remainingSet.size !== remainingPlayerIds.length) return null;
+
+  for (const playerId of parsed) {
+    if (!remainingSet.has(playerId)) return null;
+  }
+
+  return parsed;
+}
+
 export function resolveTargetGroupNo({
   step,
   mode,
@@ -91,6 +139,10 @@ export function createInitialDrawState(seed: DrawSessionSeed): DrawState {
     pendingGroupNo: null,
     startedAt: null,
     durationMs: null,
+    stepSeed: null,
+    stepPattern: null,
+    stepTempo: null,
+    stepDeckPlayerIds: null,
     phase: "idle",
     remainingPlayerIds: uniquePlayers,
     groups: createGroupBuckets(seed.groupCount),
@@ -111,6 +163,7 @@ export function applyDrawEvent(state: DrawState, event: DrawEventRecord): DrawSt
         phase: "idle",
         startedAt: payload.startedAt,
         remainingPlayerIds: nextRemaining,
+        stepDeckPlayerIds: null,
       };
     }
 
@@ -132,12 +185,32 @@ export function applyDrawEvent(state: DrawState, event: DrawEventRecord): DrawSt
         currentPickPlayerId: null,
         startedAt: payload.startedAt,
         durationMs: payload.durationMs,
+        stepSeed:
+          typeof payload.seed === "number" && Number.isFinite(payload.seed)
+            ? payload.seed
+            : null,
+        stepPattern: typeof payload.pattern === "string" ? payload.pattern : null,
+        stepTempo: normalizeTempoPayload(payload.tempo),
+        stepDeckPlayerIds: normalizeDeckOrderPayload(
+          payload.deckOrder,
+          state.remainingPlayerIds
+        ),
         phase: "configured",
       };
     }
 
     case "PICK_RESULT": {
       const payload = event.payload as PickResultPayload;
+      if (event.step !== state.currentStep) {
+        return state;
+      }
+      if (
+        state.phase !== "configured" &&
+        state.phase !== "spinning" &&
+        state.phase !== "picked"
+      ) {
+        return state;
+      }
       if (!state.remainingPlayerIds.includes(payload.playerId)) {
         return state;
       }
@@ -152,6 +225,9 @@ export function applyDrawEvent(state: DrawState, event: DrawEventRecord): DrawSt
 
     case "ASSIGN_UPDATED": {
       const payload = event.payload as AssignUpdatedPayload;
+      if (event.step !== state.currentStep) return state;
+      if (state.phase !== "picked") return state;
+      if (state.currentPickPlayerId !== payload.playerId) return state;
       const groupNo = normalizeGroupNo(payload.groupNo, state.groupCount);
       if (!groupNo) return state;
       if (isGroupFull(state.groups, groupNo, state.groupSize)) return state;
@@ -167,6 +243,9 @@ export function applyDrawEvent(state: DrawState, event: DrawEventRecord): DrawSt
 
     case "ASSIGN_CONFIRMED": {
       const payload = event.payload as AssignConfirmedPayload;
+      if (event.step !== state.currentStep) return state;
+      if (state.phase !== "picked") return state;
+      if (state.currentPickPlayerId !== payload.playerId) return state;
       const groupNo =
         normalizeGroupNo(payload.groupNo, state.groupCount) ??
         state.pendingGroupNo ??
@@ -187,10 +266,11 @@ export function applyDrawEvent(state: DrawState, event: DrawEventRecord): DrawSt
       return {
         ...state,
         currentStep: Math.max(state.currentStep, event.step),
-        currentPickPlayerId: null,
+        currentPickPlayerId: payload.playerId,
         pendingGroupNo: null,
         targetGroupNo: groupNo,
         remainingPlayerIds: nextRemaining,
+        stepDeckPlayerIds: null,
         groups: nextGroups,
         phase: finished ? "finished" : "confirmed",
         status: finished ? "finished" : "live",
@@ -240,6 +320,7 @@ export function applyDrawEvent(state: DrawState, event: DrawEventRecord): DrawSt
         currentStep: event.step,
         currentPickPlayerId: payload.playerId,
         pendingGroupNo: null,
+        stepDeckPlayerIds: null,
         phase: "picked",
         remainingPlayerIds: nextRemaining,
         groups: cleanedGroups,

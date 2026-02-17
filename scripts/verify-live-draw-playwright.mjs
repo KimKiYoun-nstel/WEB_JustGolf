@@ -126,14 +126,14 @@ try {
   const winnerAfterConfirm =
     ((await winnerText.textContent().catch(() => "")) || "").replace(/\s+/g, " ").trim() || null;
 
-  const spinningTextVisible = await existsVisible(page.getByText("로또 추첨 중...").first());
-  const canvas = page.locator("canvas").first();
-  const canvasBox = await canvas.boundingBox();
+  const spinningTextVisible = await existsVisible(page.getByText("추첨 연출 진행 중...").first());
+  const stageWrap = page.getByTestId("draw-animator-stage-wrap").first();
+  const stageBox = await stageWrap.boundingBox();
 
   report.checks = {
     loggedIn: true,
     controlVisible: await existsVisible(controlHeader),
-    canvasVisible: !!canvasBox && canvasBox.width > 100 && canvasBox.height > 100,
+    stageVisible: !!stageBox && stageBox.width > 100 && stageBox.height > 100,
     winnerShownAfterPick: !!winnerValue,
     winnerConsistentAfterConfirm:
       !!winnerValue && !!winnerAfterConfirm && winnerValue === winnerAfterConfirm,

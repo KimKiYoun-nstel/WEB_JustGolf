@@ -7,10 +7,11 @@ import { createClient } from "../../../../lib/supabaseClient";
 import { replayDrawEvents } from "../../../../lib/draw/reducer";
 import type { DrawEventRecord, DrawSessionSeed } from "../../../../lib/draw/types";
 import { isDrawEventType } from "../../../../lib/draw/types";
-import LottoAnimator from "../../../../components/draw/LottoAnimator";
+import DrawAnimator from "../../../../components/draw/DrawAnimator";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
-import { Card, CardContent } from "../../../../components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
+import { useToast } from "../../../../components/ui/toast";
 
 type DrawSessionRow = {
   id: number;
@@ -66,9 +67,33 @@ function playerKey(playerIds: number[]) {
   return [...playerIds].sort((a, b) => a - b).join(",");
 }
 
+function resolveStepCandidateIds(state: ReturnType<typeof replayDrawEvents>) {
+  const deck = state.stepDeckPlayerIds;
+  if (
+    Array.isArray(deck) &&
+    deck.length === state.remainingPlayerIds.length &&
+    deck.length > 0
+  ) {
+    return deck;
+  }
+  return state.remainingPlayerIds;
+}
+
+function isDeckOrderShuffled(prev: number[], next: number[]) {
+  if (prev.length !== next.length || prev.length <= 1) return false;
+  if (prev.every((value, index) => value === next[index])) return false;
+  const left = [...prev].sort((a, b) => a - b);
+  const right = [...next].sort((a, b) => a - b);
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
 export default function TournamentDrawViewerPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
+  const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<DrawSessionRow | null>(null);
@@ -82,7 +107,11 @@ export default function TournamentDrawViewerPage() {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("draw_low_spec") === "1";
   });
+  const [isCompactLayout, setIsCompactLayout] = useState(false);
+  const [mobileGroupsPanelOpen, setMobileGroupsPanelOpen] = useState(false);
+  const [mobileRemainingPanelOpen, setMobileRemainingPanelOpen] = useState(false);
   const nicknameCacheKeyRef = useRef("");
+  const prevRemainingOrderRef = useRef<number[] | null>(null);
 
   const persistLowSpec = (next: boolean) => {
     setLowSpecMode(next);
@@ -90,6 +119,15 @@ export default function TournamentDrawViewerPage() {
       window.localStorage.setItem("draw_low_spec", next ? "1" : "0");
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = window.matchMedia("(max-width: 1023px)");
+    const apply = () => setIsCompactLayout(query.matches);
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
@@ -179,7 +217,7 @@ export default function TournamentDrawViewerPage() {
 
     const pollId = window.setInterval(() => {
       void fetchSnapshot(true);
-    }, 2500);
+    }, 1000);
 
     return () => {
       mounted = false;
@@ -214,6 +252,26 @@ export default function TournamentDrawViewerPage() {
               return prev;
             }
             return [...prev, inserted].sort(sortEvents);
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "draw_events",
+          filter: `session_id=eq.${session.id}`,
+        },
+        (payload) => {
+          const updated = toDrawEvent(payload.new as DrawEventRow);
+          if (!updated?.id) return;
+          setEvents((prev) => {
+            const idx = prev.findIndex((event) => event.id === updated.id);
+            if (idx < 0) return prev;
+            const next = [...prev];
+            next[idx] = updated;
+            return next.sort(sortEvents);
           });
         }
       )
@@ -259,6 +317,29 @@ export default function TournamentDrawViewerPage() {
     if (!seed) return null;
     return replayDrawEvents(seed, events);
   }, [seed, events]);
+
+  useEffect(() => {
+    if (!state) {
+      prevRemainingOrderRef.current = null;
+      return;
+    }
+    const nextOrder = state.remainingPlayerIds;
+    const prevOrder = prevRemainingOrderRef.current;
+    if (
+      prevOrder &&
+      isDeckOrderShuffled(prevOrder, nextOrder) &&
+      state.phase !== "configured" &&
+      state.phase !== "picked"
+    ) {
+      toast({
+        variant: "default",
+        title: "덱 섞는중입니다.",
+        description: "참가자 순서를 재정렬하고 있습니다.",
+        duration: 2000,
+      });
+    }
+    prevRemainingOrderRef.current = [...nextOrder];
+  }, [state, toast]);
 
   const effectiveSyncStatus: SyncStatus = session?.id ? syncStatus : "polling";
 
@@ -332,7 +413,8 @@ export default function TournamentDrawViewerPage() {
                   {state.targetGroupNo ? (
                     <span className="text-slate-600">타겟 조: {state.targetGroupNo}조</span>
                   ) : null}
-                  {state.currentPickPlayerId ? (
+                  {state.currentPickPlayerId &&
+                  (state.phase === "confirmed" || state.phase === "finished") ? (
                     <span className="font-medium text-slate-800">
                       현재 당첨: {displayName(state.currentPickPlayerId)}
                     </span>
@@ -341,19 +423,28 @@ export default function TournamentDrawViewerPage() {
               </CardContent>
             </Card>
 
-            <LottoAnimator
+            <DrawAnimator
+              kind="scoreboard"
               phase={state.phase}
               mode={state.currentMode}
               targetGroupNo={state.targetGroupNo}
               assignGroupNo={state.pendingGroupNo ?? state.targetGroupNo}
               durationMs={state.durationMs}
               startedAt={state.startedAt}
+              stepSeed={state.stepSeed}
+              stepPattern={state.stepPattern}
+              stepTempo={state.stepTempo}
+              currentPickCandidateId={
+                state.currentPickPlayerId ? String(state.currentPickPlayerId) : null
+              }
               currentPickLabel={
                 state.currentPickPlayerId ? displayName(state.currentPickPlayerId) : null
               }
-              candidateLabels={state.remainingPlayerIds.map((registrationId) =>
-                displayName(registrationId)
-              )}
+              candidates={resolveStepCandidateIds(state).map((registrationId, index) => ({
+                id: String(registrationId),
+                label: displayName(registrationId),
+                slotNo: index + 1,
+              }))}
               currentStep={state.currentStep}
               totalSteps={state.totalPlayers}
               lowSpecMode={lowSpecMode}
@@ -361,47 +452,105 @@ export default function TournamentDrawViewerPage() {
 
             <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
               <Card className="border-slate-200/70">
-                <CardContent className="pt-6">
-                  <div className="mb-3 text-lg font-semibold">조 편성 현황</div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {Array.from({ length: state.groupCount }, (_, index) => index + 1).map(
-                      (groupNo) => (
-                        <div key={groupNo} className="rounded-lg border border-slate-200 bg-white p-3">
-                          <p className="mb-2 text-sm font-semibold text-slate-800">{groupNo}조</p>
-                          <ul className="space-y-1 text-sm text-slate-700">
-                            {state.groups[groupNo].length === 0 ? (
-                              <li className="text-slate-400">-</li>
-                            ) : (
-                              state.groups[groupNo].map((registrationId) => (
-                                <li key={registrationId}>{displayName(registrationId)}</li>
-                              ))
-                            )}
-                          </ul>
-                        </div>
-                      )
-                    )}
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-lg">조 편성 현황</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{state.groupCount}개 조</span>
+                      {isCompactLayout ? (
+                        <button
+                          type="button"
+                          onClick={() => setMobileGroupsPanelOpen((prev) => !prev)}
+                          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600"
+                        >
+                          {mobileGroupsPanelOpen ? "접기" : "펼치기"}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                </CardContent>
+                </CardHeader>
+                {!isCompactLayout || mobileGroupsPanelOpen ? (
+                  <CardContent className="pt-0">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {Array.from({ length: state.groupCount }, (_, index) => index + 1).map(
+                        (groupNo) => {
+                          const memberCount = state.groups[groupNo].length;
+                          const isGroupLocked = memberCount >= state.groupSize;
+                          return (
+                          <div
+                            key={groupNo}
+                            className={`rounded-lg border p-3 transition-colors ${
+                              isGroupLocked
+                                ? "border-emerald-300 bg-emerald-50"
+                                : "border-slate-200 bg-white"
+                            }`}
+                          >
+                            <p className="mb-2 flex items-center justify-between text-sm font-semibold text-slate-800">
+                              <span>{groupNo}조</span>
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                  isGroupLocked
+                                    ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                                    : "border-slate-200 bg-slate-100 text-slate-600"
+                                }`}
+                              >
+                                {isGroupLocked ? "확정" : `${memberCount}/${state.groupSize}`}
+                              </span>
+                            </p>
+                            <ul className="space-y-1 text-sm text-slate-700">
+                              {state.groups[groupNo].length === 0 ? (
+                                <li className="text-slate-400">-</li>
+                              ) : (
+                                state.groups[groupNo].map((registrationId) => (
+                                  <li key={registrationId}>{displayName(registrationId)}</li>
+                                ))
+                              )}
+                            </ul>
+                          </div>
+                        );
+                        }
+                      )}
+                    </div>
+                  </CardContent>
+                ) : null}
               </Card>
 
               <Card className="border-slate-200/70">
-                <CardContent className="pt-6">
-                  <div className="mb-3 text-lg font-semibold">남은 추첨 대상</div>
-                  {state.remainingPlayerIds.length === 0 ? (
-                    <p className="text-sm text-slate-500">모든 인원 배정이 완료되었습니다.</p>
-                  ) : (
-                    <ul className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                      {state.remainingPlayerIds.map((registrationId) => (
-                        <li
-                          key={registrationId}
-                          className="rounded-md border border-slate-200 bg-white px-3 py-2"
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-lg">남은 추첨 대상</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{state.remainingPlayerIds.length}명</span>
+                      {isCompactLayout ? (
+                        <button
+                          type="button"
+                          onClick={() => setMobileRemainingPanelOpen((prev) => !prev)}
+                          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600"
                         >
-                          {displayName(registrationId)}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
+                          {mobileRemainingPanelOpen ? "접기" : "펼치기"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardHeader>
+                {!isCompactLayout || mobileRemainingPanelOpen ? (
+                  <CardContent className="pt-0">
+                    {state.remainingPlayerIds.length === 0 ? (
+                      <p className="text-sm text-slate-500">모든 인원 배정이 완료되었습니다.</p>
+                    ) : (
+                      <ul className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                        {state.remainingPlayerIds.map((registrationId) => (
+                          <li
+                            key={registrationId}
+                            className="rounded-md border border-slate-200 bg-white px-3 py-2"
+                          >
+                            {displayName(registrationId)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                ) : null}
               </Card>
             </div>
           </>

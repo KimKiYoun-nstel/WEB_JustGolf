@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
@@ -21,11 +21,10 @@ const ADMIN_TOURNAMENT_TABS = [
   { id: "meal-options", label: "메뉴" },
   { id: "files", label: "파일" },
   { id: "manager-setup", label: "관리자" },
-  { id: "draw", label: "배정" },
+  { id: "draw", label: "추첨" },
 ];
 
 function getCurrentTab(pathname: string, tournamentId: string): string {
-  // /admin/tournaments/[id]/{tab} 형식에서 탭 ID 추출
   const match = pathname.match(new RegExp(`/admin/tournaments/${tournamentId}/([^/]+)`));
   return match ? match[1] : "dashboard";
 }
@@ -44,7 +43,7 @@ export default function AdminTournamentLayout({
   const pathname = usePathname();
   const { user, loading: authLoading } = useAuth();
   const tournamentId = useMemo(() => params.id, [params.id]);
-  
+
   const [tournament, setTournament] = useState<TournamentInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
@@ -55,14 +54,13 @@ export default function AdminTournamentLayout({
   useEffect(() => {
     if (authLoading) return;
     if (!user?.id) {
-      setLoading(false);
-      return;
+      const timer = window.setTimeout(() => setLoading(false), 0);
+      return () => window.clearTimeout(timer);
     }
 
     const checkAdminAndLoadTournament = async () => {
       const supabase = createClient();
 
-      // 관리자 권한 확인
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_admin")
@@ -75,28 +73,27 @@ export default function AdminTournamentLayout({
         return;
       }
 
-      // 대회 정보 로드
-      const { data: tournament } = await supabase
+      const { data: tournamentData } = await supabase
         .from("tournaments")
         .select("id,title")
         .eq("id", Number(tournamentId))
         .single();
 
-      if (tournament) {
-        setTournament(tournament as TournamentInfo);
+      if (tournamentData) {
+        setTournament(tournamentData as TournamentInfo);
       }
 
       setLoading(false);
     };
 
-    checkAdminAndLoadTournament();
+    void checkAdminAndLoadTournament();
   }, [user?.id, authLoading, tournamentId]);
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-3 md:px-4 lg:px-6 py-8">
+      <main className="min-h-screen bg-slate-50/70 px-3 py-6 md:px-4 lg:px-6">
         <Card className="mx-auto max-w-7xl border-slate-200/70 p-6">
-          <p className="text-sm text-slate-500">로딩 중...</p>
+          <p className="text-sm text-slate-500">濡쒕뵫 以?..</p>
         </Card>
       </main>
     );
@@ -104,11 +101,11 @@ export default function AdminTournamentLayout({
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-3 md:px-4 lg:px-6 py-8">
+      <main className="min-h-screen bg-slate-50/70 px-3 py-6 md:px-4 lg:px-6">
         <Card className="mx-auto max-w-7xl border-slate-200/70 p-6">
-          <p className="text-sm text-slate-600">관리자 권한이 없습니다.</p>
+          <p className="text-sm text-slate-600">愿由ъ옄 沅뚰븳???놁뒿?덈떎.</p>
           <Button asChild variant="outline" className="mt-4">
-            <Link href="/admin">대시보드로 이동</Link>
+            <Link href="/admin">??쒕낫?쒕줈 ?대룞</Link>
           </Button>
         </Card>
       </main>
@@ -118,46 +115,45 @@ export default function AdminTournamentLayout({
   return (
     <div className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-7xl flex-col px-3 md:px-4 lg:px-6">
-        {/* Sticky 헤더 - 스크롤 시에도 대회 탭 메뉴 접근 가능 */}
-        <header className="sticky top-16 z-40 bg-slate-50/95 backdrop-blur border-b border-slate-200/70 py-4 mb-6">
-          <div className="mb-3 flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 truncate">
+        <header className="sticky top-16 z-40 mb-2 border-b border-slate-200/70 bg-slate-50/95 py-1.5 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 대회 관리
               </p>
-              <h1 className="text-2xl font-semibold text-slate-900 truncate">
+              <h1 className="truncate text-xl font-semibold text-slate-900">
                 {tournament?.title || "대회"}
               </h1>
             </div>
+
+            <div className="hidden min-w-0 flex-1 md:flex md:justify-end">
+              <div className="max-w-full overflow-x-auto">
+                <Tabs value={currentTab}>
+                  <TabsList className="ml-auto h-9 w-max gap-1 bg-slate-100/80 p-1">
+                    {ADMIN_TOURNAMENT_TABS.map((tab) => (
+                      <TabsTrigger key={tab.id} value={tab.id} asChild className="px-2.5 py-1 text-sm">
+                        <Link href={`/admin/tournaments/${tournamentId}/${tab.id}`}>{tab.label}</Link>
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+            </div>
+
             <button
               onClick={() => setTabMenuOpen(true)}
-              className="md:hidden inline-flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-slate-100"
+              className="ml-auto inline-flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-slate-100 md:hidden"
               aria-label="대회 메뉴 열기"
             >
               <Menu className="h-6 w-6" />
             </button>
-          </div>
-
-          {/* 데스크톱 탭 네비게이션 */}
-          <div className="hidden md:block overflow-x-auto">
-            <Tabs value={currentTab} className="w-full">
-              <TabsList className="w-full justify-start">
-                {ADMIN_TOURNAMENT_TABS.map((tab) => (
-                  <TabsTrigger key={tab.id} value={tab.id} asChild>
-                    <Link href={`/admin/tournaments/${tournamentId}/${tab.id}`}>
-                      <span className="text-sm">{tab.label}</span>
-                    </Link>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
           </div>
         </header>
 
         <Sheet open={tabMenuOpen} onOpenChange={setTabMenuOpen}>
           <SheetContent className="w-64">
             <SheetHeader>
-              <SheetTitle>대회 메뉴</SheetTitle>
+              <SheetTitle>???硫붾돱</SheetTitle>
               <SheetClose onClick={() => setTabMenuOpen(false)} />
             </SheetHeader>
             <nav className="mt-6 space-y-2">
@@ -169,18 +165,16 @@ export default function AdminTournamentLayout({
                   variant={currentTab === tab.id ? "secondary" : "ghost"}
                   onClick={() => setTabMenuOpen(false)}
                 >
-                  <Link href={`/admin/tournaments/${tournamentId}/${tab.id}`}>
-                    {tab.label}
-                  </Link>
+                  <Link href={`/admin/tournaments/${tournamentId}/${tab.id}`}>{tab.label}</Link>
                 </Button>
               ))}
             </nav>
           </SheetContent>
         </Sheet>
 
-        {/* 콘텐츠 */}
-        <div>{children}</div>
+        <div className="pb-4">{children}</div>
       </div>
     </div>
   );
 }
+
