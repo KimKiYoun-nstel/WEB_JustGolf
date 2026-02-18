@@ -22,7 +22,7 @@ export default function StartPage() {
           </p>
         </header>
 
-        <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
           <Card className="flex h-full flex-col border-slate-200/70">
             <CardHeader className="flex-1">
               <CardTitle>대회 바로가기</CardTitle>
@@ -59,6 +59,20 @@ export default function StartPage() {
             <CardContent className="mt-auto">
               <Button asChild variant="outline" className="w-full">
                 <Link href="/board">페이지 열기</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="flex h-full flex-col border-slate-200/70">
+            <CardHeader className="flex-1">
+              <CardTitle>관리자 도움말</CardTitle>
+              <CardDescription>
+                회원/대회/라운드/조편성 운영 설명서를 확인하세요.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="mt-auto">
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/admin/help">도움말 열기</Link>
               </Button>
             </CardContent>
           </Card>

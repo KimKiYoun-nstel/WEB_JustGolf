@@ -79,6 +79,20 @@ export default function AdminHomePage() {
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="border-slate-200/70 md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg">📘 관리자 도움말</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-slate-600">
+                회원관리, 대회관리, 라운드/조편성/라이브추첨, 사용자 기능 요약을 문서로 확인할 수 있습니다.
+              </p>
+              <Button asChild className="w-full sm:w-auto" variant="outline">
+                <Link href="/admin/help">도움말 열기</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </section>
 
         {/* 워크플로우 */}
@@ -133,7 +147,7 @@ export default function AdminHomePage() {
         </Card>
 
         {/* 빠른 링크 */}
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           <Button asChild variant="secondary" className="h-auto flex-col">
             <Link href="/admin/tournaments/new">
               <span className="text-lg">➕</span>
@@ -150,6 +164,12 @@ export default function AdminHomePage() {
             <Link href="/start">
               <span className="text-lg">🌍</span>
               <span>공개 페이지</span>
+            </Link>
+          </Button>
+          <Button asChild variant="secondary" className="h-auto flex-col">
+            <Link href="/admin/help">
+              <span className="text-lg">📘</span>
+              <span>관리자 도움말</span>
             </Link>
           </Button>
         </div>

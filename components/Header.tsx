@@ -105,6 +105,9 @@ export default function Header() {
                     <Button asChild size="sm" variant="outline">
                       <Link href="/admin/users">회원 관리</Link>
                     </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/admin/help">도움말</Link>
+                    </Button>
                   </>
                 )}
                 <Button asChild size="sm" variant="outline">
@@ -149,6 +152,7 @@ export default function Header() {
           {pathname === "/login" && "📍 계정 생성 또는 로그인"}
           {pathname === "/profile" && "📍 내 프로필 정보를 수정합니다"}
           {pathname?.startsWith("/admin") && pathname === "/admin" && "📍 관리자 대시보드"}
+          {pathname?.startsWith("/admin") && pathname === "/admin/help" && "📍 관리자 기능 도움말"}
           {pathname?.startsWith("/admin/tournaments") &&
             pathname === "/admin/tournaments" &&
             "📍 대회를 관리합니다"}
@@ -212,6 +216,14 @@ export default function Header() {
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <Link href="/admin/users">👥 회원 관리</Link>
+                  </Button>
+                  <Button
+                    asChild
+                    className="w-full justify-start"
+                    variant="ghost"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Link href="/admin/help">📘 도움말</Link>
                   </Button>
                 </>
               )}
