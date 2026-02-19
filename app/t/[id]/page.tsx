@@ -126,6 +126,7 @@ export default function TournamentDetailPage() {
 
   const { user, loading } = useAuth();
   const [t, setT] = useState<Tournament | null>(null);
+  const [isDeletedTournament, setIsDeletedTournament] = useState(false);
   const [regs, setRegs] = useState<Registration[]>([]);
   const [files, setFiles] = useState<TournamentFile[]>([]);
   const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
@@ -199,6 +200,7 @@ export default function TournamentDetailPage() {
   const refresh = async () => {
     const supabase = createClient();
     setMsg("");
+    setIsDeletedTournament(false);
     const uid = user?.id ?? "";
 
     if (uid) {
@@ -226,10 +228,25 @@ export default function TournamentDetailPage() {
       .single();
 
     if (tRes.error) {
+      setIsDeletedTournament(true);
       setMsg(`대회 조회 실패: ${tRes.error.message}`);
       return;
     }
-    setT(tRes.data as Tournament);
+    const tournament = tRes.data as Tournament;
+    if (tournament.status === "deleted") {
+      setIsDeletedTournament(true);
+      setT(null);
+      setRegs([]);
+      setFiles([]);
+      setSideEvents([]);
+      setSideEventRegs(new Map());
+      setMealOptions([]);
+      setTournamentExtras([]);
+      setSelectedExtras([]);
+      setPrizeSupports([]);
+      return;
+    }
+    setT(tournament);
 
     let mainRegIdForExtras: number | null = null;
     let activeMyRegIds: number[] = [];
@@ -1205,6 +1222,25 @@ export default function TournamentDetailPage() {
   ];
 
   const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+
+  if (isDeletedTournament) {
+    return (
+      <main className="min-h-screen bg-slate-50/70">
+        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="py-10">
+              <p className="text-sm text-red-700">해당 대회는 접근할 수 없습니다.</p>
+              <div className="mt-4">
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/tournaments">대회 목록으로</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50/70">

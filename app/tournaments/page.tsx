@@ -59,6 +59,7 @@ export default function TournamentsPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select("id,title,event_date,course_name,location,tee_time,notes,status")
+        .neq("status", "deleted")
         .order("event_date", { ascending: false });
 
       if (!active) return;

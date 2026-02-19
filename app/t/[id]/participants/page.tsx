@@ -87,6 +87,7 @@ export default function TournamentParticipantsPage() {
   const [sideEventRegs, setSideEventRegs] = useState<Map<number, SideEventRegistration[]>>(new Map());
   const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeletedTournament, setIsDeletedTournament] = useState(false);
   const [msg, setMsg] = useState("");
   const { toast } = useToast();
   const hasMyActiveRegistration = rows.some(
@@ -96,6 +97,7 @@ export default function TournamentParticipantsPage() {
   const fetchData = async () => {
     setLoading(true);
     setMsg("");
+    setIsDeletedTournament(false);
 
     const tRes = await supabase
       .from("tournaments")
@@ -109,7 +111,19 @@ export default function TournamentParticipantsPage() {
       return;
     }
 
-    setT(tRes.data as Tournament);
+    const tournament = tRes.data as Tournament;
+    if (tournament.status === "deleted") {
+      setIsDeletedTournament(true);
+      setT(null);
+      setRows([]);
+      setSideEvents([]);
+      setSideEventRegs(new Map());
+      setPrizes([]);
+      setLoading(false);
+      return;
+    }
+
+    setT(tournament);
 
     const rRes = await supabase
       .from("registrations")
@@ -338,7 +352,18 @@ export default function TournamentParticipantsPage() {
           </Card>
         )}
 
-        {!loading && !t && user && (
+        {!loading && isDeletedTournament && user && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="py-10">
+              <p className="mb-4 text-sm text-red-700">삭제된 대회는 접근할 수 없습니다.</p>
+              <Button asChild variant="outline">
+                <Link href="/tournaments">대회 목록으로</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !isDeletedTournament && !t && user && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">대회를 찾을 수 없습니다.</p>
@@ -346,7 +371,7 @@ export default function TournamentParticipantsPage() {
           </Card>
         )}
 
-        {!loading && t && user && (
+        {!loading && !isDeletedTournament && t && user && (
           <>
             <Card id="registrations-section" className="border-slate-200/70">
               <CardHeader>
