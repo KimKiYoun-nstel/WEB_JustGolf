@@ -79,9 +79,10 @@ export default function AdminRegistrationsPage() {
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [exportingScope, setExportingScope] = useState<"approved" | "grouped" | null>(null);
   const { toast } = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const supabase = createClient();
     setMsg("");
     setLoading(true);
@@ -147,7 +148,7 @@ export default function AdminRegistrationsPage() {
 
     setRows(transformed as Registration[]);
     setLoading(false);
-  };
+  }, [tournamentId]);
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
@@ -212,7 +213,7 @@ export default function AdminRegistrationsPage() {
       setMsg("✅ 상태 변경 완료");
       await load();
     }
-  }, []);
+  }, [load]);
 
   const updateSelectedStatus = useCallback(async (status: Registration["status"]) => {
     if (selectedIds.size === 0) {
@@ -233,7 +234,46 @@ export default function AdminRegistrationsPage() {
       setSelectedIds(new Set());
       await load();
     }
-  }, [selectedIds]);
+  }, [selectedIds, load]);
+
+  const downloadExcel = useCallback(async (scope: "approved" | "grouped") => {
+    setExportingScope(scope);
+    setMsg("");
+
+    try {
+      const response = await fetch(
+        `/api/admin/tournaments/${tournamentId}/registrations/export?scope=${scope}&format=xlsx`
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setMsg(`엑셀 다운로드 실패: ${data?.error ?? response.statusText}`);
+        return;
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+      const filename =
+        filenameMatch?.[1] ??
+        `justgolf_t${tournamentId}_${scope}_${new Date().toISOString().replace(/[:.]/g, "")}.xlsx`;
+
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+
+      setMsg("✅ 엑셀 파일 다운로드가 완료되었습니다.");
+    } catch (error) {
+      setMsg(`엑셀 다운로드 실패: ${error instanceof Error ? error.message : "알 수 없는 오류"}`);
+    } finally {
+      setExportingScope(null);
+    }
+  }, [tournamentId]);
 
   const appliedRows = useMemo(
     () => rows.filter((r) => r.status === "applied"),
@@ -352,8 +392,28 @@ export default function AdminRegistrationsPage() {
         {!loading && !unauthorized && (
           <>
             <Card className="border-slate-200/70">
-              <CardHeader>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>신청 현황 통계</CardTitle>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadExcel("approved")}
+                    disabled={exportingScope !== null || groupedByStatus.approved.length === 0}
+                    data-testid="export-approved-xlsx"
+                  >
+                    {exportingScope === "approved" ? "확정자 엑셀 생성 중..." : "확정자 엑셀 다운로드"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadExcel("grouped")}
+                    disabled={exportingScope !== null}
+                    data-testid="export-grouped-xlsx"
+                  >
+                    {exportingScope === "grouped" ? "조편성 엑셀 생성 중..." : "조편성 엑셀 다운로드"}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">

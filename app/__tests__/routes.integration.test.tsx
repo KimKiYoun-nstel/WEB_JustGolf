@@ -74,21 +74,21 @@ describe('WEB_JustGolf - Route Integration Tests', () => {
   });
 
   describe('시작 페이지 (/start)', () => {
-    it('바로가기 카드 3개가 렌더링되어야 한다', async () => {
+    it('바로가기 카드 4개가 렌더링되어야 한다', async () => {
       const StartPage = (await import('../../app/start/page')).default;
       render(<StartPage />);
-      
-      // 바로가기 카드 제목 확인
-      expect(screen.getByText(/대회/)).toBeInTheDocument();
-      expect(screen.getByText(/제주/)).toBeInTheDocument();
-      expect(screen.getByText(/게시판/)).toBeInTheDocument();
+
+      expect(screen.getByText('대회 바로가기')).toBeInTheDocument();
+      expect(screen.getByText('제주달콧 바로가기')).toBeInTheDocument();
+      expect(screen.getByText('게시판 바로가기')).toBeInTheDocument();
+      expect(screen.getByText('관리자 도움말')).toBeInTheDocument();
     });
 
     it('대회 카드 클릭 시 /tournaments로 이동한다', async () => {
       const StartPage = (await import('../../app/start/page')).default;
-const { container } = render(<StartPage />);
-      
-      const tournamentLink = screen.getByRole('link', { name: /대회.*로/i });
+      render(<StartPage />);
+
+      const tournamentLink = screen.getByRole('link', { name: /대회 목록 보기/i });
       expect(tournamentLink).toHaveAttribute('href', '/tournaments');
     });
   });
@@ -97,11 +97,10 @@ const { container } = render(<StartPage />);
     it('관리자 메뉴 카드가 렌더링되어야 한다', async () => {
       const AdminPage = (await import('../../app/admin/page')).default;
       render(<AdminPage />);
-      
-      // 주요 관리 기능 확인
-      expect(screen.getByText(/대회 관리/)).toBeInTheDocument();
-      expect(screen.getByText(/회원 관리/)).toBeInTheDocument();
-      expect(screen.getByText(/조편성 관리/)).toBeInTheDocument();
+
+      expect(screen.getByText('📅 대회 관리')).toBeInTheDocument();
+      expect(screen.getByText('✅ 회원 관리')).toBeInTheDocument();
+      expect(screen.getByText('🧩 조편성 관리')).toBeInTheDocument();
     });
 
     it('대회 관리 링크가 올바른 경로를 가져야 한다', async () => {
@@ -127,7 +126,9 @@ const { container } = render(<StartPage />);
       // Route 파일 존재 여부는 빌드 시 확인됨
       // 여기서는 개념적 검증
       expect(expectedRoutes.length).toBeGreaterThan(0);
-    }); it('비로그인 사용자는 /login으로 리다이렉트되어야 한다', () => {
+    });
+
+    it('비로그인 사용자는 /login으로 리다이렉트되어야 한다', () => {
       // Proxy middleware가 이 로직을 처리
       // 실제 동작은 E2E 테스트 또는 수동 테스트로 검증
       expect(true).toBe(true); // Placeholder

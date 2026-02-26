@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import Header from '../../components/Header';
 
+const mockUseAuth = vi.fn();
+
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -12,10 +14,7 @@ vi.mock('next/navigation', () => ({
 
 // Mock useAuth hook
 vi.mock('../../lib/auth', () => ({
-  useAuth: () => ({
-    user: null,
-    loading: false,
-  }),
+  useAuth: () => mockUseAuth(),
 }));
 
 // Mock supabaseClient
@@ -31,12 +30,19 @@ vi.mock('../../lib/supabaseClient', () => ({
 describe('components/Header', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+    });
   });
 
   it('should render header when auth is loading', () => {
-    vi.mocked(useAuth()).loading = true;
+    mockUseAuth.mockReturnValue({
+      user: null,
+      loading: true,
+    });
     render(<Header />);
-    
+
     const header = screen.getByRole('banner');
     expect(header).toBeDefined();
   });

@@ -1,0 +1,7 @@
+PASS
+LOGIN_EMAIL=playwright.admin@testmail.com
+URL=http://localhost:3001/admin/tournaments/1/registrations
+APPROVED_BTN_VISIBLE=true
+GROUPED_BTN_VISIBLE=true
+APPROVED_DOWNLOAD=justgolf_t1_approved_20260226_114535.xlsx
+GROUPED_DOWNLOAD=justgolf_t1_grouped_20260226_114536.xlsx
