@@ -48,6 +48,8 @@ type Registration = {
   status: "applied" | "approved" | "waitlisted" | "canceled" | "undecided";
   memo: string | null;
   meal_option_id: number | null;
+  pre_round_preferred: boolean;
+  post_round_preferred: boolean;
   relation: string | null;
 };
 
@@ -156,6 +158,10 @@ export default function TournamentDetailPage() {
   const [extraStatus, setExtraStatus] = useState<Registration["status"]>("applied");
   const [extraMemo, setExtraMemo] = useState("");
   const [extraMealId, setExtraMealId] = useState<number | null>(null);
+  const [mainPreRoundPreferred, setMainPreRoundPreferred] = useState(false);
+  const [mainPostRoundPreferred, setMainPostRoundPreferred] = useState(false);
+  const [extraPreRoundPreferred, setExtraPreRoundPreferred] = useState(false);
+  const [extraPostRoundPreferred, setExtraPostRoundPreferred] = useState(false);
   const [extraActivityIds, setExtraActivityIds] = useState<number[]>([]);
   const [prizeItem, setPrizeItem] = useState("");
   const [prizeNote, setPrizeNote] = useState("");
@@ -168,6 +174,8 @@ export default function TournamentDetailPage() {
   const [editRelation, setEditRelation] = useState("");
   const [editMemo, setEditMemo] = useState("");
   const [editMealId, setEditMealId] = useState<number | null>(null);
+  const [editPreRoundPreferred, setEditPreRoundPreferred] = useState(false);
+  const [editPostRoundPreferred, setEditPostRoundPreferred] = useState(false);
   const [editActivityIds, setEditActivityIds] = useState<number[]>([]);
   const [isApplySheetOpen, setIsApplySheetOpen] = useState(false);
   const [isAddParticipantSheetOpen, setIsAddParticipantSheetOpen] =
@@ -253,7 +261,9 @@ export default function TournamentDetailPage() {
 
     const rRes = await supabase
       .from("registrations")
-      .select("id,user_id,registering_user_id,nickname,status,memo,meal_option_id,relation")
+      .select(
+        "id,user_id,registering_user_id,nickname,status,memo,meal_option_id,pre_round_preferred,post_round_preferred,relation"
+      )
       .eq("tournament_id", tournamentId)
       .order("id", { ascending: true });
 
@@ -280,6 +290,8 @@ export default function TournamentDetailPage() {
         // 본인 신청 정보 로드
         setMemo(preferredMain.memo ?? "");
         setSelectedMealId(preferredMain.meal_option_id ?? null);
+        setMainPreRoundPreferred(preferredMain.pre_round_preferred ?? false);
+        setMainPostRoundPreferred(preferredMain.post_round_preferred ?? false);
 
         const extraRes = await supabase
           .from("registration_extras")
@@ -306,6 +318,8 @@ export default function TournamentDetailPage() {
       } else {
         setMemo("");
         setSelectedMealId(null);
+        setMainPreRoundPreferred(false);
+        setMainPostRoundPreferred(false);
         setCarpoolAvailable(null);
         setCarpoolSeats(null);
         setTransportation("");
@@ -509,6 +523,8 @@ export default function TournamentDetailPage() {
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
+          pre_round_preferred: mainPreRoundPreferred,
+          post_round_preferred: mainPostRoundPreferred,
           relation: "본인",
           status: nextStatus,
         })
@@ -538,6 +554,8 @@ export default function TournamentDetailPage() {
           nickname: nick,
           memo: memo.trim() || null,
           meal_option_id: selectedMealId,
+          pre_round_preferred: mainPreRoundPreferred,
+          post_round_preferred: mainPostRoundPreferred,
           relation: "본인",
           status: mainStatus,
         })
@@ -647,6 +665,8 @@ export default function TournamentDetailPage() {
         relation: rel,
         memo: extraMemo.trim() || null,
         meal_option_id: extraMealId,
+        pre_round_preferred: extraPreRoundPreferred,
+        post_round_preferred: extraPostRoundPreferred,
         status,
       })
       .select("id")
@@ -688,6 +708,8 @@ export default function TournamentDetailPage() {
     setExtraStatus("applied");
     setExtraMemo("");
     setExtraMealId(null);
+    setExtraPreRoundPreferred(false);
+    setExtraPostRoundPreferred(false);
     setExtraActivityIds([]);
     setMsg("✅ 추가 참가자가 등록되었습니다.");
     await refresh();
@@ -742,6 +764,8 @@ export default function TournamentDetailPage() {
     setEditRelation(participant.relation ?? "");
     setEditMemo(participant.memo ?? "");
     setEditMealId(participant.meal_option_id ?? null);
+    setEditPreRoundPreferred(participant.pre_round_preferred ?? false);
+    setEditPostRoundPreferred(participant.post_round_preferred ?? false);
 
     // Load activity selections
     const supabase = createClient();
@@ -794,6 +818,8 @@ export default function TournamentDetailPage() {
         relation: editRelation.trim() || null,
         memo: editMemo.trim() || null,
         meal_option_id: editMealId,
+        pre_round_preferred: editPreRoundPreferred,
+        post_round_preferred: editPostRoundPreferred,
       })
       .eq("id", editingParticipant.id);
 
@@ -1027,6 +1053,8 @@ export default function TournamentDetailPage() {
       .update({
         meal_option_id: selectedMealId,
         memo: memo.trim() || null,
+        pre_round_preferred: mainPreRoundPreferred,
+        post_round_preferred: mainPostRoundPreferred,
       })
       .eq("id", mine.id);
 
@@ -1482,6 +1510,33 @@ export default function TournamentDetailPage() {
                     </div>
                   )}
 
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">사전/사후 라운드 참가 희망</label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={mainPreRoundPreferred}
+                          onChange={(e) => setMainPreRoundPreferred(e.target.checked)}
+                        />
+                        사전 라운드 희망
+                      </label>
+                      <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={mainPostRoundPreferred}
+                          onChange={(e) => setMainPostRoundPreferred(e.target.checked)}
+                        />
+                        사후 라운드 희망
+                      </label>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      라운드 오픈/신청 여부와 별개로 희망 여부만 기록됩니다.
+                    </p>
+                  </div>
+
                   {tournamentExtras.length > 0 && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium">참여 활동 선택 (선택사항)</label>
@@ -1678,6 +1733,30 @@ export default function TournamentDetailPage() {
                       </div>
                     )}
 
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">사전/사후 라운드 참가 희망</label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={editPreRoundPreferred}
+                            onChange={(e) => setEditPreRoundPreferred(e.target.checked)}
+                          />
+                          사전 라운드 희망
+                        </label>
+                        <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={editPostRoundPreferred}
+                            onChange={(e) => setEditPostRoundPreferred(e.target.checked)}
+                          />
+                          사후 라운드 희망
+                        </label>
+                      </div>
+                    </div>
+
                     {tournamentExtras.length > 0 && (
                       <div className="space-y-2">
                         <label className="text-xs font-medium">참여 활동</label>
@@ -1840,8 +1919,32 @@ export default function TournamentDetailPage() {
                               <option key={m.id} value={m.id}>
                                 {m.menu_name}
                               </option>
-                            ))}
+                          ))}
                         </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">사전/사후 라운드 참가 희망</label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={extraPreRoundPreferred}
+                            onChange={(e) => setExtraPreRoundPreferred(e.target.checked)}
+                          />
+                          사전 라운드 희망
+                        </label>
+                        <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={extraPostRoundPreferred}
+                            onChange={(e) => setExtraPostRoundPreferred(e.target.checked)}
+                          />
+                          사후 라운드 희망
+                        </label>
                       </div>
                     </div>
 

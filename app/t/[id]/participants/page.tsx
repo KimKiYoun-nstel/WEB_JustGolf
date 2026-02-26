@@ -41,6 +41,8 @@ type Registration = {
   status: string;
   memo: string | null;
   meal_name: string | null;
+  pre_round_preferred: boolean;
+  post_round_preferred: boolean;
   carpool_available: boolean;
   carpool_seats: number | null;
   transportation: string | null;
@@ -128,7 +130,7 @@ export default function TournamentParticipantsPage() {
     const rRes = await supabase
       .from("registrations")
       .select(
-        "id,user_id,registering_user_id,nickname,status,memo,created_at,"
+        "id,user_id,registering_user_id,nickname,status,memo,created_at,pre_round_preferred,post_round_preferred,"
           + "tournament_meal_options(menu_name),"
           + "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes),"
           + "registration_activity_selections(selected,tournament_extras(activity_name))"
@@ -150,6 +152,8 @@ export default function TournamentParticipantsPage() {
       status: string;
       memo: string | null;
       created_at: string;
+      pre_round_preferred?: boolean | null;
+      post_round_preferred?: boolean | null;
       tournament_meal_options?: { menu_name?: string | null } | null;
       registration_extras?: {
         carpool_available?: boolean | null;
@@ -179,6 +183,8 @@ export default function TournamentParticipantsPage() {
       status: row.status,
       memo: row.memo ?? null,
       meal_name: row.tournament_meal_options?.menu_name ?? null,
+      pre_round_preferred: row.pre_round_preferred ?? false,
+      post_round_preferred: row.post_round_preferred ?? false,
       carpool_available: row.registration_extras?.carpool_available ?? false,
       carpool_seats: row.registration_extras?.carpool_seats ?? null,
       transportation: row.registration_extras?.transportation ?? null,
@@ -414,6 +420,7 @@ export default function TournamentParticipantsPage() {
                           <TableHead className="whitespace-nowrap">상태</TableHead>
                           <TableHead className="whitespace-nowrap">식사</TableHead>
                           <TableHead className="whitespace-nowrap">활동</TableHead>
+                          <TableHead className="whitespace-nowrap">라운드 희망</TableHead>
                           <TableHead className="whitespace-nowrap">카풀</TableHead>
                           <TableHead className="whitespace-nowrap">이동/출발지</TableHead>
                           <TableHead className="whitespace-nowrap">비고</TableHead>
@@ -455,6 +462,20 @@ export default function TournamentParticipantsPage() {
                               {r.activities.length > 0
                                 ? r.activities.slice(0, 3).join(", ")
                                 : "-"}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {r.pre_round_preferred || r.post_round_preferred ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {r.pre_round_preferred && (
+                                    <Badge variant="outline" className="text-xs">사전 희망</Badge>
+                                  )}
+                                  {r.post_round_preferred && (
+                                    <Badge variant="outline" className="text-xs">사후 희망</Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                "-"
+                              )}
                             </TableCell>
                             <TableCell className="text-sm text-slate-600">
                               {r.carpool_available

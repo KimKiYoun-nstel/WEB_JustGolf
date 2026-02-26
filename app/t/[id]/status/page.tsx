@@ -30,6 +30,8 @@ type MyRegistration = {
   status: string;
   approval_status: string;
   meal_option_id: number | null;
+  pre_round_preferred: boolean;
+  post_round_preferred: boolean;
   memo: string | null;
   created_at: string;
 };
@@ -130,7 +132,9 @@ export default function MyStatusPage() {
     // 2. 내 신청 정보
     const regRes = await supabase
       .from("registrations")
-      .select("id,nickname,status,approval_status,meal_option_id,memo,created_at")
+      .select(
+        "id,nickname,status,approval_status,meal_option_id,pre_round_preferred,post_round_preferred,memo,created_at"
+      )
       .eq("tournament_id", tournamentId)
       .eq("user_id", user.id)
       .single();
@@ -414,6 +418,20 @@ export default function MyStatusPage() {
                 <p className="text-slate-900">
                   {mealOption ? mealOption.menu_name : "선택 안 함"}
                 </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-700">사전/사후 라운드 희망</p>
+                <div className="flex flex-wrap gap-1">
+                  {myReg.pre_round_preferred && (
+                    <Badge variant="outline" className="text-xs">사전 희망</Badge>
+                  )}
+                  {myReg.post_round_preferred && (
+                    <Badge variant="outline" className="text-xs">사후 희망</Badge>
+                  )}
+                  {!myReg.pre_round_preferred && !myReg.post_round_preferred && (
+                    <span className="text-slate-500">선택 안 함</span>
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-700">신청일시</p>

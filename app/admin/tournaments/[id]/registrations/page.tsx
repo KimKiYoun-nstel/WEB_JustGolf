@@ -30,6 +30,8 @@ type Registration = {
   memo: string | null;
   meal_option_id: number | null;
   meal_name: string | null;
+  pre_round_preferred: boolean;
+  post_round_preferred: boolean;
   activities: string[];                  // 참여 활동 목록
   created_at: string;
 };
@@ -47,6 +49,8 @@ type RegistrationRow = {
   status: Registration["status"];
   memo: string | null;
   meal_option_id: number | null;
+  pre_round_preferred?: boolean | null;
+  post_round_preferred?: boolean | null;
   tournament_meal_options?: { menu_name?: string | null } | null;
   registration_activity_selections?: RegistrationActivitySelectionRow[] | null;
   created_at: string;
@@ -96,6 +100,8 @@ export default function AdminRegistrationsPage() {
         status,
         memo,
         meal_option_id,
+        pre_round_preferred,
+        post_round_preferred,
         tournament_meal_options(menu_name),
         registration_activity_selections(selected,tournament_extras(activity_name)),
         created_at
@@ -141,6 +147,8 @@ export default function AdminRegistrationsPage() {
         memo: row.memo,
         meal_option_id: row.meal_option_id,
         meal_name: row.tournament_meal_options?.menu_name ?? null,
+        pre_round_preferred: row.pre_round_preferred ?? false,
+        post_round_preferred: row.post_round_preferred ?? false,
         activities: activities as string[],
         created_at: row.created_at,
       };
@@ -350,6 +358,26 @@ export default function AdminRegistrationsPage() {
     [updateStatus]
   );
 
+  const renderRoundPreference = useCallback(
+    (row: Registration) => {
+      if (!row.pre_round_preferred && !row.post_round_preferred) {
+        return <span className="text-slate-400 text-xs">-</span>;
+      }
+
+      return (
+        <div className="flex flex-wrap gap-1">
+          {row.pre_round_preferred && (
+            <Badge variant="outline" className="text-xs">사전 희망</Badge>
+          )}
+          {row.post_round_preferred && (
+            <Badge variant="outline" className="text-xs">사후 희망</Badge>
+          )}
+        </div>
+      );
+    },
+    []
+  );
+
   // TableOfContents 아이템
   const tocItems: TOCItem[] = [
     ...(groupedByStatus.applied.length > 0 ? [{ id: "applied-section", label: "신청" }] : []),
@@ -515,6 +543,7 @@ export default function AdminRegistrationsPage() {
                         <TableHead>상태</TableHead>
                         <TableHead>식사 메뉴</TableHead>
                         <TableHead>참여 활동</TableHead>
+                        <TableHead>라운드 희망</TableHead>
                         <TableHead>메모</TableHead>
                         <TableHead>변경</TableHead>
                       </TableRow>
@@ -560,6 +589,7 @@ export default function AdminRegistrationsPage() {
                               <span className="text-slate-400 text-xs">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
                           <TableCell>
                             {renderStatusActions(row)}
@@ -587,6 +617,7 @@ export default function AdminRegistrationsPage() {
                         <TableHead>상태</TableHead>
                         <TableHead>식사 메뉴</TableHead>
                         <TableHead>참여 활동</TableHead>
+                        <TableHead>라운드 희망</TableHead>
                         <TableHead>메모</TableHead>
                         <TableHead>변경</TableHead>
                       </TableRow>
@@ -624,6 +655,7 @@ export default function AdminRegistrationsPage() {
                               <span className="text-slate-400 text-xs">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
                           <TableCell>
                             {renderStatusActions(row)}
@@ -651,6 +683,7 @@ export default function AdminRegistrationsPage() {
                         <TableHead>상태</TableHead>
                         <TableHead>식사 메뉴</TableHead>
                         <TableHead>참여 활동</TableHead>
+                        <TableHead>라운드 희망</TableHead>
                         <TableHead>메모</TableHead>
                         <TableHead>변경</TableHead>
                       </TableRow>
@@ -688,6 +721,7 @@ export default function AdminRegistrationsPage() {
                               <span className="text-slate-400 text-xs">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
                           <TableCell>
                             {renderStatusActions(row)}
@@ -715,6 +749,7 @@ export default function AdminRegistrationsPage() {
                         <TableHead>상태</TableHead>
                         <TableHead>식사 메뉴</TableHead>
                         <TableHead>참여 활동</TableHead>
+                        <TableHead>라운드 희망</TableHead>
                         <TableHead>메모</TableHead>
                         <TableHead>변경</TableHead>
                       </TableRow>
@@ -752,6 +787,7 @@ export default function AdminRegistrationsPage() {
                               <span className="text-slate-400 text-xs">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
                           <TableCell>
                             {renderStatusActions(row)}
