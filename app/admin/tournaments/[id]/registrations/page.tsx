@@ -397,7 +397,7 @@ export default function AdminRegistrationsPage() {
         panelTitle="섹션 메뉴"
         showIcons={false}
       />
-      <div className="mx-auto max-w-7xl px-3 md:px-4 md:pr-72 lg:px-6 xl:pr-80 py-8">
+      <div className="mx-auto w-full max-w-screen-2xl px-3 md:px-4 lg:px-6 py-8">
         {loading && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
