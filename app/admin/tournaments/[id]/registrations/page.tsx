@@ -64,6 +64,11 @@ const statuses: Registration["status"][] = [
   "canceled",
 ];
 
+const statusTransitionTargets = statuses.reduce((acc, current) => {
+  acc[current] = statuses.filter((status) => status !== current);
+  return acc;
+}, {} as Record<Registration["status"], Registration["status"][]>);
+
 export default function AdminRegistrationsPage() {
   const params = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -230,13 +235,23 @@ export default function AdminRegistrationsPage() {
     }
   }, [selectedIds]);
 
+  const appliedRows = useMemo(
+    () => rows.filter((r) => r.status === "applied"),
+    [rows]
+  );
+
+  const allRowsSelected = useMemo(
+    () => rows.length > 0 && rows.every((row) => selectedIds.has(row.id)),
+    [rows, selectedIds]
+  );
+
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === rows.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(rows.map((r) => r.id)));
-    }
-  }, [selectedIds.size, rows.length, rows]);
+    setSelectedIds((prev) => {
+      const shouldClear = rows.length > 0 && rows.every((row) => prev.has(row.id));
+      if (shouldClear) return new Set();
+      return new Set(rows.map((row) => row.id));
+    });
+  }, [rows]);
 
   const toggleSelect = useCallback((id: number) => {
     setSelectedIds((prev) => {
@@ -277,6 +292,24 @@ export default function AdminRegistrationsPage() {
     canceled: rows.filter(r => r.status === "canceled"),
   };
 
+  const renderStatusActions = useCallback(
+    (row: Registration) => (
+      <div className="flex flex-wrap gap-1">
+        {statusTransitionTargets[row.status].map((nextStatus) => (
+          <Button
+            key={nextStatus}
+            onClick={() => updateStatus(row.id, nextStatus)}
+            size="sm"
+            variant="ghost"
+          >
+            {formatRegistrationStatus(nextStatus)}
+          </Button>
+        ))}
+      </div>
+    ),
+    [updateStatus]
+  );
+
   // TableOfContents 아이템
   const tocItems: TOCItem[] = [
     ...(groupedByStatus.applied.length > 0 ? [{ id: "applied-section", label: "신청" }] : []),
@@ -296,7 +329,7 @@ export default function AdminRegistrationsPage() {
         panelTitle="섹션 메뉴"
         showIcons={false}
       />
-      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
+      <div className="mx-auto max-w-7xl px-3 md:px-4 md:pr-72 lg:px-6 xl:pr-80 py-8">
         {loading && (
           <Card className="border-slate-200/70">
             <CardContent className="py-10">
@@ -355,13 +388,53 @@ export default function AdminRegistrationsPage() {
                     </div>
                   </div>
                 )}
+
+                {rows.length > 0 && (
+                  <div className="mt-5 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3">
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={allRowsSelected}
+                        onChange={toggleSelectAll}
+                        aria-label="전체 인원 선택"
+                      />
+                      전체 인원 선택
+                    </label>
+                    <span className="text-sm text-slate-500">선택 {selectedIds.size}명</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateSelectedStatus("approved")}
+                      disabled={selectedIds.size === 0}
+                    >
+                      일괄 확정
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateSelectedStatus("waitlisted")}
+                      disabled={selectedIds.size === 0}
+                    >
+                      일괄 대기
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateSelectedStatus("canceled")}
+                      disabled={selectedIds.size === 0}
+                    >
+                      일괄 취소
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            {rows.filter(r => r.status === "applied").length > 0 && (
+            {appliedRows.length > 0 && (
               <Card id="applied-section" className="border-slate-200/70">
                 <CardHeader>
-                  <CardTitle>📋 신청 ({rows.filter(r => r.status === "applied").length})</CardTitle>
+                  <CardTitle>📋 신청 ({appliedRows.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -371,7 +444,9 @@ export default function AdminRegistrationsPage() {
                           <input
                             type="checkbox"
                             className="h-4 w-4"
-                            checked={rows.filter(r => r.status === "applied").every(r => selectedIds.has(r.id))}
+                            checked={allRowsSelected}
+                            onChange={toggleSelectAll}
+                            aria-label="전체 인원 선택"
                           />
                         </TableHead>
                         <TableHead>닉네임</TableHead>
@@ -385,7 +460,7 @@ export default function AdminRegistrationsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rows.filter(r => r.status === "applied").map((row) => (
+                      {appliedRows.map((row) => (
                         <TableRow key={row.id}>
                           <TableCell>
                             <input
@@ -427,14 +502,7 @@ export default function AdminRegistrationsPage() {
                           </TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
                           <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              <Button onClick={() => updateStatus(row.id, "approved")} size="sm" variant="ghost">
-                                {formatRegistrationStatus("approved")}
-                              </Button>
-                              <Button onClick={() => updateStatus(row.id, "waitlisted")} size="sm" variant="ghost">
-                                {formatRegistrationStatus("waitlisted")}
-                              </Button>
-                            </div>
+                            {renderStatusActions(row)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -444,10 +512,10 @@ export default function AdminRegistrationsPage() {
               </Card>
             )}
 
-            {rows.filter(r => r.status === "approved").length > 0 && (
+            {groupedByStatus.approved.length > 0 && (
               <Card id="approved-section" className="border-slate-200/70">
                 <CardHeader>
-                  <CardTitle>✅ 확정 ({rows.filter(r => r.status === "approved").length})</CardTitle>
+                  <CardTitle>✅ 확정 ({groupedByStatus.approved.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -464,7 +532,7 @@ export default function AdminRegistrationsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rows.filter(r => r.status === "approved").map((row) => (
+                      {groupedByStatus.approved.map((row) => (
                         <TableRow key={row.id}>
                           <TableCell className="font-medium">{row.nickname}</TableCell>
                           <TableCell>
@@ -498,9 +566,7 @@ export default function AdminRegistrationsPage() {
                           </TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
                           <TableCell>
-                            <Button onClick={() => updateStatus(row.id, "canceled")} size="sm" variant="ghost">
-                              취소
-                            </Button>
+                            {renderStatusActions(row)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -510,10 +576,10 @@ export default function AdminRegistrationsPage() {
               </Card>
             )}
 
-            {rows.filter(r => r.status === "waitlisted").length > 0 && (
+            {groupedByStatus.waitlisted.length > 0 && (
               <Card id="waitlisted-section" className="border-slate-200/70">
                 <CardHeader>
-                  <CardTitle>⏳ 대기 ({rows.filter(r => r.status === "waitlisted").length})</CardTitle>
+                  <CardTitle>⏳ 대기 ({groupedByStatus.waitlisted.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -530,7 +596,7 @@ export default function AdminRegistrationsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rows.filter(r => r.status === "waitlisted").map((row) => (
+                      {groupedByStatus.waitlisted.map((row) => (
                         <TableRow key={row.id}>
                           <TableCell className="font-medium">{row.nickname}</TableCell>
                           <TableCell>
@@ -564,14 +630,7 @@ export default function AdminRegistrationsPage() {
                           </TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
                           <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              <Button onClick={() => updateStatus(row.id, "approved")} size="sm" variant="ghost">
-                                승인
-                              </Button>
-                              <Button onClick={() => updateStatus(row.id, "canceled")} size="sm" variant="ghost">
-                                취소
-                              </Button>
-                            </div>
+                            {renderStatusActions(row)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -581,10 +640,10 @@ export default function AdminRegistrationsPage() {
               </Card>
             )}
 
-            {rows.filter(r => r.status === "canceled").length > 0 && (
+            {groupedByStatus.canceled.length > 0 && (
               <Card id="canceled-section" className="border-slate-200/70">
                 <CardHeader>
-                  <CardTitle>❌ 취소 ({rows.filter(r => r.status === "canceled").length})</CardTitle>
+                  <CardTitle>❌ 취소 ({groupedByStatus.canceled.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -597,10 +656,11 @@ export default function AdminRegistrationsPage() {
                         <TableHead>식사 메뉴</TableHead>
                         <TableHead>참여 활동</TableHead>
                         <TableHead>메모</TableHead>
+                        <TableHead>변경</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rows.filter(r => r.status === "canceled").map((row) => (
+                      {groupedByStatus.canceled.map((row) => (
                         <TableRow key={row.id}>
                           <TableCell className="font-medium">{row.nickname}</TableCell>
                           <TableCell>
@@ -633,6 +693,9 @@ export default function AdminRegistrationsPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                          <TableCell>
+                            {renderStatusActions(row)}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

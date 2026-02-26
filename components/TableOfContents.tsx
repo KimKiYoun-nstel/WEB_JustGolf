@@ -76,7 +76,7 @@ export function TableOfContents({
       </div>
 
       {/* PC: 고정 사이드바 */}
-      <div className="hidden md:block fixed right-4 top-24 w-64 max-h-[calc(100vh-120px)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4">
+      <div className="hidden md:block fixed right-4 top-24 z-40 w-64 max-h-[calc(100vh-120px)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-lg">
         <h3 className="mb-4 font-bold text-slate-900">{panelTitle}</h3>
         <nav className="space-y-1">
           {items.map((item) => (
