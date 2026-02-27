@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../lib/supabaseClient";
@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "../../../components/ui/table";
 import { useToast } from "../../../components/ui/toast";
-import { TableOfContents, useTableOfContents, type TOCItem } from "../../../components/TableOfContents";
+import { useTableOfContents, type TOCItem } from "../../../components/TableOfContents";
 
 type Tournament = {
   id: number;
@@ -1250,11 +1250,17 @@ export default function TournamentDetailPage() {
   ];
 
   const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+  const scrollToSection = useCallback((sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (!element) return;
+    const top = element.getBoundingClientRect().top + window.scrollY - 132;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, []);
 
   if (isDeletedTournament) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+      <main className="min-h-screen bg-[#F2F4F7]">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-10">
               <p className="text-sm text-red-700">해당 대회는 접근할 수 없습니다.</p>
@@ -1271,9 +1277,51 @@ export default function TournamentDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <TableOfContents items={tocItems} activeSection={activeSection} />
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <section className="border-b border-slate-100 bg-white px-6 pb-7 pt-10">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">
+            REGISTRATION EDIT
+          </p>
+          <h1 className="mt-2 text-2xl font-bold text-slate-900 md:text-3xl">
+            {t?.title ?? "Tournament"}
+          </h1>
+          {t ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Badge className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {formatTournamentStatus(t.status)}
+              </Badge>
+              <span className="text-xs font-semibold text-slate-500">{t.event_date}</span>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      {t ? (
+        <nav className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-6 py-2">
+            {tocItems.map((item) => {
+              const active = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => scrollToSection(item.id)}
+                  className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                    active
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      ) : null}
+
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-7">
         {!t ? (
           <Card>
             <CardContent className="py-10">
@@ -1282,7 +1330,10 @@ export default function TournamentDetailPage() {
           </Card>
         ) : (
           <>
-            <Card id="tournament-info" className="border-slate-200/70">
+            <Card
+              id="tournament-info"
+              className="rounded-[30px] border border-slate-100 bg-white shadow-sm"
+            >
               <CardHeader>
                 <CardTitle className="flex items-center justify-between gap-3">
                   <span>{t.title}</span>
@@ -1311,7 +1362,7 @@ export default function TournamentDetailPage() {
               </CardContent>
             </Card>
 
-            <div id="main-registration" className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+            <div id="main-registration" className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
               <div className="flex justify-center lg:hidden">
                 <Button
                   onClick={() => setIsApplySheetOpen(true)}
@@ -1331,7 +1382,7 @@ export default function TournamentDetailPage() {
               )}
 
               <Card
-                className={`border-slate-200/70 ${
+                className={`rounded-[30px] border border-slate-100 bg-white shadow-sm ${
                   isApplySheetOpen
                     ? "fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl lg:static lg:max-h-none lg:rounded-xl lg:inset-auto"
                     : "hidden lg:block"
@@ -1583,7 +1634,7 @@ export default function TournamentDetailPage() {
 
               {/* 내 참가자 목록 (등록한 참가자가 있을 때만 표시) */}
               {user && myParticipantList.length > 0 && (
-                <Card className="border-slate-200/70">
+                <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
                   <CardHeader>
                     <CardTitle>내 참가자 목록</CardTitle>
                     <CardDescription>
@@ -1688,7 +1739,7 @@ export default function TournamentDetailPage() {
 
               {/* 제3자 정보 수정 다이얼로그 */}
               {user && editingParticipant && (
-                <Card className="border-blue-200 bg-blue-50/30">
+                <Card className="rounded-[30px] border border-blue-100 bg-white shadow-sm">
                   <CardHeader>
                     <CardTitle className="text-blue-900">제3자 정보 수정</CardTitle>
                     <CardDescription>
@@ -1840,7 +1891,7 @@ export default function TournamentDetailPage() {
                   )}
 
                   <Card
-                    className={`border-slate-200/70 ${
+                    className={`rounded-[30px] border border-slate-100 bg-white shadow-sm ${
                       isAddParticipantSheetOpen
                         ? "fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl lg:static lg:max-h-none lg:rounded-xl lg:inset-auto"
                         : "hidden lg:block"
@@ -1997,7 +2048,7 @@ export default function TournamentDetailPage() {
             </div>
 
             {user && (
-              <Card className="border-slate-200/70">
+              <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle>경품 지원하기</CardTitle>
                   <CardDescription>
@@ -2082,7 +2133,10 @@ export default function TournamentDetailPage() {
               </Card>
             )}
 
-            <Card id="files-section" className="border-slate-200/70">
+            <Card
+              id="files-section"
+              className="rounded-[30px] border border-slate-100 bg-white shadow-sm"
+            >
               <CardHeader>
                 <CardTitle>첨부파일</CardTitle>
                 <CardDescription>조편성/안내 파일을 확인하세요.</CardDescription>
@@ -2153,7 +2207,10 @@ export default function TournamentDetailPage() {
                       )
                     : undefined;
                   return (
-                    <Card key={se.id} className="border-slate-200/70">
+                    <Card
+                      key={se.id}
+                      className="rounded-[30px] border border-slate-100 bg-white shadow-sm"
+                    >
                       <CardHeader>
                         <CardTitle className="flex items-center justify-between gap-3">
                           <span>
@@ -2176,7 +2233,7 @@ export default function TournamentDetailPage() {
                           <p className="text-sm text-slate-600">{se.notes}</p>
                         )}
 
-                        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+                        <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
                           <div className="space-y-3">
                             <h3 className="font-medium">라운드 신청</h3>
 

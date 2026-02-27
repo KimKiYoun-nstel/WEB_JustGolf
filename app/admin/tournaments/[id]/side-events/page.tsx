@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -346,7 +346,7 @@ export default function AdminSideEventsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
+      <main className="min-h-screen bg-[#F2F4F7]">
         <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <p className="text-sm text-slate-500">로딩중...</p>
         </div>
@@ -356,7 +356,7 @@ export default function AdminSideEventsPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
+      <main className="min-h-screen bg-[#F2F4F7]">
         <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
@@ -372,7 +372,7 @@ export default function AdminSideEventsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
+    <main className="min-h-screen bg-[#F2F4F7]">
       <TableOfContents
         items={tocItems}
         activeSection={activeSection}
@@ -390,7 +390,7 @@ export default function AdminSideEventsPage() {
           </Button>
         </div>
 
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>
               {editingId ? "라운드 수정" : "새 라운드 추가"}
@@ -557,7 +557,7 @@ export default function AdminSideEventsPage() {
         </Card>
 
         {sideEvents.length === 0 ? (
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10 text-center">
               <p className="text-sm text-slate-500">등록된 라운드가 없습니다.</p>
             </CardContent>
@@ -570,7 +570,7 @@ export default function AdminSideEventsPage() {
                 {groupedByRoundType.pre.map((se) => {
                   const seRegs = sideEventRegs.get(se.id) ?? [];
                   return (
-                    <Card key={se.id} className="border-slate-200/70">
+                    <Card key={se.id} className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                       <CardHeader>
                         <div className="flex items-center justify-between gap-3">
                           <CardTitle>
@@ -670,7 +670,7 @@ export default function AdminSideEventsPage() {
                 {groupedByRoundType.post.map((se) => {
                   const seRegs = sideEventRegs.get(se.id) ?? [];
                   return (
-                    <Card key={se.id} className="border-slate-200/70">
+                    <Card key={se.id} className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                       <CardHeader>
                         <div className="flex items-center justify-between gap-3">
                           <CardTitle>

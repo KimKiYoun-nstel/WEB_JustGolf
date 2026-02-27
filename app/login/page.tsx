@@ -3,39 +3,41 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
 import { getUserFriendlyError } from "../../lib/errorHandler";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useToast } from "../../components/ui/toast";
+
+type EmailCheckResult = {
+  exists: boolean;
+  profileExists: boolean;
+};
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const supabase = createClient();
+  const { toast } = useToast();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [msg, setMsg] = useState<string>("");
+  const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
-  const supabase = createClient();
-  const { toast } = useToast();
 
-  // 이미 로그인하면 자동으로 /start로 리다이렉트
   useEffect(() => {
     if (!authLoading && user) {
-      const onboardingCompleted =
-        user.user_metadata?.onboarding_completed === true;
+      const onboardingCompleted = user.user_metadata?.onboarding_completed === true;
       router.push(onboardingCompleted ? "/start" : "/auth/onboarding");
     }
-  }, [user, authLoading, router]);
+  }, [authLoading, router, user]);
 
-  // 저장된 이메일 불러오기
   useEffect(() => {
     const savedEmail = localStorage.getItem("rememberedEmail");
     if (savedEmail) {
@@ -43,7 +45,6 @@ function LoginForm() {
       setRememberMe(true);
     }
 
-    // URL에서 메시지 읽기 (예: middleware에서 리다이렉트할 때)
     const urlMessage = searchParams.get("message");
     if (urlMessage) {
       setMsg(urlMessage);
@@ -71,10 +72,17 @@ function LoginForm() {
 
   useEffect(() => {
     if (!msg) return;
-    if (/(요청 중|처리 중)\.{3}$/.test(msg)) return;
+    if (msg.includes("요청 중") || msg.includes("처리 중")) return;
 
-    const isSuccess = /성공|완료|로그인할 수 있습니다/.test(msg);
-    const isError = /실패|오류|필요|없습니다|중복|확인/.test(msg);
+    const isSuccess =
+      msg.includes("성공") || msg.includes("완료") || msg.includes("로그인할 수 있습니다");
+    const isError =
+      msg.includes("실패") ||
+      msg.includes("오류") ||
+      msg.includes("필요") ||
+      msg.includes("없습니다") ||
+      msg.includes("중복") ||
+      msg.includes("확인");
 
     toast({
       variant: isSuccess ? "success" : isError ? "error" : "default",
@@ -103,24 +111,41 @@ function LoginForm() {
         }),
       });
     } catch {
-      // 로깅 실패는 사용자 흐름에 영향 주지 않음
+      // 로깅 실패는 사용자 흐름을 막지 않음
     }
   };
 
   const syncAutoApproval = async () => {
     try {
-      await fetch("/api/auth/sync-approval", {
-        method: "POST",
-      });
+      await fetch("/api/auth/sync-approval", { method: "POST" });
     } catch {
       // 동기화 실패는 로그인/회원가입 흐름을 막지 않음
     }
   };
 
-  const getEmailConflictMessage = (check: {
-    exists: boolean;
-    profileExists: boolean;
-  }) => {
+  const checkEmailExists = async (emailToCheck: string): Promise<EmailCheckResult | null> => {
+    if (!emailToCheck) return null;
+
+    try {
+      const response = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailToCheck }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return null;
+
+      return {
+        exists: Boolean(data?.exists),
+        profileExists: Boolean(data?.profileExists),
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const getEmailConflictMessage = (check: EmailCheckResult) => {
     if (check.exists) {
       return "이미 이메일로 가입된 계정입니다. 로그인 후 프로필에서 카카오 계정 연동을 진행해주세요.";
     }
@@ -135,7 +160,7 @@ function LoginForm() {
   const signUp = async () => {
     setMsg("");
     setLoading(true);
-    
+
     try {
       setMsg("회원가입 요청 중...");
       const normalizedEmail = email.trim().toLowerCase();
@@ -182,9 +207,7 @@ function LoginForm() {
       }
 
       if (!available) {
-        setMsg(
-          "이미 사용 중인 닉네임입니다. 이메일이 달라도 닉네임은 중복 사용할 수 없습니다."
-        );
+        setMsg("이미 사용 중인 닉네임입니다. 다른 닉네임을 사용해주세요.");
         await logAuthFailure({
           action: "signup_submit",
           message: "회원가입 실패: 닉네임 중복",
@@ -198,7 +221,6 @@ function LoginForm() {
       const emailCheck = await checkEmailExists(normalizedEmail);
       if (emailCheck) {
         const emailConflictMessage = getEmailConflictMessage(emailCheck);
-
         if (emailConflictMessage) {
           setMsg(`회원가입 실패: ${emailConflictMessage}`);
           await logAuthFailure({
@@ -214,7 +236,7 @@ function LoginForm() {
           return;
         }
       }
-      
+
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
@@ -252,9 +274,8 @@ function LoginForm() {
 
       await syncAutoApproval();
 
-      // Trigger가 profile을 자동 생성 - 재시도 로직으로 생성 대기
-      let profileCheck = null;
-      let lastError = null;
+      let profileCheck: { is_approved?: boolean } | null = null;
+      let lastError: { code?: string; message?: string } | null = null;
       const maxRetries = 5;
       const retryDelayMs = 500;
 
@@ -280,10 +301,9 @@ function LoginForm() {
       const approvalRequiredValue = approvalRequired ?? true;
 
       if (!profileCheck) {
-        // 5회 재시도 후에도 실패했으면 생성 대기 중일 가능성
         await logAuthFailure({
           action: "signup_submit",
-          message: "회원가입 후 profiles 동기화 지연",
+          message: "회원가입 실패: profiles 동기화 지연",
           errorCode: lastError?.code ?? "profile_sync_delayed",
           details: { lastErrorMessage: lastError?.message ?? null },
         });
@@ -306,7 +326,9 @@ function LoginForm() {
       setMsg(
         `회원가입 완료! ${
           approvalRequiredValue
-            ? (profileCheck.is_approved ? "로그인할 수 있습니다." : "관리자 승인 후 로그인할 수 있습니다.")
+            ? profileCheck.is_approved
+              ? "로그인할 수 있습니다."
+              : "관리자 승인 후 로그인할 수 있습니다."
             : "로그인할 수 있습니다."
         }`
       );
@@ -320,28 +342,6 @@ function LoginForm() {
         details: { errorMessage: String(err) },
       });
       setLoading(false);
-    }
-  };
-
-  const checkEmailExists = async (emailToCheck: string) => {
-    if (!emailToCheck) return null;
-
-    try {
-      const response = await fetch("/api/auth/check-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailToCheck }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) return null;
-
-      return {
-        exists: Boolean(data?.exists),
-        profileExists: Boolean(data?.profileExists),
-      };
-    } catch {
-      return null;
     }
   };
 
@@ -365,17 +365,17 @@ function LoginForm() {
   const signIn = async () => {
     setMsg("");
     setLoading(true);
-    
+
     try {
       setMsg("로그인 요청 중...");
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
+
       if (error) {
-        const rawMessage = error?.message ?? "";
+        const rawMessage = error.message ?? "";
 
         if (rawMessage.includes("Invalid login credentials")) {
           const emailCheck = await checkEmailExists(email.trim().toLowerCase());
@@ -391,14 +391,12 @@ function LoginForm() {
               setMsg("로그인 실패: 존재하지 않는 계정입니다.");
             }
           } else {
-            const errorMsg = getUserFriendlyError(error, "signIn");
-            setMsg(`로그인 실패: ${errorMsg}`);
+            setMsg(`로그인 실패: ${getUserFriendlyError(error, "signIn")}`);
           }
         } else if (rawMessage.toLowerCase().includes("email not confirmed")) {
           setMsg("로그인 실패: 이메일 인증이 필요합니다.");
         } else {
-          const errorMsg = getUserFriendlyError(error, "signIn");
-          setMsg(`로그인 실패: ${errorMsg}`);
+          setMsg(`로그인 실패: ${getUserFriendlyError(error, "signIn")}`);
         }
 
         await logAuthFailure({
@@ -432,17 +430,14 @@ function LoginForm() {
 
       await syncAutoApproval();
 
-      // 로그인 정보 기억하기
       if (rememberMe) {
         localStorage.setItem("rememberedEmail", email);
       } else {
         localStorage.removeItem("rememberedEmail");
       }
 
-      // 로그인 성공 - 클라이언트 사이드 네비게이션
       setMsg("로그인 성공! 이동 중...");
-      const onboardingCompleted =
-        data.user.user_metadata?.onboarding_completed === true;
+      const onboardingCompleted = data.user.user_metadata?.onboarding_completed === true;
       setTimeout(() => {
         router.push(onboardingCompleted ? "/start" : "/auth/onboarding");
       }, 300);
@@ -458,45 +453,51 @@ function LoginForm() {
     }
   };
 
-
-
   return (
-    <main className="min-h-screen bg-slate-50/70 px-6 py-12">
-      <Card className="mx-auto w-full max-w-md border-slate-200/70 shadow-lg shadow-slate-200/40">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">로그인 / 회원가입</CardTitle>
+    <main className="min-h-screen bg-[#F9FAFB] px-6 py-12">
+      <div className="mx-auto w-full max-w-md rounded-[30px] border border-slate-200/70 bg-white p-8 shadow-sm md:p-10">
+        <div className="mb-8 flex items-center justify-center">
+          <span className="text-2xl font-bold tracking-tight text-slate-900">Just Golf</span>
+        </div>
+
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-slate-900">로그인 / 회원가입</h1>
           <p className="text-sm text-slate-500">
-            이메일 인증을 끈 상태라면 바로 로그인됩니다.
+            기존 계정으로 로그인하거나 새 계정을 등록하세요.
           </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+
+        <div className="mt-8 space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">이메일</label>
+            <label className="text-sm font-medium text-slate-700">이메일</label>
             <Input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@company.com"
               disabled={loading}
+              className="h-12 rounded-2xl border-slate-200 bg-slate-50"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">비밀번호</label>
+            <label className="text-sm font-medium text-slate-700">비밀번호</label>
             <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
+              className="h-12 rounded-2xl border-slate-200 bg-slate-50"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">닉네임(회원가입 시)</label>
+            <label className="text-sm font-medium text-slate-700">닉네임 (회원가입 시)</label>
             <Input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="닉네임"
               disabled={loading}
+              className="h-12 rounded-2xl border-slate-200 bg-slate-50"
             />
           </div>
 
@@ -514,11 +515,20 @@ function LoginForm() {
             </label>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={signIn} disabled={loading}>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={signIn}
+              disabled={loading}
+              className="h-12 rounded-2xl bg-green-600 font-bold hover:bg-green-700"
+            >
               {loading ? "처리 중..." : "로그인"}
             </Button>
-            <Button onClick={signUp} variant="secondary" disabled={loading}>
+            <Button
+              onClick={signUp}
+              variant="secondary"
+              disabled={loading}
+              className="h-12 rounded-2xl font-bold"
+            >
               {loading ? "처리 중..." : "회원가입"}
             </Button>
           </div>
@@ -535,33 +545,33 @@ function LoginForm() {
           <Button
             onClick={signInWithKakao}
             disabled={loading}
-            className="w-full bg-yellow-400 text-slate-900 hover:bg-yellow-300"
+            className="h-12 w-full rounded-2xl bg-[#FEE500] font-bold text-slate-900 hover:bg-[#f4dd00]"
           >
             {loading ? "처리 중..." : "카카오로 시작하기"}
           </Button>
-          <p className="text-xs text-slate-500">
-            기존 이메일 계정과 카카오 계정을 합치려면 이메일 로그인 후 프로필의
-            카카오 계정 연동 기능을 사용하세요.
-          </p>
 
-        </CardContent>
-      </Card>
+          <p className="text-xs leading-relaxed text-slate-500">
+            이메일 계정과 카카오 계정을 함께 사용하려면 로그인 후 프로필에서 계정 연동 기능을 사용하세요.
+          </p>
+        </div>
+      </div>
     </main>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen bg-slate-50/70 px-6 py-12">
-        <Card className="mx-auto w-full max-w-md border-slate-200/70 shadow-lg shadow-slate-200/40">
-          <CardContent className="py-10">
-            <p className="text-sm text-slate-500">로딩중...</p>
-          </CardContent>
-        </Card>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#F9FAFB] px-6 py-12">
+          <div className="mx-auto w-full max-w-md rounded-[30px] border border-slate-200/70 bg-white p-10 shadow-sm">
+            <p className="text-sm text-slate-500">로딩 중...</p>
+          </div>
+        </main>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
 }
+
