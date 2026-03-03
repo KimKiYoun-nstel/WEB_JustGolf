@@ -91,8 +91,8 @@ export default function AdminTournamentLayout({
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-3 py-6 md:px-4 lg:px-6">
-        <Card className="mx-auto max-w-7xl border-slate-200/70 p-6">
+      <main className="min-h-screen bg-[#F2F4F7] px-3 py-6 md:px-4 lg:px-6">
+        <Card className="mx-auto max-w-7xl rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
           <p className="text-sm text-slate-500">濡쒕뵫 以?..</p>
         </Card>
       </main>
@@ -101,8 +101,8 @@ export default function AdminTournamentLayout({
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-3 py-6 md:px-4 lg:px-6">
-        <Card className="mx-auto max-w-7xl border-slate-200/70 p-6">
+      <main className="min-h-screen bg-[#F2F4F7] px-3 py-6 md:px-4 lg:px-6">
+        <Card className="mx-auto max-w-7xl rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
           <p className="text-sm text-slate-600">愿由ъ옄 沅뚰븳???놁뒿?덈떎.</p>
           <Button asChild variant="outline" className="mt-4">
             <Link href="/admin">??쒕낫?쒕줈 ?대룞</Link>
@@ -113,9 +113,9 @@ export default function AdminTournamentLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-7xl flex-col px-3 md:px-4 lg:px-6">
-        <header className="sticky top-16 z-40 mb-2 border-b border-slate-200/70 bg-slate-50/95 py-1.5 backdrop-blur">
+    <div className="min-h-screen bg-[#F2F4F7] text-slate-800">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col px-3 md:px-4 lg:px-6">
+        <header className="sticky top-16 z-40 mb-2 border-b border-slate-200/70 bg-white/95 py-1.5 backdrop-blur">
           <div className="flex items-center gap-3">
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">

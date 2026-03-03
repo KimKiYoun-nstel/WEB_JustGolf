@@ -149,14 +149,14 @@ export default function AdminTournamentGroupsPage() {
       await loadAll();
     };
 
-    checkAdminAndLoad();
+    void checkAdminAndLoad();
   }, [tournamentId, user?.id, authLoading, loadAll]);
 
   useEffect(() => {
     if (!msg) return;
 
-    const isSuccess = /완료|저장|삭제되었습니다|공개/.test(msg);
-    const isError = /실패|오류|없습니다|필요/.test(msg);
+    const isSuccess = /(완료|저장|삭제|공개|비공개)/.test(msg);
+    const isError = /(실패|오류|없습니다|필요)/.test(msg);
 
     toast({
       variant: isSuccess ? "success" : isError ? "error" : "default",
@@ -165,11 +165,11 @@ export default function AdminTournamentGroupsPage() {
     setMsg("");
   }, [msg, toast]);
 
-
   const createGroup = async () => {
     const supabase = createClient();
     setMsg("");
     const nextNo = groups.length > 0 ? Math.max(...groups.map((g) => g.group_no)) + 1 : 1;
+
     const { error } = await supabase.from("tournament_groups").insert({
       tournament_id: tournamentId,
       group_no: nextNo,
@@ -187,6 +187,7 @@ export default function AdminTournamentGroupsPage() {
   const updateGroup = async (group: Group) => {
     const supabase = createClient();
     setMsg("");
+
     const { error } = await supabase
       .from("tournament_groups")
       .update({ tee_time: group.tee_time })
@@ -203,6 +204,7 @@ export default function AdminTournamentGroupsPage() {
   const togglePublish = async (group: Group) => {
     const supabase = createClient();
     setMsg("");
+
     const { error } = await supabase
       .from("tournament_groups")
       .update({ is_published: !group.is_published })
@@ -219,13 +221,14 @@ export default function AdminTournamentGroupsPage() {
   const setAllPublish = async (nextState: boolean) => {
     const supabase = createClient();
     setMsg("");
+
     const { error } = await supabase
       .from("tournament_groups")
       .update({ is_published: nextState })
       .eq("tournament_id", tournamentId);
 
     if (error) {
-      setMsg(`일괄 공개 변경 실패: ${error.message}`);
+      setMsg(`전체 공개 상태 변경 실패: ${error.message}`);
       return;
     }
 
@@ -235,13 +238,10 @@ export default function AdminTournamentGroupsPage() {
   const deleteGroup = async (group: Group) => {
     const supabase = createClient();
     const hasMembers = members.some((m) => m.group_id === group.id);
-    if (hasMembers) {
-      const ok = confirm("배정된 멤버가 있습니다. 그래도 삭제할까요?");
-      if (!ok) return;
-    } else {
-      const ok = confirm("이 조를 삭제할까요?");
-      if (!ok) return;
-    }
+    const ok = hasMembers
+      ? confirm("배정된 멤버가 있습니다. 그래도 삭제할까요?")
+      : confirm("이 조를 삭제할까요?");
+    if (!ok) return;
 
     const { error } = await supabase
       .from("tournament_groups")
@@ -256,11 +256,7 @@ export default function AdminTournamentGroupsPage() {
     await loadAll();
   };
 
-  const updateMember = async (
-    groupId: number,
-    position: number,
-    registrationId: number | null
-  ) => {
+  const updateMember = async (groupId: number, position: number, registrationId: number | null) => {
     const supabase = createClient();
     setMsg("");
 
@@ -280,7 +276,6 @@ export default function AdminTournamentGroupsPage() {
       return;
     }
 
-    // Remove existing assignment for this registration
     await supabase
       .from("tournament_group_members")
       .delete()
@@ -294,7 +289,7 @@ export default function AdminTournamentGroupsPage() {
           registration_id: registrationId,
           position,
         },
-        { onConflict: "group_id,position" }
+        { onConflict: "group_id,position" },
       );
 
     if (error) {
@@ -306,9 +301,7 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const updateGroupField = (groupId: number, field: "tee_time", value: string) => {
-    setGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, [field]: value } : g))
-    );
+    setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, [field]: value } : g)));
   };
 
   const memberFor = (groupId: number, position: number) =>
@@ -316,11 +309,11 @@ export default function AdminTournamentGroupsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
-          <Card className="border-slate-200/70">
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩중...</p>
+              <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
           </Card>
         </div>
@@ -330,9 +323,9 @@ export default function AdminTournamentGroupsPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
-          <Card className="border-red-200 bg-red-50">
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -346,21 +339,21 @@ export default function AdminTournamentGroupsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">조편성 관리</h1>
+            <h1 className="text-2xl font-bold">조 편성 관리</h1>
             <p className="text-sm text-slate-500">
               확정 참가자를 조에 배정하고 공개 여부를 설정합니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={createGroup}>조 추가</Button>
-            <Button variant="outline" onClick={() => setAllPublish(true)}>
+            <Button onClick={() => void createGroup()}>조 추가</Button>
+            <Button variant="outline" onClick={() => void setAllPublish(true)}>
               전체 공개
             </Button>
-            <Button variant="outline" onClick={() => setAllPublish(false)}>
+            <Button variant="outline" onClick={() => void setAllPublish(false)}>
               전체 비공개
             </Button>
             <Button asChild variant="outline">
@@ -370,15 +363,15 @@ export default function AdminTournamentGroupsPage() {
         </div>
 
         {groups.length === 0 ? (
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10 text-center text-sm text-slate-500">
-              아직 조가 없습니다. &quot;조 추가&quot; 버튼을 눌러 생성하세요.
+              아직 조가 없습니다. &quot;조 추가&quot; 버튼으로 생성해 주세요.
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-4">
             {groups.map((group) => (
-              <Card key={group.id} className="border-slate-200/70">
+              <Card key={group.id} className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                 <details className="group">
                   <summary className="cursor-pointer select-none [&>*]:pointer-events-none">
                     <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -388,20 +381,21 @@ export default function AdminTournamentGroupsPage() {
                           {group.is_published ? "공개" : "비공개"}
                         </Badge>
                         <span className="text-sm font-normal text-slate-500 group-open:hidden">
-                          ({members.filter(m => m.group_id === group.id).length}명)
+                          ({members.filter((m) => m.group_id === group.id).length}명)
                         </span>
                       </CardTitle>
                     </CardHeader>
                   </summary>
+
                   <CardContent className="space-y-4 pt-0">
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Button size="sm" variant="outline" onClick={() => togglePublish(group)}>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => void togglePublish(group)}>
                         {group.is_published ? "비공개" : "공개"}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => updateGroup(group)}>
+                      <Button size="sm" variant="outline" onClick={() => void updateGroup(group)}>
                         티오프 저장
                       </Button>
-                      <Button size="sm" variant="destructive" onClick={() => deleteGroup(group)}>
+                      <Button size="sm" variant="destructive" onClick={() => void deleteGroup(group)}>
                         삭제
                       </Button>
                     </div>
@@ -424,13 +418,13 @@ export default function AdminTournamentGroupsPage() {
                           <div key={position} className="space-y-2">
                             <label className="text-sm font-medium">{position}번</label>
                             <select
-                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                              className="flex h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1 text-sm"
                               value={member?.registration_id ?? ""}
                               onChange={(e) =>
-                                updateMember(
+                                void updateMember(
                                   group.id,
                                   position,
-                                  e.target.value ? Number(e.target.value) : null
+                                  e.target.value ? Number(e.target.value) : null,
                                 )
                               }
                             >

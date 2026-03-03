@@ -622,12 +622,12 @@ export default function AdminTournamentDrawPage() {
   const canMove = Boolean(state && assignedMembers.length > 0);
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 md:px-5">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">라이브 조편성 관리</h1>
-            <p className="text-xs text-slate-500">
+            <h1 className="text-3xl font-semibold text-slate-900">라이브 조편성 관리</h1>
+            <p className="text-sm text-slate-500">
               세션 시작, 스텝 진행, 당첨/확정, 이동/되돌리기를 수행합니다.
             </p>
           </div>
@@ -642,19 +642,19 @@ export default function AdminTournamentDrawPage() {
         </div>
 
         {msg && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="rounded-[28px] border border-red-200 bg-red-50 shadow-sm">
             <CardContent className="py-2 text-sm text-red-700">{msg}</CardContent>
           </Card>
         )}
 
         {loading ? (
-          <Card>
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-6 text-sm text-slate-500">로딩 중...</CardContent>
           </Card>
         ) : (
           <>
             {!session ? (
-              <Card className="border-slate-200/70">
+              <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-lg">라이브 세션 시작</CardTitle>
                 </CardHeader>
@@ -685,7 +685,7 @@ export default function AdminTournamentDrawPage() {
             ) : (
               <>
                 <div className="grid items-start gap-2 lg:grid-cols-[2fr_1fr]">
-                  <Card className="border-slate-200/70">
+                  <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                     <CardHeader className="px-3 py-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <CardTitle className="text-sm">진행 컨트롤</CardTitle>
@@ -838,7 +838,7 @@ export default function AdminTournamentDrawPage() {
                     </CardContent>
                   </Card>
 
-                  <Card className="border-slate-200/70">
+                  <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                     <CardHeader className="px-3 py-1.5">
                       <CardTitle className="text-sm">재편성(멤버 이동)</CardTitle>
                     </CardHeader>
@@ -922,7 +922,7 @@ export default function AdminTournamentDrawPage() {
 
                 {state && (
                   <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
-                    <Card className="border-slate-200/70">
+                    <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between gap-2">
                           <CardTitle className="text-lg">조 편성 현황</CardTitle>
@@ -932,7 +932,7 @@ export default function AdminTournamentDrawPage() {
                               <button
                                 type="button"
                                 onClick={() => setMobileGroupsPanelOpen((prev) => !prev)}
-                                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600"
+                                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
                               >
                                 {mobileGroupsPanelOpen ? "접기" : "펼치기"}
                               </button>
@@ -952,7 +952,7 @@ export default function AdminTournamentDrawPage() {
                               return (
                                 <div
                                   key={groupNo}
-                                  className={`rounded-lg border p-2 transition-colors ${
+                                  className={`rounded-2xl border p-2 transition-colors ${
                                     isGroupLocked
                                       ? "border-emerald-300 bg-emerald-50"
                                       : "border-slate-200 bg-white"
@@ -987,7 +987,7 @@ export default function AdminTournamentDrawPage() {
                       ) : null}
                     </Card>
 
-                    <Card className="border-slate-200/70">
+                    <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between gap-2">
                           <CardTitle className="text-lg">남은 추첨 대상</CardTitle>
@@ -997,7 +997,7 @@ export default function AdminTournamentDrawPage() {
                               <button
                                 type="button"
                                 onClick={() => setMobileRemainingPanelOpen((prev) => !prev)}
-                                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600"
+                                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
                               >
                                 {mobileRemainingPanelOpen ? "접기" : "펼치기"}
                               </button>

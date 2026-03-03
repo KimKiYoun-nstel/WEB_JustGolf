@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../../../lib/supabaseClient";
-
 import { useAuth } from "../../../../../lib/auth";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -58,7 +57,7 @@ export default function TournamentExtrasPage() {
   const { toast } = useToast();
 
   const friendlyError = (error: { code?: string; message: string }) => {
-    if (error.code === "23505") return "이미 같은 이름의 활동이 있습니다.";
+    if (error.code === "23505") return "이미 동일한 이름의 활동이 있습니다.";
     if (error.code === "42501" || error.message.toLowerCase().includes("permission")) {
       return "권한이 없습니다. 관리자만 접근 가능합니다.";
     }
@@ -68,8 +67,7 @@ export default function TournamentExtrasPage() {
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
     if (loading) return;
-
-    checkAdmin();
+    void checkAdmin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, loading, user]);
 
@@ -98,7 +96,6 @@ export default function TournamentExtrasPage() {
   const fetchData = async () => {
     const supabase = createClient();
 
-    // 1. 토너먼트 정보
     const tRes = await supabase
       .from("tournaments")
       .select("id,title,event_date")
@@ -115,7 +112,6 @@ export default function TournamentExtrasPage() {
     }
     setT(tRes.data as Tournament);
 
-    // 2. 활동 목록
     const extrasRes = await supabase
       .from("tournament_extras")
       .select("id,activity_name,description,display_order,is_active")
@@ -129,31 +125,27 @@ export default function TournamentExtrasPage() {
         title: "활동 조회 실패",
         description: friendlyError(extrasRes.error),
       });
-    } else {
-      setExtras((extrasRes.data ?? []) as TournamentExtra[]);
+      return;
     }
+
+    setExtras((extrasRes.data ?? []) as TournamentExtra[]);
   };
 
   const addActivity = async () => {
     const supabase = createClient();
-
     const name = activityName.trim();
+
     if (!name) {
-      toast({ variant: "error", title: "활동명을 입력해주세요" });
+      toast({ variant: "error", title: "활동명을 입력해 주세요." });
       return;
     }
 
     if (extras.length >= 3) {
-      toast({
-        variant: "error",
-        title: "활동은 최대 3개까지만 등록할 수 있습니다",
-      });
+      toast({ variant: "error", title: "활동은 최대 3개까지 등록할 수 있습니다." });
       return;
     }
 
-    const nextOrder = extras.length > 0 
-      ? Math.max(...extras.map((e) => e.display_order)) + 1 
-      : 0;
+    const nextOrder = extras.length > 0 ? Math.max(...extras.map((e) => e.display_order)) + 1 : 0;
 
     const { error } = await supabase.from("tournament_extras").insert({
       tournament_id: tournamentId,
@@ -166,21 +158,20 @@ export default function TournamentExtrasPage() {
     if (error) {
       toast({
         variant: "error",
-        title: "추가 실패",
+        title: "활동 추가 실패",
         description: friendlyError(error),
       });
-    } else {
-      toast({ variant: "success", title: "활동이 추가되었습니다" });
-      setActivityName("");
-      setDescription("");
-      await fetchData();
+      return;
     }
+
+    toast({ variant: "success", title: "활동이 추가되었습니다." });
+    setActivityName("");
+    setDescription("");
+    await fetchData();
   };
 
   const deleteActivity = async (id: number) => {
     const supabase = createClient();
-
-    // is_active를 false로 변경 (soft delete)
     const { error } = await supabase.rpc("admin_soft_delete_tournament_extra", {
       extra_id: id,
     });
@@ -188,13 +179,14 @@ export default function TournamentExtrasPage() {
     if (error) {
       toast({
         variant: "error",
-        title: "삭제 실패",
+        title: "활동 삭제 실패",
         description: friendlyError(error),
       });
-    } else {
-      toast({ variant: "success", title: "활동이 삭제되었습니다" });
-      await fetchData();
+      return;
     }
+
+    toast({ variant: "success", title: "활동이 삭제되었습니다." });
+    await fetchData();
   };
 
   const startEdit = (extra: TournamentExtra) => {
@@ -212,12 +204,11 @@ export default function TournamentExtrasPage() {
   const saveEdit = async (id: number) => {
     const name = editingName.trim();
     if (!name) {
-      toast({ variant: "error", title: "활동명을 입력해주세요" });
+      toast({ variant: "error", title: "활동명을 입력해 주세요." });
       return;
     }
 
     const supabase = createClient();
-
     const { error } = await supabase
       .from("tournament_extras")
       .update({
@@ -229,13 +220,13 @@ export default function TournamentExtrasPage() {
     if (error) {
       toast({
         variant: "error",
-        title: "수정 실패",
+        title: "활동 수정 실패",
         description: friendlyError(error),
       });
       return;
     }
 
-    toast({ variant: "success", title: "활동이 수정되었습니다" });
+    toast({ variant: "success", title: "활동이 수정되었습니다." });
     cancelEdit();
     await fetchData();
   };
@@ -243,12 +234,11 @@ export default function TournamentExtrasPage() {
   const moveUp = async (id: number) => {
     const supabase = createClient();
     const idx = extras.findIndex((e) => e.id === id);
-    if (idx === 0) return; // 이미 맨 위
+    if (idx === 0) return;
 
     const current = extras[idx];
     const above = extras[idx - 1];
 
-    // 순서 교체
     await supabase
       .from("tournament_extras")
       .update({ display_order: above.display_order })
@@ -265,12 +255,11 @@ export default function TournamentExtrasPage() {
   const moveDown = async (id: number) => {
     const supabase = createClient();
     const idx = extras.findIndex((e) => e.id === id);
-    if (idx === extras.length - 1) return; // 이미 맨 아래
+    if (idx === extras.length - 1) return;
 
     const current = extras[idx];
     const below = extras[idx + 1];
 
-    // 순서 교체
     await supabase
       .from("tournament_extras")
       .update({ display_order: below.display_order })
@@ -286,9 +275,9 @@ export default function TournamentExtrasPage() {
 
   if (!isAdmin) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
-          <Card>
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">{msg || "권한 확인 중..."}</p>
             </CardContent>
@@ -300,11 +289,11 @@ export default function TournamentExtrasPage() {
 
   if (!t) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
-          <Card>
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩중...</p>
+              <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
           </Card>
         </div>
@@ -313,22 +302,18 @@ export default function TournamentExtrasPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
-        {/* 헤더 */}
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-slate-900">
-            {t.title}
-          </h1>
+          <h1 className="text-3xl font-semibold text-slate-900">{t.title}</h1>
           <p className="text-sm text-slate-500">{t.event_date} · 추가 활동 관리</p>
         </div>
 
-        {/* 활동 추가 */}
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
-            <CardTitle>새 활동 추가</CardTitle>
+            <CardTitle>추가 활동 등록</CardTitle>
             <CardDescription>
-              참가자가 선택할 수 있는 활동을 추가합니다 (최대 3개).
+              참가자가 선택할 수 있는 추가 활동을 등록합니다. (최대 3개)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -337,14 +322,15 @@ export default function TournamentExtrasPage() {
               <Input
                 value={activityName}
                 onChange={(e) => setActivityName(e.target.value)}
-                placeholder="예: 와인바우 저녁, 골프존 영상분석"
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                placeholder="예: 드라이버 비거리 분석"
               />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">설명 (선택)</label>
               <textarea
-                className="min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                className="min-h-[80px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="활동에 대한 간단한 설명"
@@ -353,26 +339,19 @@ export default function TournamentExtrasPage() {
 
             <div className="flex items-center gap-3">
               <Button onClick={addActivity}>활동 추가</Button>
-              <Badge variant="outline">
-                {extras.length} / 3개 사용 중
-              </Badge>
+              <Badge variant="outline">{extras.length} / 3개 사용 중</Badge>
             </div>
           </CardContent>
         </Card>
 
-        {/* 활동 목록 */}
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>현재 활동 목록</CardTitle>
-            <CardDescription>
-              순서를 변경하거나 삭제할 수 있습니다.
-            </CardDescription>
+            <CardDescription>순서를 변경하거나 삭제할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent>
             {extras.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                등록된 활동이 없습니다.
-              </p>
+              <p className="text-sm text-slate-500">등록된 활동이 없습니다.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -401,7 +380,7 @@ export default function TournamentExtrasPage() {
                       <TableCell className="text-sm text-slate-600">
                         {editingId === extra.id ? (
                           <textarea
-                            className="min-h-[64px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                            className="min-h-[64px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                             value={editingDescription}
                             onChange={(e) => setEditingDescription(e.target.value)}
                             placeholder="설명"
@@ -414,17 +393,10 @@ export default function TournamentExtrasPage() {
                         <div className="flex justify-center gap-2">
                           {editingId === extra.id ? (
                             <>
-                              <Button
-                                onClick={() => saveEdit(extra.id)}
-                                size="sm"
-                              >
+                              <Button onClick={() => saveEdit(extra.id)} size="sm">
                                 저장
                               </Button>
-                              <Button
-                                onClick={cancelEdit}
-                                size="sm"
-                                variant="outline"
-                              >
+                              <Button onClick={cancelEdit} size="sm" variant="outline">
                                 취소
                               </Button>
                             </>
@@ -436,7 +408,7 @@ export default function TournamentExtrasPage() {
                                 variant="outline"
                                 disabled={idx === 0}
                               >
-                                ↑
+                                위
                               </Button>
                               <Button
                                 onClick={() => moveDown(extra.id)}
@@ -444,13 +416,9 @@ export default function TournamentExtrasPage() {
                                 variant="outline"
                                 disabled={idx === extras.length - 1}
                               >
-                                ↓
+                                아래
                               </Button>
-                              <Button
-                                onClick={() => startEdit(extra)}
-                                size="sm"
-                                variant="secondary"
-                              >
+                              <Button onClick={() => startEdit(extra)} size="sm" variant="secondary">
                                 수정
                               </Button>
                               <Button
@@ -472,7 +440,6 @@ export default function TournamentExtrasPage() {
           </CardContent>
         </Card>
 
-        {/* 돌아가기 */}
         <div className="flex gap-2">
           <Button asChild variant="outline">
             <Link href="/admin/tournaments">대회 목록</Link>

@@ -141,10 +141,14 @@ export default function AdminFilesPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+        <header className="mb-5 space-y-2">
+          <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN FILES</p>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">파일 관리</h1>
+        </header>
         {loading && (
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
             </CardContent>
@@ -152,7 +156,7 @@ export default function AdminFilesPage() {
         )}
 
         {unauthorized && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="rounded-[28px] border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -163,7 +167,7 @@ export default function AdminFilesPage() {
         )}
 
         {!loading && !unauthorized && (
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardHeader>
               <CardTitle>파일 관리</CardTitle>
             </CardHeader>
@@ -176,7 +180,7 @@ export default function AdminFilesPage() {
                 onChange={(e) =>
                   setFileType(e.target.value as TournamentFile["file_type"])
                 }
-                className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
               >
                 <option value="groups">groups</option>
                 <option value="notice">notice</option>

@@ -217,10 +217,14 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+        <header className="mb-5 space-y-2">
+          <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN USERS</p>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">회원 관리</h1>
+        </header>
         {loading && (
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
             </CardContent>
@@ -228,7 +232,7 @@ export default function AdminUsersPage() {
         )}
 
         {unauthorized && (
-          <Card className="border-red-200 bg-red-50">
+          <Card className="rounded-[28px] border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -239,7 +243,7 @@ export default function AdminUsersPage() {
         )}
 
         {!loading && !unauthorized && (
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardHeader>
               <CardTitle>회원 관리</CardTitle>
               <CardDescription>
@@ -247,7 +251,7 @@ export default function AdminUsersPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-slate-800">가입 승인</p>
                   <p className="text-xs text-slate-500">
@@ -263,7 +267,8 @@ export default function AdminUsersPage() {
                   {approvalRequired ? "자동 승인 켜기" : "자동 승인 끄기"}
                 </Button>
               </div>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>닉네임</TableHead>
@@ -355,7 +360,8 @@ export default function AdminUsersPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         )}

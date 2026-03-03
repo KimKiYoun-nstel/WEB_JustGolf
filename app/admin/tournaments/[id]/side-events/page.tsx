@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "../../../../../components/ui/table";
 import { useToast } from "../../../../../components/ui/toast";
-import { TableOfContents, useTableOfContents, type TOCItem } from "../../../../../components/TableOfContents";
+import { useTableOfContents, type TOCItem } from "../../../../../components/TableOfContents";
 
 type SideEvent = {
   id: number;
@@ -36,6 +36,8 @@ type SideEvent = {
   notes: string | null;
   max_participants: number | null;
   status: string;
+  open_at: string | null;
+  close_at: string | null;
   meal_option_id: number | null;
   lodging_available: boolean;
   lodging_required: boolean;
@@ -111,7 +113,7 @@ export default function AdminSideEventsPage() {
       const seRes = await supabase
         .from("side_events")
         .select(
-          "id,tournament_id,round_type,title,tee_time,location,notes,max_participants,status,meal_option_id,lodging_available,lodging_required"
+          "id,tournament_id,round_type,title,tee_time,location,notes,max_participants,status,open_at,close_at,meal_option_id,lodging_available,lodging_required"
         )
         .eq("tournament_id", tournamentId)
         .order("round_type,id", { ascending: true });
@@ -317,8 +319,8 @@ export default function AdminSideEventsPage() {
     setNotes(se.notes ?? "");
     setMaxParticipants(se.max_participants?.toString() ?? "");
     setStatus(se.status as Status);
-    setOpenAt("");
-    setCloseAt("");
+    setOpenAt(toInputDateTime(se.open_at));
+    setCloseAt(toInputDateTime(se.close_at));
     setMealOptionId(se.meal_option_id?.toString() ?? "");
     setLodgingAvailable(se.lodging_available ?? false);
     setLodgingRequired(se.lodging_required ?? false);
@@ -335,6 +337,10 @@ export default function AdminSideEventsPage() {
     pre: sideEvents.filter(se => se.round_type === "pre"),
     post: sideEvents.filter(se => se.round_type === "post"),
   };
+  const mealOptionMap = useMemo(
+    () => new Map(mealOptions.map((option) => [option.id, option.name])),
+    [mealOptions]
+  );
 
   // TableOfContents 아이템
   const tocItems: TOCItem[] = [
@@ -343,6 +349,167 @@ export default function AdminSideEventsPage() {
   ];
 
   const activeSection = useTableOfContents(tocItems.map((item) => item.id));
+  const scrollToSection = useCallback((sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (!element) return;
+    const top = element.getBoundingClientRect().top + window.scrollY - 130;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, []);
+
+  const formatDateTime = useCallback((value: string | null) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, []);
+
+  const renderSideEventCard = useCallback(
+    (se: SideEvent) => {
+      const seRegs = sideEventRegs.get(se.id) ?? [];
+      const mealLabel = se.meal_option_id ? mealOptionMap.get(se.meal_option_id) ?? "선택됨" : "없음";
+
+      return (
+        <Card key={se.id} className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+          <CardHeader className="gap-4 border-b border-slate-100">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle>{se.title}</CardTitle>
+                  <Badge variant="secondary" className="capitalize">
+                    {formatTournamentStatus(se.status)}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                    신청 {seRegs.length}명
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                    식사 {mealLabel}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                    숙박 {se.lodging_available ? (se.lodging_required ? "필수" : "가능") : "없음"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
+                <Button onClick={() => editSideEvent(se)} size="sm" variant="outline" className="flex-1 md:flex-none">
+                  수정
+                </Button>
+                <Button onClick={() => deleteSideEvent(se.id)} size="sm" variant="destructive" className="flex-1 md:flex-none">
+                  삭제
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5 p-5 md:p-6">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <dt className="text-xs font-medium text-slate-500">티타임</dt>
+                <dd className="mt-1 font-medium text-slate-800">{se.tee_time ?? "-"}</dd>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <dt className="text-xs font-medium text-slate-500">위치</dt>
+                <dd className="mt-1 font-medium text-slate-800">{se.location ?? "-"}</dd>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <dt className="text-xs font-medium text-slate-500">최대 인원</dt>
+                <dd className="mt-1 font-medium text-slate-800">{se.max_participants ?? "-"}</dd>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <dt className="text-xs font-medium text-slate-500">신청 오픈/마감</dt>
+                <dd className="mt-1 font-medium text-slate-800">
+                  {formatDateTime(se.open_at)} / {formatDateTime(se.close_at)}
+                </dd>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 sm:col-span-2">
+                <dt className="text-xs font-medium text-slate-500">설명</dt>
+                <dd className="mt-1 font-medium text-slate-800">{se.notes ?? "-"}</dd>
+              </div>
+            </dl>
+
+            <div>
+              <h4 className="mb-3 font-medium">신청 현황 ({seRegs.length})</h4>
+              {seRegs.length === 0 ? (
+                <p className="text-sm text-slate-500">신청자가 없습니다.</p>
+              ) : (
+                <>
+                  <div className="space-y-2 md:hidden">
+                    {seRegs.map((r) => (
+                      <article key={r.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{r.nickname}</p>
+                          <Badge variant="secondary">{formatRegistrationStatus(r.status)}</Badge>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                          <p>식사: {renderTriState(r.meal_selected)}</p>
+                          <p>숙박: {renderTriState(r.lodging_selected)}</p>
+                          <p className="col-span-2">메모: {r.memo ?? "-"}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>닉네임</TableHead>
+                          <TableHead>상태</TableHead>
+                          <TableHead>식사</TableHead>
+                          <TableHead>숙박</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {seRegs.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell>{r.nickname}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">
+                                {formatRegistrationStatus(r.status)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-slate-600">
+                                {renderTriState(r.meal_selected)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-slate-600">
+                                {renderTriState(r.lodging_selected)}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      );
+    },
+    [deleteSideEvent, editSideEvent, formatDateTime, mealOptionMap, renderTriState, sideEventRegs]
+  );
+
+  const renderRoundSection = useCallback(
+    (sectionId: string, title: string, events: SideEvent[]) => {
+      if (events.length === 0) return null;
+      return (
+        <section id={sectionId} className="space-y-4">
+          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+          {events.map((se) => renderSideEventCard(se))}
+        </section>
+      );
+    },
+    [renderSideEventCard]
+  );
 
   if (loading) {
     return (
@@ -372,38 +539,62 @@ export default function AdminSideEventsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7]">
-      <TableOfContents
-        items={tocItems}
-        activeSection={activeSection}
-        fabIcon="☰"
-        panelTitle="섹션 메뉴"
-        showIcons={false}
-      />
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-slate-900">
-            사전/사후 라운드 관리
-          </h1>
-          <Button onClick={() => router.back()} variant="secondary">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <section className="border-b border-slate-100 bg-white px-3 pb-6 pt-8 md:px-4 lg:px-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN SIDE EVENTS</p>
+            <h1 className="mt-2 text-2xl font-bold text-slate-900 md:text-3xl">
+              사전/사후 라운드 관리
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">라운드 생성, 수정, 신청 현황을 통합 관리합니다.</p>
+          </div>
+          <Button onClick={() => router.back()} variant="secondary" className="w-full md:w-auto">
             뒤로
           </Button>
         </div>
+      </section>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <CardHeader>
+      {tocItems.length > 0 ? (
+        <nav className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-7xl items-center gap-1 overflow-x-auto px-3 py-2 md:px-4 lg:px-6">
+            {tocItems.map((item) => {
+              const active = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => scrollToSection(item.id)}
+                  className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                    active
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      ) : null}
+
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 py-7 md:px-4 lg:px-6">
+
+        <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+          <CardHeader className="border-b border-slate-100">
             <CardTitle>
               {editingId ? "라운드 수정" : "새 라운드 추가"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-6 md:p-7">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-sm font-medium">라운드 유형</label>
                 <select
                   value={roundType}
                   onChange={(e) => setRoundType(e.target.value as RoundType)}
-                  className="rounded border border-slate-200 px-3 py-2 text-sm"
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
                 >
                   <option value="pre">📍 사전</option>
                   <option value="post">📍 사후</option>
@@ -415,7 +606,7 @@ export default function AdminSideEventsPage() {
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as Status)}
-                  className="rounded border border-slate-200 px-3 py-2 text-sm"
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
                 >
                   <option value="draft">{formatTournamentStatus("draft")}</option>
                   <option value="open">{formatTournamentStatus("open")}</option>
@@ -431,6 +622,7 @@ export default function AdminSideEventsPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="예: 화이트 코스 친선전"
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
               />
             </div>
 
@@ -441,6 +633,7 @@ export default function AdminSideEventsPage() {
                   value={teeTime}
                   onChange={(e) => setTeeTime(e.target.value)}
                   placeholder="예: 08:00"
+                  className="h-11 rounded-2xl border-slate-200 bg-slate-50"
                 />
               </div>
 
@@ -450,6 +643,7 @@ export default function AdminSideEventsPage() {
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="예: 클럽 흑 금강"
+                  className="h-11 rounded-2xl border-slate-200 bg-slate-50"
                 />
               </div>
             </div>
@@ -462,6 +656,7 @@ export default function AdminSideEventsPage() {
                   value={maxParticipants}
                   onChange={(e) => setMaxParticipants(e.target.value)}
                   placeholder="예: 20"
+                  className="h-11 rounded-2xl border-slate-200 bg-slate-50"
                 />
               </div>
 
@@ -471,6 +666,7 @@ export default function AdminSideEventsPage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="특별 안내사항"
+                  className="h-11 rounded-2xl border-slate-200 bg-slate-50"
                 />
               </div>
             </div>
@@ -482,6 +678,7 @@ export default function AdminSideEventsPage() {
                   type="datetime-local"
                   value={openAt}
                   onChange={(e) => setOpenAt(e.target.value)}
+                  className="h-11 rounded-2xl border-slate-200 bg-slate-50"
                 />
               </div>
 
@@ -491,6 +688,7 @@ export default function AdminSideEventsPage() {
                   type="datetime-local"
                   value={closeAt}
                   onChange={(e) => setCloseAt(e.target.value)}
+                  className="h-11 rounded-2xl border-slate-200 bg-slate-50"
                 />
               </div>
             </div>
@@ -501,7 +699,7 @@ export default function AdminSideEventsPage() {
                 <select
                   value={mealOptionId}
                   onChange={(e) => setMealOptionId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
                 >
                   <option value="">없음</option>
                   {mealOptions.map((mo) => (
@@ -544,11 +742,11 @@ export default function AdminSideEventsPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button onClick={saveSideEvent}>
+              <Button onClick={saveSideEvent} className="rounded-2xl">
                 {editingId ? "수정" : "생성"}
               </Button>
               {editingId && (
-                <Button onClick={resetForm} variant="outline">
+                <Button onClick={resetForm} variant="outline" className="rounded-2xl">
                   취소
                 </Button>
               )}
@@ -557,212 +755,15 @@ export default function AdminSideEventsPage() {
         </Card>
 
         {sideEvents.length === 0 ? (
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+          <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10 text-center">
               <p className="text-sm text-slate-500">등록된 라운드가 없습니다.</p>
             </CardContent>
           </Card>
         ) : (
           <>
-            {groupedByRoundType.pre.length > 0 && (
-              <div id="pre-round-section" className="space-y-4">
-                <h2 className="text-xl font-semibold text-slate-900">🌅 사전 라운드</h2>
-                {groupedByRoundType.pre.map((se) => {
-                  const seRegs = sideEventRegs.get(se.id) ?? [];
-                  return (
-                    <Card key={se.id} className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-                      <CardHeader>
-                        <div className="flex items-center justify-between gap-3">
-                          <CardTitle>
-                            {se.title}
-                          </CardTitle>
-                          <div className="flex gap-2">
-                            <Badge variant="secondary" className="capitalize">
-                              {formatTournamentStatus(se.status)}
-                            </Badge>
-                            <Button
-                              onClick={() => editSideEvent(se)}
-                              size="sm"
-                              variant="outline"
-                            >
-                              수정
-                            </Button>
-                            <Button
-                              onClick={() => deleteSideEvent(se.id)}
-                              size="sm"
-                              variant="destructive"
-                            >
-                              삭제
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid gap-3 text-sm">
-                          <div>
-                            <span className="font-medium">Tee Time:</span>{" "}
-                            {se.tee_time ?? "-"}
-                          </div>
-                          <div>
-                            <span className="font-medium">Location:</span>{" "}
-                            {se.location ?? "-"}
-                          </div>
-                          <div>
-                            <span className="font-medium">Max Participants:</span>{" "}
-                            {se.max_participants ?? "-"}
-                          </div>
-                          {se.notes && (
-                            <div>
-                              <span className="font-medium">Notes:</span> {se.notes}
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <h4 className="mb-3 font-medium">신청 현황 ({seRegs.length})</h4>
-                          {seRegs.length === 0 ? (
-                            <p className="text-sm text-slate-500">신청자가 없습니다.</p>
-                          ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>닉네임</TableHead>
-                                  <TableHead>상태</TableHead>
-                                  <TableHead>식사</TableHead>
-                                  <TableHead>숙박</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {seRegs.map((r) => (
-                                  <TableRow key={r.id}>
-                                    <TableCell>{r.nickname}</TableCell>
-                                    <TableCell>
-                                      <Badge variant="secondary">
-                                        {formatRegistrationStatus(r.status)}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                      <span className="text-sm text-slate-600">
-                                        {renderTriState(r.meal_selected)}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell>
-                                      <span className="text-sm text-slate-600">
-                                        {renderTriState(r.lodging_selected)}
-                                      </span>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-
-            {groupedByRoundType.post.length > 0 && (
-              <div id="post-round-section" className="space-y-4">
-                <h2 className="text-xl font-semibold text-slate-900">🌆 사후 라운드</h2>
-                {groupedByRoundType.post.map((se) => {
-                  const seRegs = sideEventRegs.get(se.id) ?? [];
-                  return (
-                    <Card key={se.id} className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-                      <CardHeader>
-                        <div className="flex items-center justify-between gap-3">
-                          <CardTitle>
-                            {se.title}
-                          </CardTitle>
-                          <div className="flex gap-2">
-                            <Badge variant="secondary" className="capitalize">
-                              {formatTournamentStatus(se.status)}
-                            </Badge>
-                            <Button
-                              onClick={() => editSideEvent(se)}
-                              size="sm"
-                              variant="outline"
-                            >
-                              수정
-                            </Button>
-                            <Button
-                              onClick={() => deleteSideEvent(se.id)}
-                              size="sm"
-                              variant="destructive"
-                            >
-                              삭제
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid gap-3 text-sm">
-                          <div>
-                            <span className="font-medium">Tee Time:</span>{" "}
-                            {se.tee_time ?? "-"}
-                          </div>
-                          <div>
-                            <span className="font-medium">Location:</span>{" "}
-                            {se.location ?? "-"}
-                          </div>
-                          <div>
-                            <span className="font-medium">Max Participants:</span>{" "}
-                            {se.max_participants ?? "-"}
-                          </div>
-                          {se.notes && (
-                            <div>
-                              <span className="font-medium">Notes:</span> {se.notes}
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <h4 className="mb-3 font-medium">신청 현황 ({seRegs.length})</h4>
-                          {seRegs.length === 0 ? (
-                            <p className="text-sm text-slate-500">신청자가 없습니다.</p>
-                          ) : (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>닉네임</TableHead>
-                                  <TableHead>상태</TableHead>
-                                  <TableHead>식사</TableHead>
-                                  <TableHead>숙박</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {seRegs.map((r) => (
-                                  <TableRow key={r.id}>
-                                    <TableCell>{r.nickname}</TableCell>
-                                    <TableCell>
-                                      <Badge variant="secondary">
-                                        {formatRegistrationStatus(r.status)}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                      <span className="text-sm text-slate-600">
-                                        {renderTriState(r.meal_selected)}
-                                      </span>
-                                    </TableCell>
-                                    <TableCell>
-                                      <span className="text-sm text-slate-600">
-                                        {renderTriState(r.lodging_selected)}
-                                      </span>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
+            {renderRoundSection("pre-round-section", "🌅 사전 라운드", groupedByRoundType.pre)}
+            {renderRoundSection("post-round-section", "🌆 사후 라운드", groupedByRoundType.post)}
           </>
         )}
       </div>

@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/ca
 
 export default function AdminHomePage() {
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-3 md:px-4 lg:px-6 py-8">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-6 px-3 py-8 md:px-4 lg:px-6">
         {/* 헤더 */}
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">
@@ -18,7 +18,7 @@ export default function AdminHomePage() {
 
         {/* 주요 기능 */}
         <section className="grid gap-4 md:grid-cols-2">
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">📅 대회 관리</CardTitle>
             </CardHeader>
@@ -32,7 +32,7 @@ export default function AdminHomePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">✅ 회원 관리</CardTitle>
             </CardHeader>
@@ -46,7 +46,7 @@ export default function AdminHomePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">📍 라운드 관리</CardTitle>
             </CardHeader>
@@ -63,7 +63,7 @@ export default function AdminHomePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/70">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg">🧩 조편성 관리</CardTitle>
             </CardHeader>
@@ -80,7 +80,7 @@ export default function AdminHomePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/70 md:col-span-2">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm md:col-span-2">
             <CardHeader>
               <CardTitle className="text-lg">📘 관리자 도움말</CardTitle>
             </CardHeader>
@@ -96,7 +96,7 @@ export default function AdminHomePage() {
         </section>
 
         {/* 워크플로우 */}
-        <Card className="border-orange-200 bg-orange-50">
+        <Card className="rounded-[28px] border border-amber-200 bg-amber-50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">🚀 일반적인 워크플로우</CardTitle>
           </CardHeader>

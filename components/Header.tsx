@@ -16,9 +16,6 @@ const HIDE_HEADER_PATTERNS = [
   /^\/tournaments$/,
   /^\/t\/[^/]+$/,
   /^\/t\/[^/]+\/participants$/,
-  /^\/admin\/tournaments$/,
-  /^\/admin\/tournaments\/[^/]+\/registrations$/,
-  /^\/admin\/tournaments\/[^/]+\/side-events$/,
 ];
 
 export default function Header() {
@@ -198,4 +195,3 @@ export default function Header() {
     </>
   );
 }
-
