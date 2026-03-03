@@ -76,6 +76,42 @@ function formatBooleanSelection(value: boolean | null) {
   return value ? "참여" : "불참";
 }
 
+function getRegistrationStatusTone(status: string) {
+  switch (status) {
+    case "approved":
+    case "confirmed":
+      return {
+        badgeClass: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+        cardClass: "border-emerald-200 bg-emerald-50/40",
+        rowClass: "bg-emerald-50/30",
+      };
+    case "applied":
+      return {
+        badgeClass: "border border-sky-200 bg-sky-50 text-sky-700",
+        cardClass: "border-sky-200 bg-sky-50/40",
+        rowClass: "bg-sky-50/30",
+      };
+    case "waitlisted":
+      return {
+        badgeClass: "border border-amber-200 bg-amber-50 text-amber-700",
+        cardClass: "border-amber-200 bg-amber-50/40",
+        rowClass: "bg-amber-50/30",
+      };
+    case "canceled":
+      return {
+        badgeClass: "border border-slate-300 bg-slate-100 text-slate-600",
+        cardClass: "border-slate-300 bg-slate-100/70",
+        rowClass: "bg-slate-100/60",
+      };
+    default:
+      return {
+        badgeClass: "border border-slate-200 bg-slate-100 text-slate-700",
+        cardClass: "border-slate-200 bg-slate-50",
+        rowClass: "",
+      };
+  }
+}
+
 export default function TournamentParticipantsPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
@@ -103,6 +139,26 @@ export default function TournamentParticipantsPage() {
       applied: rows.filter((row) => row.status === "applied").length,
       waitlisted: rows.filter((row) => row.status === "waitlisted").length,
     };
+  }, [rows]);
+
+  const sortedRows = useMemo(() => {
+    const statusPriority: Record<string, number> = {
+      approved: 0,
+      confirmed: 0,
+      applied: 1,
+      waitlisted: 2,
+      canceled: 3,
+    };
+
+    return [...rows].sort((left, right) => {
+      const statusGap = (statusPriority[left.status] ?? 99) - (statusPriority[right.status] ?? 99);
+      if (statusGap !== 0) return statusGap;
+
+      const leftAt = new Date(left.created_at).getTime();
+      const rightAt = new Date(right.created_at).getTime();
+      if (Number.isNaN(leftAt) || Number.isNaN(rightAt)) return 0;
+      return leftAt - rightAt;
+    });
   }, [rows]);
 
   const fetchData = async () => {
@@ -424,22 +480,23 @@ export default function TournamentParticipantsPage() {
               </div>
 
               <div className="p-5 md:hidden">
-                {rows.length === 0 ? (
+                {sortedRows.length === 0 ? (
                   <p className="text-sm text-slate-500">아직 참가자가 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
-                    {rows.map((row) => {
+                    {sortedRows.map((row) => {
                       const roundFlags = [
                         row.pre_round_preferred ? "사전" : null,
                         row.post_round_preferred ? "사후" : null,
                       ]
                         .filter(Boolean)
                         .join(", ");
+                      const statusTone = getRegistrationStatusTone(row.status);
 
                       return (
                         <article
                           key={row.id}
-                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                          className={`rounded-2xl border p-4 ${statusTone.cardClass}`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
@@ -453,7 +510,9 @@ export default function TournamentParticipantsPage() {
                               </div>
                               <p className="mt-1 text-xs text-slate-500">{formatDateTime(row.created_at)}</p>
                             </div>
-                            <Badge variant="secondary">{formatRegistrationStatus(row.status)}</Badge>
+                            <Badge variant="secondary" className={statusTone.badgeClass}>
+                              {formatRegistrationStatus(row.status)}
+                            </Badge>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-slate-600">
                             <p>식사: {row.meal_name ?? "-"}</p>
@@ -474,7 +533,7 @@ export default function TournamentParticipantsPage() {
               </div>
 
               <div className="hidden p-6 md:block md:px-7">
-                {rows.length === 0 ? (
+                {sortedRows.length === 0 ? (
                   <p className="text-sm text-slate-500">아직 참가자가 없습니다.</p>
                 ) : (
                   <div className="overflow-x-auto rounded-2xl border border-slate-100">
@@ -494,8 +553,10 @@ export default function TournamentParticipantsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {rows.map((row) => (
-                          <tr key={row.id}>
+                        {sortedRows.map((row) => {
+                          const statusTone = getRegistrationStatusTone(row.status);
+                          return (
+                          <tr key={row.id} className={statusTone.rowClass}>
                             <td className="px-4 py-3 font-medium text-slate-900">
                               <div className="flex items-center gap-2">
                                 <span>{row.nickname}</span>
@@ -507,7 +568,9 @@ export default function TournamentParticipantsPage() {
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <Badge variant="secondary">{formatRegistrationStatus(row.status)}</Badge>
+                              <Badge variant="secondary" className={statusTone.badgeClass}>
+                                {formatRegistrationStatus(row.status)}
+                              </Badge>
                             </td>
                             <td className="px-4 py-3 text-slate-600">{row.meal_name ?? "-"}</td>
                             <td className="px-4 py-3 text-slate-600">
@@ -542,7 +605,8 @@ export default function TournamentParticipantsPage() {
                               {formatDateTime(row.created_at)}
                             </td>
                           </tr>
-                        ))}
+                        );
+                        })}
                       </tbody>
                     </table>
                   </div>

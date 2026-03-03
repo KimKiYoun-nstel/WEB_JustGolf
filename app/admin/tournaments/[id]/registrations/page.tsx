@@ -74,6 +74,12 @@ const statusTransitionTargets = statuses.reduce((acc, current) => {
   return acc;
 }, {} as Record<Registration["status"], Registration["status"][]>);
 
+const formatDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("ko-KR");
+};
+
 export default function AdminRegistrationsPage() {
   const params = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -87,6 +93,7 @@ export default function AdminRegistrationsPage() {
   const [exportingScope, setExportingScope] = useState<"approved" | "grouped" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | Registration["status"]>("all");
+  const [sortOrder, setSortOrder] = useState<"createdAsc" | "createdDesc" | "nicknameAsc">("createdAsc");
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -288,7 +295,7 @@ export default function AdminRegistrationsPage() {
 
   const filteredRows = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
-    return rows.filter((row) => {
+    const filtered = rows.filter((row) => {
       const statusMatched = statusFilter === "all" ? true : row.status === statusFilter;
       if (!statusMatched) return false;
 
@@ -306,7 +313,21 @@ export default function AdminRegistrationsPage() {
 
       return searchable.includes(keyword);
     });
-  }, [rows, searchQuery, statusFilter]);
+
+    const sorted = [...filtered].sort((left, right) => {
+      if (sortOrder === "nicknameAsc") {
+        return left.nickname.localeCompare(right.nickname, "ko");
+      }
+
+      const leftAt = new Date(left.created_at).getTime();
+      const rightAt = new Date(right.created_at).getTime();
+
+      if (Number.isNaN(leftAt) || Number.isNaN(rightAt)) return 0;
+      return sortOrder === "createdDesc" ? rightAt - leftAt : leftAt - rightAt;
+    });
+
+    return sorted;
+  }, [rows, searchQuery, statusFilter, sortOrder]);
 
   const appliedRows = useMemo(
     () => filteredRows.filter((r) => r.status === "applied"),
@@ -454,6 +475,7 @@ export default function AdminRegistrationsPage() {
         <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-slate-600">
           <p>구분: {row.user_id ? "회원" : "제3자"}</p>
           <p>식사: {row.meal_name ?? "-"}</p>
+          <p className="col-span-2">신청일시: {formatDateTime(row.created_at)}</p>
           <p className="col-span-2">활동: {row.activities.length > 0 ? row.activities.join(", ") : "-"}</p>
           <div className="col-span-2">라운드: {renderRoundPreference(row)}</div>
           <p className="col-span-2">메모: {row.memo ?? "-"}</p>
@@ -566,7 +588,7 @@ export default function AdminRegistrationsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_auto]">
+                <div className="mb-4 grid gap-3 md:grid-cols-[1fr_160px_190px_auto]">
                   <Input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -585,6 +607,17 @@ export default function AdminRegistrationsPage() {
                     <option value="approved">확정</option>
                     <option value="waitlisted">대기</option>
                     <option value="canceled">취소</option>
+                  </select>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) =>
+                      setSortOrder(e.target.value as "createdAsc" | "createdDesc" | "nicknameAsc")
+                    }
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
+                  >
+                    <option value="createdAsc">신청일시 오래된순</option>
+                    <option value="createdDesc">신청일시 최신순</option>
+                    <option value="nicknameAsc">닉네임 가나다순</option>
                   </select>
                   <Button onClick={load} variant="secondary" className="h-11 rounded-2xl">
                     새로고침
@@ -717,6 +750,7 @@ export default function AdminRegistrationsPage() {
                           <TableHead>참여 활동</TableHead>
                           <TableHead>라운드 희망</TableHead>
                           <TableHead>메모</TableHead>
+                          <TableHead>신청일시</TableHead>
                           <TableHead>변경</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -763,6 +797,9 @@ export default function AdminRegistrationsPage() {
                             </TableCell>
                             <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                             <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                            <TableCell className="whitespace-nowrap text-slate-600">
+                              {formatDateTime(row.created_at)}
+                            </TableCell>
                             <TableCell>
                               {renderStatusActions(row)}
                             </TableCell>
@@ -805,6 +842,7 @@ export default function AdminRegistrationsPage() {
                           <TableHead>참여 활동</TableHead>
                           <TableHead>라운드 희망</TableHead>
                           <TableHead>메모</TableHead>
+                          <TableHead>신청일시</TableHead>
                           <TableHead>변경</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -851,6 +889,9 @@ export default function AdminRegistrationsPage() {
                             </TableCell>
                             <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                             <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                            <TableCell className="whitespace-nowrap text-slate-600">
+                              {formatDateTime(row.created_at)}
+                            </TableCell>
                             <TableCell>
                               {renderStatusActions(row)}
                             </TableCell>
@@ -893,6 +934,7 @@ export default function AdminRegistrationsPage() {
                           <TableHead>참여 활동</TableHead>
                           <TableHead>라운드 희망</TableHead>
                           <TableHead>메모</TableHead>
+                          <TableHead>신청일시</TableHead>
                           <TableHead>변경</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -939,6 +981,9 @@ export default function AdminRegistrationsPage() {
                             </TableCell>
                             <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                             <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                            <TableCell className="whitespace-nowrap text-slate-600">
+                              {formatDateTime(row.created_at)}
+                            </TableCell>
                             <TableCell>
                               {renderStatusActions(row)}
                             </TableCell>
@@ -981,6 +1026,7 @@ export default function AdminRegistrationsPage() {
                           <TableHead>참여 활동</TableHead>
                           <TableHead>라운드 희망</TableHead>
                           <TableHead>메모</TableHead>
+                          <TableHead>신청일시</TableHead>
                           <TableHead>변경</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1027,6 +1073,9 @@ export default function AdminRegistrationsPage() {
                             </TableCell>
                             <TableCell className="text-slate-600">{renderRoundPreference(row)}</TableCell>
                             <TableCell className="text-slate-500 text-sm">{row.memo ?? "-"}</TableCell>
+                            <TableCell className="whitespace-nowrap text-slate-600">
+                              {formatDateTime(row.created_at)}
+                            </TableCell>
                             <TableCell>
                               {renderStatusActions(row)}
                             </TableCell>
