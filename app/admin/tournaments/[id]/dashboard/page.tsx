@@ -130,9 +130,9 @@ export default function TournamentDashboardPage() {
 
   if (loading_) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
-          <Card>
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
             </CardContent>
@@ -144,9 +144,9 @@ export default function TournamentDashboardPage() {
 
   if (!t) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
-          <Card>
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">대회를 찾을 수 없습니다</p>
             </CardContent>
@@ -157,8 +157,8 @@ export default function TournamentDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 md:px-4 lg:px-6 py-8">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
         {/* 헤더 */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
@@ -175,7 +175,7 @@ export default function TournamentDashboardPage() {
         {/* 통계 */}
         {stats && (
           <div className="grid gap-4 md:grid-cols-4">
-            <Card className="border-slate-200/70">
+            <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-slate-600">
                   전체 신청
@@ -187,7 +187,7 @@ export default function TournamentDashboardPage() {
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-blue-200 bg-blue-50/50">
+            <Card className="rounded-[28px] border border-blue-200 bg-blue-50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-blue-900">
                   신청
@@ -200,7 +200,7 @@ export default function TournamentDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-green-200 bg-green-50/50">
+            <Card className="rounded-[28px] border border-green-200 bg-green-50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-green-900">
                   확정
@@ -213,7 +213,7 @@ export default function TournamentDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-amber-200 bg-amber-50/50">
+            <Card className="rounded-[28px] border border-amber-200 bg-amber-50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-amber-900">
                   대기
@@ -230,13 +230,13 @@ export default function TournamentDashboardPage() {
 
         {/* 메시지 */}
         {msg && (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
             {msg}
           </div>
         )}
 
         {/* 상태 요약 */}
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -260,7 +260,7 @@ export default function TournamentDashboardPage() {
         </Card>
 
         {/* 전체 신청 목록 */}
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>전체 신청 현황</CardTitle>
             <CardDescription>

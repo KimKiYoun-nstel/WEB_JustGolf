@@ -39,14 +39,13 @@ export default function AdminMealOptionsPage() {
   const [unauthorized, setUnauthorized] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
-  const { toast } = useToast();
-
-  // 새 메뉴 추가용 상태
   const [newMenuName, setNewMenuName] = useState("");
+  const { toast } = useToast();
 
   const loadOptions = useCallback(async () => {
     const supabase = createClient();
     setLoading(true);
+
     const { data, error } = await supabase
       .from("tournament_meal_options")
       .select("*")
@@ -56,14 +55,14 @@ export default function AdminMealOptionsPage() {
     if (error) {
       toast({
         variant: "error",
-        title: "불러오기 실패",
+        title: "목록 조회 실패",
         description: error.message,
       });
       setLoading(false);
       return;
     }
 
-    setOptions(data || []);
+    setOptions(data ?? []);
     setLoading(false);
   }, [tournamentId, toast]);
 
@@ -91,12 +90,12 @@ export default function AdminMealOptionsPage() {
       await loadOptions();
     };
 
-    checkAdminAndLoad();
+    void checkAdminAndLoad();
   }, [tournamentId, user?.id, authLoading, loadOptions]);
 
   const addOption = async () => {
     if (!newMenuName.trim()) {
-      toast({ variant: "error", title: "메뉴명을 입력하세요" });
+      toast({ variant: "error", title: "메뉴명을 입력하세요." });
       return;
     }
 
@@ -113,13 +112,13 @@ export default function AdminMealOptionsPage() {
     if (error) {
       toast({
         variant: "error",
-        title: "추가 실패",
+        title: "메뉴 옵션 추가 실패",
         description: error.message,
       });
       return;
     }
 
-    toast({ variant: "success", title: "메뉴 옵션이 추가되었습니다" });
+    toast({ variant: "success", title: "메뉴 옵션이 추가되었습니다." });
     setNewMenuName("");
     await loadOptions();
   };
@@ -140,7 +139,7 @@ export default function AdminMealOptionsPage() {
       return;
     }
 
-    toast({ variant: "success", title: "상태가 변경되었습니다" });
+    toast({ variant: "success", title: "상태가 변경되었습니다." });
     await loadOptions();
   };
 
@@ -155,7 +154,6 @@ export default function AdminMealOptionsPage() {
     const current = options[idx];
     const target = options[targetIdx];
 
-    // 순서 교환
     const { error } = await supabase.from("tournament_meal_options").upsert([
       { id: current.id, display_order: target.display_order },
       { id: target.id, display_order: current.display_order },
@@ -174,7 +172,7 @@ export default function AdminMealOptionsPage() {
   };
 
   const deleteOption = async (id: number) => {
-    if (!confirm("정말 삭제하시겠습니까? (비활성화를 권장합니다)")) return;
+    if (!confirm("정말 삭제하시겠습니까?")) return;
 
     const supabase = createClient();
     const { error } = await supabase
@@ -191,7 +189,7 @@ export default function AdminMealOptionsPage() {
       return;
     }
 
-    toast({ variant: "success", title: "삭제되었습니다" });
+    toast({ variant: "success", title: "삭제되었습니다." });
     await loadOptions();
   };
 
@@ -208,7 +206,7 @@ export default function AdminMealOptionsPage() {
   const saveEdit = async (id: number) => {
     const name = editingName.trim();
     if (!name) {
-      toast({ variant: "error", title: "메뉴명을 입력하세요" });
+      toast({ variant: "error", title: "메뉴명을 입력하세요." });
       return;
     }
 
@@ -221,24 +219,24 @@ export default function AdminMealOptionsPage() {
     if (error) {
       toast({
         variant: "error",
-        title: "수정 실패",
+        title: "메뉴 수정 실패",
         description: error.message,
       });
       return;
     }
 
-    toast({ variant: "success", title: "메뉴명이 수정되었습니다" });
+    toast({ variant: "success", title: "메뉴명이 수정되었습니다." });
     cancelEdit();
     await loadOptions();
   };
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
-          <Card className="border-slate-200/70">
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩중...</p>
+              <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
           </Card>
         </div>
@@ -248,9 +246,9 @@ export default function AdminMealOptionsPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
-          <Card className="border-red-200 bg-red-50">
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -264,9 +262,8 @@ export default function AdminMealOptionsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
-        {/* 헤더 */}
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold">식사 메뉴 옵션 관리</h1>
           <Button asChild variant="outline">
@@ -274,38 +271,37 @@ export default function AdminMealOptionsPage() {
           </Button>
         </div>
 
-        {/* 새 메뉴 추가 */}
-        <Card className="mb-6 border-slate-200/70">
+        <Card className="mb-6 rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
-            <CardTitle>새 메뉴 옵션 추가</CardTitle>
+            <CardTitle>신규 메뉴 옵션 추가</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="메뉴명 (예: 한식 - 불고기)"
+                placeholder="메뉴명 (예: 중식 - 불고기)"
                 value={newMenuName}
                 onChange={(e) => setNewMenuName(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") addOption();
+                  if (e.key === "Enter") void addOption();
                 }}
               />
-              <Button onClick={addOption}>추가</Button>
+              <Button onClick={() => void addOption()}>추가</Button>
             </div>
             <p className="text-sm text-slate-500">
-              💡 참가자가 신청 시 이 메뉴 목록에서 선택합니다.
+              참가자 신청 시 선택 가능한 메뉴 목록을 설정합니다.
             </p>
           </CardContent>
         </Card>
 
-        {/* 메뉴 옵션 목록 */}
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>등록된 메뉴 옵션 ({options.length}개)</CardTitle>
           </CardHeader>
           <CardContent>
             {options.length === 0 ? (
-              <p className="text-center text-sm text-slate-500 py-8">
-                등록된 메뉴 옵션이 없습니다. 위에서 추가하세요.
+              <p className="py-8 text-center text-sm text-slate-500">
+                등록된 메뉴 옵션이 없습니다. 위에서 추가해 주세요.
               </p>
             ) : (
               <Table>
@@ -341,7 +337,7 @@ export default function AdminMealOptionsPage() {
                         <div className="flex justify-center gap-1">
                           {editingId === opt.id ? (
                             <>
-                              <Button size="sm" onClick={() => saveEdit(opt.id)}>
+                              <Button size="sm" onClick={() => void saveEdit(opt.id)}>
                                 저장
                               </Button>
                               <Button size="sm" variant="outline" onClick={cancelEdit}>
@@ -353,37 +349,33 @@ export default function AdminMealOptionsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => moveOrder(opt.id, "up")}
+                                onClick={() => void moveOrder(opt.id, "up")}
                                 disabled={idx === 0}
                               >
-                                ↑
+                                위
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => moveOrder(opt.id, "down")}
+                                onClick={() => void moveOrder(opt.id, "down")}
                                 disabled={idx === options.length - 1}
                               >
-                                ↓
+                                아래
                               </Button>
                               <Button
                                 size="sm"
                                 variant={opt.is_active ? "secondary" : "default"}
-                                onClick={() => toggleActive(opt.id, opt.is_active)}
+                                onClick={() => void toggleActive(opt.id, opt.is_active)}
                               >
                                 {opt.is_active ? "비활성화" : "활성화"}
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => startEdit(opt)}
-                              >
+                              <Button size="sm" variant="secondary" onClick={() => startEdit(opt)}>
                                 수정
                               </Button>
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => deleteOption(opt.id)}
+                                onClick={() => void deleteOption(opt.id)}
                               >
                                 삭제
                               </Button>
@@ -396,7 +388,6 @@ export default function AdminMealOptionsPage() {
                 </TableBody>
               </Table>
             )}
-
           </CardContent>
         </Card>
       </div>

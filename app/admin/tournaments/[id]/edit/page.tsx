@@ -239,9 +239,9 @@ export default function AdminTournamentEditPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-2xl px-6 py-10">
-          <Card className="border-slate-200/70">
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto w-full max-w-3xl px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
             </CardContent>
@@ -253,9 +253,9 @@ export default function AdminTournamentEditPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-slate-50/70">
-        <div className="mx-auto max-w-2xl px-6 py-10">
-          <Card className="border-red-200 bg-red-50">
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto w-full max-w-3xl px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -269,9 +269,13 @@ export default function AdminTournamentEditPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto max-w-2xl px-6 py-10">
-        <Card className="border-slate-200/70">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto w-full max-w-3xl space-y-5 px-3 py-8 md:px-4 lg:px-6">
+        <header className="space-y-2">
+          <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN TOURNAMENTS</p>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">대회 수정</h1>
+        </header>
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
         <CardHeader>
           <CardTitle>대회 수정</CardTitle>
         </CardHeader>
@@ -279,7 +283,7 @@ export default function AdminTournamentEditPage() {
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">대회명 *</label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-11 rounded-2xl border-slate-200 bg-slate-50" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">대회일 *</label>
@@ -287,6 +291,7 @@ export default function AdminTournamentEditPage() {
                 type="date"
                 value={eventDate}
                 onChange={(e) => setEventDate(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
               />
             </div>
             <div className="space-y-2">
@@ -294,6 +299,7 @@ export default function AdminTournamentEditPage() {
               <Input
                 value={courseName}
                 onChange={(e) => setCourseName(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
               />
             </div>
             <div className="space-y-2">
@@ -301,18 +307,19 @@ export default function AdminTournamentEditPage() {
               <Input
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">티오프</label>
-              <Input value={teeTime} onChange={(e) => setTeeTime(e.target.value)} />
+              <Input value={teeTime} onChange={(e) => setTeeTime(e.target.value)} className="h-11 rounded-2xl border-slate-200 bg-slate-50" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">상태</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as Status)}
-                className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
               >
                 <option value="draft">{formatTournamentStatus("draft")}</option>
                 <option value="open">{formatTournamentStatus("open")}</option>
@@ -326,6 +333,7 @@ export default function AdminTournamentEditPage() {
                 type="datetime-local"
                 value={openAt}
                 onChange={(e) => setOpenAt(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
               />
             </div>
             <div className="space-y-2">
@@ -334,6 +342,7 @@ export default function AdminTournamentEditPage() {
                 type="datetime-local"
                 value={closeAt}
                 onChange={(e) => setCloseAt(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
               />
             </div>
           </div>
@@ -344,7 +353,7 @@ export default function AdminTournamentEditPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              className="border-input min-h-[120px] w-full rounded-md border bg-transparent px-3 py-2 text-sm"
+              className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
             />
           </div>
 

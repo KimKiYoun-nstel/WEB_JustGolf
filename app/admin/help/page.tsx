@@ -161,8 +161,8 @@ const workflowSteps = [
 
 export default function AdminHelpPage() {
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-6 px-3 py-8 md:px-4 lg:px-6">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">관리자 기능 도움말</h1>
           <p className="text-sm text-slate-500">
@@ -171,7 +171,7 @@ export default function AdminHelpPage() {
           </p>
         </header>
 
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>운영 기본 흐름</CardTitle>
             <CardDescription>신규 대회 운영 시 권장 순서입니다.</CardDescription>
@@ -180,7 +180,7 @@ export default function AdminHelpPage() {
             {workflowSteps.map((step) => (
               <div
                 key={step.title}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 <div>
                   <p className="font-medium text-slate-900">{step.title}</p>
@@ -194,7 +194,7 @@ export default function AdminHelpPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>관리자 상호작용 목록</CardTitle>
             <CardDescription>메뉴별로 가능한 주요 동작입니다.</CardDescription>
@@ -230,7 +230,7 @@ export default function AdminHelpPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>상태값 가이드</CardTitle>
             <CardDescription>운영 중 자주 보는 상태값 기준입니다.</CardDescription>
@@ -259,7 +259,7 @@ export default function AdminHelpPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/70">
+        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>웹서비스 기능 요약</CardTitle>
             <CardDescription>
