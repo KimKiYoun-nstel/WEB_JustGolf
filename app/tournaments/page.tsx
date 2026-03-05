@@ -26,6 +26,13 @@ type RegistrationCountRow = {
   status: string;
 };
 
+type RegistrationSummary = {
+  applied: number;
+  approved: number;
+  waitlisted: number;
+  canceled: number;
+};
+
 type RegistrationStatusRow = {
   tournament_id: number;
   status: string;
@@ -39,13 +46,22 @@ const STATUS_BADGE_STYLE: Record<string, string> = {
   done: "bg-slate-200 text-slate-600",
 };
 
+const REGISTRATION_SUMMARY_STATUSES = ["applied", "approved", "waitlisted", "canceled"] as const;
+
+const createEmptyRegistrationSummary = (): RegistrationSummary => ({
+  applied: 0,
+  approved: 0,
+  waitlisted: 0,
+  canceled: 0,
+});
+
 export default function TournamentsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [rows, setRows] = useState<Tournament[]>([]);
   const [error, setError] = useState("");
   const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
-  const [applicantCounts, setApplicantCounts] = useState<Record<number, number>>({});
+  const [registrationSummaries, setRegistrationSummaries] = useState<Record<number, RegistrationSummary>>({});
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -72,20 +88,34 @@ export default function TournamentsPage() {
 
       const tournamentRows = (data ?? []) as Tournament[];
       setRows(tournamentRows);
+      const tournamentIds = tournamentRows.map((row) => row.id);
+
+      if (tournamentIds.length === 0) {
+        setRegistrationSummaries({});
+        setMyStatuses({});
+        setIsLoading(false);
+        return;
+      }
 
       const { data: countData, error: countError } = await supabase
         .from("registrations")
         .select("tournament_id,status")
-        .eq("status", "applied");
+        .in("tournament_id", tournamentIds)
+        .in("status", [...REGISTRATION_SUMMARY_STATUSES]);
 
       if (!countError) {
-        const nextCounts: Record<number, number> = {};
+        const nextSummaries: Record<number, RegistrationSummary> = {};
         ((countData ?? []) as RegistrationCountRow[]).forEach((row) => {
-          nextCounts[row.tournament_id] = (nextCounts[row.tournament_id] ?? 0) + 1;
+          const current = nextSummaries[row.tournament_id] ?? createEmptyRegistrationSummary();
+          if (row.status === "applied") current.applied += 1;
+          if (row.status === "approved") current.approved += 1;
+          if (row.status === "waitlisted") current.waitlisted += 1;
+          if (row.status === "canceled") current.canceled += 1;
+          nextSummaries[row.tournament_id] = current;
         });
-        setApplicantCounts(nextCounts);
+        setRegistrationSummaries(nextSummaries);
       } else {
-        setApplicantCounts({});
+        setRegistrationSummaries({});
       }
 
       if (!user?.id) {
@@ -97,6 +127,7 @@ export default function TournamentsPage() {
       const { data: regData, error: regError } = await supabase
         .from("registrations")
         .select("tournament_id,status,relation")
+        .in("tournament_id", tournamentIds)
         .eq("user_id", user.id)
         .eq("relation", "본인");
 
@@ -183,6 +214,7 @@ export default function TournamentsPage() {
             rows.map((t) => {
               const badgeClass = STATUS_BADGE_STYLE[t.status] ?? "bg-slate-100 text-slate-600";
               const myStatus = myStatuses[t.id];
+              const registrationSummary = registrationSummaries[t.id] ?? createEmptyRegistrationSummary();
 
               return (
                 <article
@@ -206,7 +238,10 @@ export default function TournamentsPage() {
                         <p>코스: {t.course_name ?? "-"}</p>
                         <p>지역: {t.location ?? "-"}</p>
                         <p>티오프: {t.tee_time ?? "-"}</p>
-                        <p>신청자 수: {applicantCounts[t.id] ?? 0}명</p>
+                        <p>
+                          신청/확정/대기/취소: {registrationSummary.applied}/{registrationSummary.approved}/
+                          {registrationSummary.waitlisted}/{registrationSummary.canceled}명
+                        </p>
                         <p>메모: {t.notes ?? "-"}</p>
                       </div>
 
