@@ -101,7 +101,13 @@ export default function TournamentsPage() {
         .from("registrations")
         .select("tournament_id,status")
         .in("tournament_id", tournamentIds)
-        .in("status", ["applied", "approved", "waitlisted", "canceled"]);
+        .in("status", ["applied", "approved", "waitlisted", "canceled"])
+        .limit(10000);
+
+      console.log('=== Registration Count Debug ===');
+      console.log('tournamentIds:', tournamentIds);
+      console.log('countData length:', countData?.length);
+      console.log('countError:', countError);
 
       if (!countError) {
         const nextSummaries: Record<number, RegistrationSummary> = {};
@@ -113,6 +119,7 @@ export default function TournamentsPage() {
           if (row.status === "canceled") current.canceled += 1;
           nextSummaries[row.tournament_id] = current;
         });
+        console.log('nextSummaries count:', Object.keys(nextSummaries).length);
         setRegistrationSummaries(nextSummaries);
       } else {
         setRegistrationSummaries({});
