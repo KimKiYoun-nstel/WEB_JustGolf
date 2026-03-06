@@ -89,6 +89,10 @@ export function SheetTitle({ children, className = "" }: { children: React.React
   return <h2 className={`text-lg font-semibold text-slate-900 ${className}`}>{children}</h2>;
 }
 
+export function SheetDescription({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <p className={`text-sm text-slate-600 ${className}`}>{children}</p>;
+}
+
 export function SheetClose({ onClick, className = "" }: { onClick?: () => void; className?: string }) {
   return (
     <Button

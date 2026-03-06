@@ -156,6 +156,64 @@ async function ensureGroupRow(
   }
 
   if (existing.data?.id) {
+
+  async function activateDrawChatSession(
+    supabaseAdmin: ReturnType<typeof createServiceRoleSupabaseClient>,
+    params: {
+      drawSessionId: number;
+      tournamentId: number;
+      userId: string;
+      startedAtIso?: string;
+    }
+  ) {
+    const startedAtIso = params.startedAtIso ?? new Date().toISOString();
+    const upsertRes = await supabaseAdmin
+      .from("draw_chat_sessions")
+      .upsert(
+        {
+          draw_session_id: params.drawSessionId,
+          tournament_id: params.tournamentId,
+          status: "live",
+          started_by: params.userId,
+          started_at: startedAtIso,
+          closed_at: null,
+        },
+        {
+          onConflict: "draw_session_id",
+        }
+      )
+      .select("id")
+      .single();
+
+    if (upsertRes.error || !upsertRes.data?.id) {
+      return {
+        error: upsertRes.error?.message ?? "채팅 세션 시작에 실패했습니다.",
+      };
+    }
+
+    return { id: Number(upsertRes.data.id) };
+  }
+
+  async function closeDrawChatSession(
+    supabaseAdmin: ReturnType<typeof createServiceRoleSupabaseClient>,
+    drawSessionId: number
+  ) {
+    const closedAt = new Date().toISOString();
+    const closeRes = await supabaseAdmin
+      .from("draw_chat_sessions")
+      .update({
+        status: "closed",
+        closed_at: closedAt,
+      })
+      .eq("draw_session_id", drawSessionId)
+      .eq("status", "live");
+
+    if (closeRes.error) {
+      return { error: closeRes.error.message };
+    }
+
+    return { ok: true as const };
+  }
     return existing.data.id as number;
   }
 
@@ -587,6 +645,21 @@ export async function POST(
         );
       }
 
+      const chatSessionRes = await activateDrawChatSession(supabaseAdmin, {
+        drawSessionId: Number(newSessionRes.data.id),
+        tournamentId,
+        userId: guard.user.id,
+        startedAtIso: restartedAt,
+      });
+
+      if ("error" in chatSessionRes) {
+        await supabaseAdmin.from("draw_sessions").delete().eq("id", newSessionRes.data.id);
+        return NextResponse.json(
+          { error: chatSessionRes.error },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json({ ok: true, session: newSessionRes.data }, { status: 200 });
     }
 
@@ -695,6 +768,21 @@ export async function POST(
       if (sessionStartEvent.error) {
         return NextResponse.json(
           { error: sessionStartEvent.error.message },
+          { status: 500 }
+        );
+      }
+
+      const chatSessionRes = await activateDrawChatSession(supabaseAdmin, {
+        drawSessionId: session.id,
+        tournamentId,
+        userId: guard.user.id,
+        startedAtIso: startedAt,
+      });
+
+      if ("error" in chatSessionRes) {
+        await supabaseAdmin.from("draw_sessions").delete().eq("id", session.id);
+        return NextResponse.json(
+          { error: chatSessionRes.error },
           { status: 500 }
         );
       }
@@ -1083,6 +1171,16 @@ export async function POST(
         })
         .eq("id", session.id);
 
+      if (willFinish) {
+        const closeChatRes = await closeDrawChatSession(supabaseAdmin, session.id);
+        if ("error" in closeChatRes) {
+          return NextResponse.json(
+            { error: closeChatRes.error },
+            { status: 500 }
+          );
+        }
+      }
+
       return NextResponse.json({ event: eventRes.data, willFinish }, { status: 201 });
     }
 
@@ -1231,6 +1329,18 @@ export async function POST(
           ended_at: null,
         })
         .eq("id", session.id);
+
+      const reopenChatRes = await activateDrawChatSession(supabaseAdmin, {
+        drawSessionId: session.id,
+        tournamentId,
+        userId: guard.user.id,
+      });
+      if ("error" in reopenChatRes) {
+        return NextResponse.json(
+          { error: reopenChatRes.error },
+          { status: 500 }
+        );
+      }
 
       return NextResponse.json({ event: undoRes.data }, { status: 201 });
     }

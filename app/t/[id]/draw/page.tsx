@@ -12,6 +12,14 @@ import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { useToast } from "../../../../components/ui/toast";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "../../../../components/ui/sheet";
+import { Input } from "../../../../components/ui/input";
 
 type DrawSessionRow = {
   id: number;
@@ -35,6 +43,21 @@ type DrawEventRow = {
 type RegistrationRow = {
   id: number;
   nickname: string;
+};
+
+type ChatSessionInfo = {
+  id: number;
+  drawSessionId: number;
+  status: "live" | "closed";
+};
+
+type ChatMessage = {
+  id: number;
+  chat_session_id: number;
+  user_id: string;
+  nickname: string;
+  message: string;
+  created_at: string;
 };
 
 type SyncStatus = "connecting" | "realtime" | "polling";
@@ -112,6 +135,17 @@ export default function TournamentDrawViewerPage() {
   const [mobileRemainingPanelOpen, setMobileRemainingPanelOpen] = useState(false);
   const nicknameCacheKeyRef = useRef("");
   const prevRemainingOrderRef = useRef<number[] | null>(null);
+
+  // Chat states
+  const [chatCanJoin, setChatCanJoin] = useState(false);
+  const [chatNickname, setChatNickname] = useState("");
+  const [chatSession, setChatSession] = useState<ChatSessionInfo | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInputMessage, setChatInputMessage] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  const chatShouldAutoScrollRef = useRef(true);
 
   const persistLowSpec = (next: boolean) => {
     setLowSpecMode(next);
@@ -225,6 +259,47 @@ export default function TournamentDrawViewerPage() {
     };
   }, [tournamentId]);
 
+  // Chat session fetch
+  useEffect(() => {
+    if (!Number.isFinite(tournamentId)) return;
+
+    const fetchChatSession = async () => {
+      const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/session`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.canJoin) {
+        setChatCanJoin(true);
+        setChatNickname(data.nickname);
+        setChatSession(data.chatSession);
+
+        if (data.chatSession?.id) {
+          const supabase = createClient();
+          const { data: msgData, error: msgError } = await supabase
+            .from("draw_chat_messages")
+            .select("id,chat_session_id,user_id,nickname,message,created_at")
+            .eq("chat_session_id", data.chatSession.id)
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true });
+
+          if (!msgError && msgData) {
+            setChatMessages(msgData as ChatMessage[]);
+          }
+        }
+      } else {
+        setChatCanJoin(false);
+        setChatNickname("");
+        setChatSession(null);
+        setChatMessages([]);
+      }
+    };
+
+    void fetchChatSession();
+  }, [tournamentId]);
+
   useEffect(() => {
     if (!session?.id) return;
 
@@ -300,6 +375,41 @@ export default function TournamentDrawViewerPage() {
     };
   }, [session?.id]);
 
+  // Chat realtime subscription
+  useEffect(() => {
+    if (!chatSession?.id) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`draw-chat-viewer-${chatSession.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "draw_chat_messages",
+          filter: `chat_session_id=eq.${chatSession.id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as ChatMessage;
+          setChatMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+          setTimeout(() => {
+            if (chatShouldAutoScrollRef.current) {
+              chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            }
+          }, 50);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [chatSession?.id]);
+
   const seed = useMemo<DrawSessionSeed | null>(() => {
     if (!session) return null;
     return {
@@ -346,6 +456,68 @@ export default function TournamentDrawViewerPage() {
   const displayName = (registrationId: number) =>
     nicknameByRegistrationId[registrationId] ?? `#${registrationId}`;
 
+  const handleChatEnter = () => {
+    if (!chatCanJoin) return;
+
+    if (isCompactLayout) {
+      // Mobile: open sheet overlay
+      setChatOpen(true);
+      setTimeout(() => {
+        chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } else {
+      // PC: open popup window
+      const chatUrl = `/t/${tournamentId}/draw/chat`;
+      window.open(
+        chatUrl,
+        "_blank",
+        "width=500,height=700,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+      );
+    }
+  };
+
+  const handleChatSend = async () => {
+    if (!chatSession?.id || !chatInputMessage.trim()) return;
+
+    setChatSending(true);
+
+    const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chatSessionId: chatSession.id,
+        message: chatInputMessage.trim(),
+      }),
+    });
+
+    setChatSending(false);
+
+    if (!response.ok) {
+      toast({
+        variant: "destructive",
+        title: "메시지 전송 실패",
+        description: "잠시 후 다시 시도해주세요.",
+      });
+      return;
+    }
+
+    setChatInputMessage("");
+    chatShouldAutoScrollRef.current = true;
+  };
+
+  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void handleChatSend();
+    }
+  };
+
+  const handleChatScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
+    chatShouldAutoScrollRef.current = isAtBottom;
+  };
+
   return (
     <main className="min-h-screen bg-slate-50/70">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10">
@@ -373,6 +545,11 @@ export default function TournamentDrawViewerPage() {
               />
               저사양 모드
             </label>
+            {chatCanJoin && chatSession && (
+              <Button onClick={handleChatEnter} variant="outline" size="sm">
+                채팅 입장
+              </Button>
+            )}
             <Button asChild variant="outline">
               <Link href={`/t/${tournamentId}/participants`}>참가자 현황으로</Link>
             </Button>
@@ -556,6 +733,92 @@ export default function TournamentDrawViewerPage() {
           </>
         )}
       </div>
+
+      {/* Mobile Chat Sheet */}
+      <Sheet open={chatOpen} onOpenChange={setChatOpen}>
+        <SheetContent side="bottom" className="h-[60vh] p-0">
+          <SheetHeader className="border-b bg-white px-4 py-3">
+            <SheetTitle className="text-base">라이브 채팅</SheetTitle>
+            <SheetDescription className="text-xs">
+              {chatNickname && `입장명: ${chatNickname}`}
+              {chatSession && (
+                <Badge
+                  variant={chatSession.status === "live" ? "default" : "secondary"}
+                  className="ml-2"
+                >
+                  {chatSession.status === "live" ? "진행 중" : "종료"}
+                </Badge>
+              )}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex h-[calc(100%-8rem)] flex-col">
+            <div
+              className="flex-1 overflow-y-auto px-4 py-4"
+              onScroll={handleChatScroll}
+            >
+              <div className="space-y-2">
+                {chatMessages.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-400">
+                    첫 번째 메시지를 보내보세요!
+                  </p>
+                ) : (
+                  chatMessages.map((m) => (
+                    <div
+                      key={m.id}
+                      className="rounded-lg bg-white px-3 py-2 shadow-sm"
+                    >
+                      <div className="mb-1 flex items-baseline gap-2">
+                        <span className="text-xs font-semibold text-slate-700">
+                          {m.nickname}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(m.created_at).toLocaleTimeString("ko-KR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      <p className="whitespace-pre-wrap break-words text-sm text-slate-800">
+                        {m.message}
+                      </p>
+                    </div>
+                  ))
+                )}
+                <div ref={chatMessagesEndRef} />
+              </div>
+            </div>
+
+            <div className="border-t bg-white p-4">
+              <div className="flex gap-2">
+                <Input
+                  value={chatInputMessage}
+                  onChange={(e) => setChatInputMessage(e.target.value)}
+                  onKeyDown={handleChatKeyDown}
+                  placeholder="메시지를 입력하세요"
+                  maxLength={300}
+                  disabled={chatSending || chatSession?.status !== "live"}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleChatSend}
+                  disabled={
+                    !chatInputMessage.trim() ||
+                    chatSending ||
+                    chatSession?.status !== "live"
+                  }
+                  size="sm"
+                >
+                  전송
+                </Button>
+              </div>
+              <p className="mt-1 text-[10px] text-slate-400">
+                Enter로 전송 • {chatInputMessage.length}/300
+              </p>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </main>
   );
 }
