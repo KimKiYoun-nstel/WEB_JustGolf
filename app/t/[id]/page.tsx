@@ -191,6 +191,21 @@ export default function TournamentDetailPage() {
     return error.message;
   };
 
+  const toUserSelectableStatus = (
+    status: Registration["status"]
+  ): "applied" | "canceled" => (status === "canceled" ? "canceled" : "applied");
+
+  const resolveUserUpdateStatus = (
+    currentStatus: Registration["status"],
+    selectedStatus: "applied" | "canceled"
+  ): Registration["status"] => {
+    if (selectedStatus === "canceled") return "canceled";
+    if (currentStatus === "approved" || currentStatus === "waitlisted") {
+      return currentStatus;
+    }
+    return "applied";
+  };
+
   useEffect(() => {
     if (!msg) return;
 
@@ -515,8 +530,10 @@ export default function TournamentDetailPage() {
       regs.find((r) => r.user_id === uid);
 
     if (existingMain) {
-      const nextStatus =
-        existingMain.status === "canceled" ? mainStatus : mainStatus;
+      const nextStatus = resolveUserUpdateStatus(
+        existingMain.status,
+        toUserSelectableStatus(mainStatus)
+      );
       const { data, error } = await supabase
         .from("registrations")
         .update({
@@ -557,7 +574,7 @@ export default function TournamentDetailPage() {
           pre_round_preferred: mainPreRoundPreferred,
           post_round_preferred: mainPostRoundPreferred,
           relation: "본인",
-          status: mainStatus,
+          status: toUserSelectableStatus(mainStatus),
         })
         .select("id")
         .single();
@@ -591,41 +608,6 @@ export default function TournamentDetailPage() {
     await refresh();
   };
 
-  const cancelMine = async () => {
-    const supabase = createClient();
-    setMsg("");
-    const uid = user?.id;
-    if (!uid) {
-      setMsg("로그인 필요");
-      return;
-    }
-
-    const mine = mainRegId ? regs.find((r) => r.id === mainRegId) : undefined;
-    if (!mine) {
-      setMsg("대표 참가자 신청 내역이 없어.");
-      return;
-    }
-
-    if (!confirm(`${mine.nickname}님의 신청을 삭제하시겠습니까?`)) {
-      return;
-    }
-
-    setLoadingAction('cancel-main');
-
-    const { error } = await supabase
-      .from("registrations")
-      .delete()
-      .eq("id", mine.id);
-
-    setLoadingAction(null);
-
-    if (error) setMsg(`삭제 실패: ${friendlyError(error)}`);
-    else {
-      setMsg("✅ 신청이 삭제되었습니다.");
-      await refresh();
-    }
-  };
-
   const addParticipant = async () => {
     const supabase = createClient();
     setMsg("");
@@ -653,7 +635,7 @@ export default function TournamentDetailPage() {
     }
 
     const rel = extraRelation.trim() || null;
-    const status = extraStatus === "canceled" ? "applied" : extraStatus;
+    const status = toUserSelectableStatus(extraStatus);
 
     const { data, error } = await supabase
       .from("registrations")
@@ -715,7 +697,7 @@ export default function TournamentDetailPage() {
     await refresh();
   };
 
-  const deleteParticipant = async (registrationId: number) => {
+  const changeParticipantStatus = async (registrationId: number) => {
     const supabase = createClient();
     setMsg("");
     const uid = user?.id;
@@ -724,30 +706,33 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    // 본인 또는 내가 등록한 제3자인지 확인
     const target = regs.find((r) => r.id === registrationId && r.registering_user_id === uid);
     if (!target) {
-      setMsg("삭제 권한이 없습니다.");
+      setMsg("상태 변경 권한이 없습니다.");
       return;
     }
 
-    if (!confirm(`${target.nickname}님의 신청을 삭제하시겠습니까?`)) {
+    const nextStatus: "applied" | "canceled" =
+      target.status === "canceled" ? "applied" : "canceled";
+    const actionLabel = nextStatus === "canceled" ? "취소" : "재신청";
+
+    if (!confirm(`${target.nickname}님의 신청 상태를 ${actionLabel}(으)로 변경하시겠습니까?`)) {
       return;
     }
 
-    setLoadingAction(`delete-${registrationId}`);
+    setLoadingAction(`status-${registrationId}`);
 
     const { error } = await supabase
       .from("registrations")
-      .delete()
+      .update({ status: nextStatus })
       .eq("id", target.id);
 
     setLoadingAction(null);
 
     if (error) {
-      setMsg(`삭제 실패: ${friendlyError(error)}`);
+      setMsg(`상태 변경 실패: ${friendlyError(error)}`);
     } else {
-      setMsg("✅ 신청이 삭제되었습니다.");
+      setMsg(`신청 상태를 ${actionLabel}(으)로 변경했습니다.`);
       await refresh();
     }
   };
@@ -1428,13 +1413,13 @@ export default function TournamentDetailPage() {
                     <label className="text-sm font-medium">참가 상태</label>
                     <select
                       className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      value={mainStatus}
+                      value={toUserSelectableStatus(mainStatus)}
                       onChange={(e) =>
                         setMainStatus(e.target.value as Registration["status"])
                       }
                     >
                       <option value="applied">신청</option>
-                      <option value="undecided">미정</option>
+                      <option value="canceled">취소</option>
                     </select>
                   </div>
 
@@ -1625,9 +1610,6 @@ export default function TournamentDetailPage() {
                     <Button onClick={apply} size="sm" disabled={loadingAction === 'apply'}>
                       {loadingAction === 'apply' ? "처리중..." : regs.find((r) => r.user_id === user?.id && r.status !== "canceled") ? "정보 수정" : "신청하기"}
                     </Button>
-                    <Button onClick={cancelMine} variant="outline" size="sm" disabled={loadingAction === 'cancel-main'}>
-                      {loadingAction === 'cancel-main' ? "삭제중..." : "신청 삭제"}
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1679,10 +1661,10 @@ export default function TournamentDetailPage() {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => deleteParticipant(p.id)}
-                                      disabled={loadingAction === `delete-${p.id}`}
+                                      onClick={() => changeParticipantStatus(p.id)}
+                                      disabled={loadingAction === `status-${p.id}`}
                                     >
-                                      {loadingAction === `delete-${p.id}` ? "삭제중..." : "삭제"}
+                                      {loadingAction === `status-${p.id}` ? "변경중..." : p.status === "canceled" ? "재신청" : "취소"}
                                     </Button>
                                   </div>
                                 </TableCell>
@@ -1723,11 +1705,11 @@ export default function TournamentDetailPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => deleteParticipant(p.id)}
-                              disabled={loadingAction === `delete-${p.id}`}
+                              onClick={() => changeParticipantStatus(p.id)}
+                              disabled={loadingAction === `status-${p.id}`}
                               className={p.user_id === null ? "flex-1" : "flex-1"}
                             >
-                              {loadingAction === `delete-${p.id}` ? "삭제중..." : "삭제"}
+                              {loadingAction === `status-${p.id}` ? "변경중..." : p.status === "canceled" ? "재신청" : "취소"}
                             </Button>
                           </div>
                         </div>
@@ -1950,7 +1932,7 @@ export default function TournamentDetailPage() {
                           }
                         >
                           <option value="applied">신청</option>
-                          <option value="undecided">미정</option>
+                          <option value="canceled">취소</option>
                         </select>
                       </div>
                       <div className="space-y-1">
