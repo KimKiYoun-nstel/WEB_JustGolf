@@ -21,11 +21,6 @@ type Tournament = {
   status: string;
 };
 
-type RegistrationCountRow = {
-  tournament_id: number;
-  status: string;
-};
-
 type RegistrationSummary = {
   applied: number;
   approved: number;
@@ -45,8 +40,6 @@ const STATUS_BADGE_STYLE: Record<string, string> = {
   closed: "bg-amber-100 text-amber-700",
   done: "bg-slate-200 text-slate-600",
 };
-
-const REGISTRATION_SUMMARY_STATUSES = ["applied", "approved", "waitlisted", "canceled"] as const;
 
 const createEmptyRegistrationSummary = (): RegistrationSummary => ({
   applied: 0,
@@ -97,26 +90,25 @@ export default function TournamentsPage() {
         return;
       }
 
+      // DB에서 직접 집계하여 효율적으로 조회 (RPC 함수 사용)
       const { data: countData, error: countError } = await supabase
-        .from("registrations")
-        .select("tournament_id,status")
-        .in("tournament_id", tournamentIds)
-        .in("status", ["applied", "approved", "waitlisted", "canceled"])
-        .limit(10000);
+        .rpc('get_registration_counts_by_tournaments', { 
+          tournament_ids: tournamentIds 
+        });
 
       console.log('=== Registration Count Debug ===');
-      console.log('tournamentIds:', tournamentIds);
-      console.log('countData length:', countData?.length);
+      console.log('tournamentIds count:', tournamentIds.length);
+      console.log('countData (aggregated):', countData);
       console.log('countError:', countError);
 
-      if (!countError) {
+      if (!countError && countData) {
         const nextSummaries: Record<number, RegistrationSummary> = {};
-        ((countData ?? []) as RegistrationCountRow[]).forEach((row) => {
+        (countData as { tournament_id: number; status: string; count: number }[]).forEach((row) => {
           const current = nextSummaries[row.tournament_id] ?? createEmptyRegistrationSummary();
-          if (row.status === "applied") current.applied += 1;
-          if (row.status === "approved") current.approved += 1;
-          if (row.status === "waitlisted") current.waitlisted += 1;
-          if (row.status === "canceled") current.canceled += 1;
+          if (row.status === "applied") current.applied = row.count;
+          if (row.status === "approved") current.approved = row.count;
+          if (row.status === "waitlisted") current.waitlisted = row.count;
+          if (row.status === "canceled") current.canceled = row.count;
           nextSummaries[row.tournament_id] = current;
         });
         console.log('nextSummaries count:', Object.keys(nextSummaries).length);
