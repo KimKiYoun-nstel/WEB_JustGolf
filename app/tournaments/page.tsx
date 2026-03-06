@@ -46,7 +46,7 @@ const STATUS_BADGE_STYLE: Record<string, string> = {
   done: "bg-slate-200 text-slate-600",
 };
 
-const REGISTRATION_SUMMARY_STATUSES = ["applied", "approved", "waitlisted", "canceled"] as const;
+const REGISTRATION_SUMMARY_STATUSES = ["applied", "confirmed", "waitlisted", "canceled"] as const;
 
 const createEmptyRegistrationSummary = (): RegistrationSummary => ({
   applied: 0,
@@ -108,7 +108,7 @@ export default function TournamentsPage() {
         ((countData ?? []) as RegistrationCountRow[]).forEach((row) => {
           const current = nextSummaries[row.tournament_id] ?? createEmptyRegistrationSummary();
           if (row.status === "applied") current.applied += 1;
-          if (row.status === "approved") current.approved += 1;
+          if (row.status === "confirmed") current.approved += 1;
           if (row.status === "waitlisted") current.waitlisted += 1;
           if (row.status === "canceled") current.canceled += 1;
           nextSummaries[row.tournament_id] = current;
