@@ -35,6 +35,7 @@ export default function DrawChatPage() {
   const [inputMessage, setInputMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState("");
+  const [participants, setParticipants] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -88,6 +89,8 @@ export default function DrawChatPage() {
 
         if (!msgError && msgData) {
           setMessages(msgData as ChatMessage[]);
+          const uniqueNicks = Array.from(new Set((msgData as ChatMessage[]).map(m => m.nickname)));
+          setParticipants(uniqueNicks);
           setTimeout(() => scrollToBottom(true), 100);
         }
       }
@@ -117,6 +120,10 @@ export default function DrawChatPage() {
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
+          });
+          setParticipants(prev => {
+            if (prev.includes(newMsg.nickname)) return prev;
+            return [...prev, newMsg.nickname];
           });
           setTimeout(() => scrollToBottom(), 50);
         }
@@ -170,7 +177,7 @@ export default function DrawChatPage() {
 
   return (
     <main className="flex h-screen flex-col bg-slate-50">
-      <div className="flex items-center justify-between border-b bg-white px-4 py-3 shadow-sm">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3 shadow-sm">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">라이브 채팅</h1>
           {nickname && (
@@ -179,11 +186,22 @@ export default function DrawChatPage() {
             </p>
           )}
         </div>
-        {chatSession && (
-          <Badge variant={chatSession.status === "live" ? "default" : "secondary"}>
-            {chatSession.status === "live" ? "진행 중" : "종료"}
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className="h-6"
+          >
+            참가 {participants.length}명
           </Badge>
-        )}
+          {chatSession && (
+            <Badge
+              variant="outline"
+              className={chatSession.status === "live" ? "h-6 border-emerald-200 bg-emerald-50 text-emerald-700" : "h-6"}
+            >
+              {chatSession.status === "live" ? "진행 중" : "종료"}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -199,12 +217,13 @@ export default function DrawChatPage() {
           </Card>
         </div>
       ) : (
-        <>
-          <div
-            className="flex-1 overflow-y-auto px-4 py-4"
-            onScroll={handleScroll}
-          >
-            <div className="space-y-3">
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 flex-col">
+            <div
+              className="flex-1 overflow-y-auto px-4 py-4"
+              onScroll={handleScroll}
+            >
+              <div className="space-y-3">
               {messages.length === 0 ? (
                 <p className="py-8 text-center text-sm text-slate-400">
                   첫 번째 메시지를 보내보세요!
@@ -232,42 +251,63 @@ export default function DrawChatPage() {
                   </div>
                 ))
               )}
-              <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            <div className="border-t bg-white p-4">
+              {msg && (
+                <div className="mb-2 rounded bg-red-50 px-3 py-1 text-xs text-red-700">
+                  {msg}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="메시지를 입력하세요 (최대 300자)"
+                  maxLength={300}
+                  disabled={sending || chatSession.status !== "live"}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleSend}
+                  disabled={
+                    !inputMessage.trim() ||
+                    sending ||
+                    chatSession.status !== "live"
+                  }
+                  size="sm"
+                  className="h-10"
+                >
+                  전송
+                </Button>
+              </div>
+              <p className="mt-1 text-[10px] text-slate-400">
+                Enter로 전송 • {inputMessage.length}/300
+              </p>
             </div>
           </div>
 
-          <div className="border-t bg-white p-4">
-            {msg && (
-              <div className="mb-2 rounded bg-red-50 px-3 py-1 text-xs text-red-700">
-                {msg}
+          <aside className="w-48 border-l bg-white">
+            <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+              <div className="border-b px-3 py-2">
+                <h2 className="text-xs font-semibold text-slate-600">참가자 ({participants.length})</h2>
               </div>
-            )}
-            <div className="flex gap-2">
-              <Input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="메시지를 입력하세요 (최대 300자)"
-                maxLength={300}
-                disabled={sending || chatSession.status !== "live"}
-                className="flex-1"
-              />
-              <Button
-                onClick={handleSend}
-                disabled={
-                  !inputMessage.trim() ||
-                  sending ||
-                  chatSession.status !== "live"
-                }
-              >
-                전송
-              </Button>
+              <div className="flex-1 overflow-y-auto px-3 py-2">
+                <ul className="space-y-1">
+                  {participants.map((nick, idx) => (
+                    <li key={idx} className="flex items-center gap-2 text-xs text-slate-700">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      {nick}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <p className="mt-1 text-[10px] text-slate-400">
-              Enter로 전송 • {inputMessage.length}/300
-            </p>
-          </div>
-        </>
+          </aside>
+        </div>
       )}
     </main>
   );

@@ -142,10 +142,13 @@ export default function TournamentDrawViewerPage() {
   const [chatSession, setChatSession] = useState<ChatSessionInfo | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatPopupOpen, setChatPopupOpen] = useState(false);
   const [chatInputMessage, setChatInputMessage] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const chatShouldAutoScrollRef = useRef(true);
+  const chatPopupRef = useRef<Window | null>(null);
+  const chatPopupWatchRef = useRef<number | null>(null);
 
   const persistLowSpec = (next: boolean) => {
     setLowSpecMode(next);
@@ -263,6 +266,8 @@ export default function TournamentDrawViewerPage() {
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
 
+    let mounted = true;
+
     const fetchChatSession = async () => {
       const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/session`, {
         method: "GET",
@@ -270,6 +275,7 @@ export default function TournamentDrawViewerPage() {
       });
 
       const data = await response.json();
+      if (!mounted) return;
 
       if (response.ok && data.canJoin) {
         setChatCanJoin(true);
@@ -294,10 +300,21 @@ export default function TournamentDrawViewerPage() {
         setChatNickname("");
         setChatSession(null);
         setChatMessages([]);
+        setChatPopupOpen(false);
+        setChatOpen(false);
       }
     };
 
     void fetchChatSession();
+
+    const chatSessionPollId = window.setInterval(() => {
+      void fetchChatSession();
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(chatSessionPollId);
+    };
   }, [tournamentId]);
 
   useEffect(() => {
@@ -467,12 +484,38 @@ export default function TournamentDrawViewerPage() {
       }, 100);
     } else {
       // PC: open popup window
+      const existing = chatPopupRef.current;
+      if (existing && !existing.closed) {
+        existing.focus();
+        setChatPopupOpen(true);
+        return;
+      }
+
       const chatUrl = `/t/${tournamentId}/draw/chat`;
-      window.open(
+      const popup = window.open(
         chatUrl,
         "_blank",
         "width=500,height=700,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
       );
+
+      if (!popup) return;
+
+      chatPopupRef.current = popup;
+      setChatPopupOpen(true);
+
+      if (chatPopupWatchRef.current) {
+        clearInterval(chatPopupWatchRef.current);
+      }
+
+      chatPopupWatchRef.current = window.setInterval(() => {
+        if (!chatPopupRef.current || chatPopupRef.current.closed) {
+          setChatPopupOpen(false);
+          if (chatPopupWatchRef.current) {
+            clearInterval(chatPopupWatchRef.current);
+            chatPopupWatchRef.current = null;
+          }
+        }
+      }, 1000);
     }
   };
 
@@ -494,7 +537,7 @@ export default function TournamentDrawViewerPage() {
 
     if (!response.ok) {
       toast({
-        variant: "destructive",
+        variant: "error",
         title: "메시지 전송 실패",
         description: "잠시 후 다시 시도해주세요.",
       });
@@ -518,9 +561,21 @@ export default function TournamentDrawViewerPage() {
     chatShouldAutoScrollRef.current = isAtBottom;
   };
 
+  useEffect(() => {
+    return () => {
+      if (chatPopupWatchRef.current) {
+        clearInterval(chatPopupWatchRef.current);
+        chatPopupWatchRef.current = null;
+      }
+    };
+  }, []);
+
+  const isChatWindowOpen = isCompactLayout ? chatOpen : chatPopupOpen;
+  const stateBadgeBaseClass = "h-6 border-slate-200 bg-slate-50 text-slate-700";
+
   return (
     <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">라이브 조편성</h1>
@@ -528,14 +583,49 @@ export default function TournamentDrawViewerPage() {
               라이브 이벤트를 리플레이하여 현재 상태를 표시합니다.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={effectiveSyncStatus === "realtime" ? "default" : "secondary"}>
-              {effectiveSyncStatus === "realtime"
-                ? "실시간 연결"
-                : effectiveSyncStatus === "connecting"
-                  ? "실시간 연결 중"
-                  : "폴링 백업 동기화"}
-            </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-1 flex items-center gap-1">
+              <Badge
+                variant="outline"
+                className={
+                  effectiveSyncStatus === "realtime"
+                    ? "h-6 border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : effectiveSyncStatus === "connecting"
+                      ? "h-6 border-amber-200 bg-amber-50 text-amber-700"
+                      : stateBadgeBaseClass
+                }
+              >
+                {effectiveSyncStatus === "realtime"
+                  ? "실시간 연결"
+                  : effectiveSyncStatus === "connecting"
+                    ? "실시간 연결 중"
+                    : "폴링 백업 동기화"}
+              </Badge>
+              {chatSession && (
+                <Badge
+                  variant="outline"
+                  className={
+                    chatSession.status === "live"
+                      ? "h-6 border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : stateBadgeBaseClass
+                  }
+                >
+                  채팅 {chatSession.status === "live" ? "LIVE" : "CLOSED"}
+                </Badge>
+              )}
+              {chatCanJoin && chatSession && (
+                <Badge
+                  variant="outline"
+                  className={
+                    isChatWindowOpen
+                      ? "h-6 border-sky-200 bg-sky-50 text-sky-700"
+                      : stateBadgeBaseClass
+                  }
+                >
+                  창 {isChatWindowOpen ? "열림" : "닫힘"}
+                </Badge>
+              )}
+            </div>
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -546,41 +636,53 @@ export default function TournamentDrawViewerPage() {
               저사양 모드
             </label>
             {chatCanJoin && chatSession && (
-              <Button onClick={handleChatEnter} variant="outline" size="sm">
-                채팅 입장
+              <Button onClick={handleChatEnter} variant="outline" size="sm" className="h-8">
+                {isChatWindowOpen ? "채팅창 포커스" : "채팅 입장"}
               </Button>
             )}
-            <Button asChild variant="outline">
-              <Link href={`/t/${tournamentId}/participants`}>참가자 현황으로</Link>
+            <Button asChild variant="outline" size="sm" className="h-8">
+              <Link href={`/t/${tournamentId}/participants`} className="no-underline hover:no-underline">
+                참가자 현황으로
+              </Link>
             </Button>
           </div>
         </div>
 
         {msg && (
           <Card className="border-red-200 bg-red-50">
-            <CardContent className="py-4 text-sm text-red-700">{msg}</CardContent>
+            <CardContent className="py-2 text-sm text-red-700">{msg}</CardContent>
           </Card>
         )}
 
         {loading ? (
           <Card>
-            <CardContent className="py-10 text-sm text-slate-500">로딩 중...</CardContent>
+            <CardContent className="py-6 text-sm text-slate-500">로딩 중...</CardContent>
           </Card>
         ) : !state ? (
           <Card>
-            <CardContent className="py-10 text-sm text-slate-500">
+            <CardContent className="py-6 text-sm text-slate-500">
               아직 생성된 라이브 조편성 세션이 없습니다.
             </CardContent>
           </Card>
         ) : (
           <>
             <Card className="border-slate-200/70">
-              <CardContent className="py-5">
+              <CardContent className="py-3">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <Badge variant="secondary" className="capitalize">
+                  <Badge
+                    variant="outline"
+                    className="h-6 border-amber-200 bg-amber-50 px-2 capitalize text-amber-700"
+                  >
                     phase: {state.phase}
                   </Badge>
-                  <Badge variant="outline" className="capitalize">
+                  <Badge
+                    variant="outline"
+                    className={
+                      state.status === "live"
+                        ? "h-6 border-emerald-200 bg-emerald-50 px-2 capitalize text-emerald-700"
+                        : `${stateBadgeBaseClass} px-2 capitalize`
+                    }
+                  >
                     session: {state.status}
                   </Badge>
                   <span className="text-slate-600">
@@ -627,21 +729,23 @@ export default function TournamentDrawViewerPage() {
               lowSpecMode={lowSpecMode}
             />
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+            <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
               <Card className="border-slate-200/70">
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-1.5 px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-lg">조 편성 현황</CardTitle>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-500">{state.groupCount}개 조</span>
                       {isCompactLayout ? (
-                        <button
+                        <Button
                           type="button"
                           onClick={() => setMobileGroupsPanelOpen((prev) => !prev)}
-                          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
                         >
                           {mobileGroupsPanelOpen ? "접기" : "펼치기"}
-                        </button>
+                        </Button>
                       ) : null}
                     </div>
                   </div>
@@ -693,19 +797,21 @@ export default function TournamentDrawViewerPage() {
               </Card>
 
               <Card className="border-slate-200/70">
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-1.5 px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-lg">남은 추첨 대상</CardTitle>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-500">{state.remainingPlayerIds.length}명</span>
                       {isCompactLayout ? (
-                        <button
+                        <Button
                           type="button"
                           onClick={() => setMobileRemainingPanelOpen((prev) => !prev)}
-                          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
                         >
                           {mobileRemainingPanelOpen ? "접기" : "펼치기"}
-                        </button>
+                        </Button>
                       ) : null}
                     </div>
                   </div>
@@ -735,16 +841,20 @@ export default function TournamentDrawViewerPage() {
       </div>
 
       {/* Mobile Chat Sheet */}
-      <Sheet open={chatOpen} onOpenChange={setChatOpen}>
-        <SheetContent side="bottom" className="h-[60vh] p-0">
+      <Sheet open={chatOpen} onOpenChange={setChatOpen} side="bottom">
+        <SheetContent className="h-[60vh] p-0">
           <SheetHeader className="border-b bg-white px-4 py-3">
             <SheetTitle className="text-base">라이브 채팅</SheetTitle>
             <SheetDescription className="text-xs">
               {chatNickname && `입장명: ${chatNickname}`}
               {chatSession && (
                 <Badge
-                  variant={chatSession.status === "live" ? "default" : "secondary"}
-                  className="ml-2"
+                  variant="outline"
+                  className={
+                    chatSession.status === "live"
+                      ? "ml-2 h-6 border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : `ml-2 ${stateBadgeBaseClass}`
+                  }
                 >
                   {chatSession.status === "live" ? "진행 중" : "종료"}
                 </Badge>
