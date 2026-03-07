@@ -12,13 +12,6 @@ import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { useToast } from "../../../../components/ui/toast";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "../../../../components/ui/sheet";
 import { Input } from "../../../../components/ui/input";
 
 type DrawSessionRow = {
@@ -138,17 +131,22 @@ export default function TournamentDrawViewerPage() {
 
   // Chat states
   const [chatCanJoin, setChatCanJoin] = useState(false);
+  const [chatUserId, setChatUserId] = useState("");
   const [chatNickname, setChatNickname] = useState("");
   const [chatSession, setChatSession] = useState<ChatSessionInfo | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatExpanded, setChatExpanded] = useState(false);
   const [chatPopupOpen, setChatPopupOpen] = useState(false);
   const [chatInputMessage, setChatInputMessage] = useState("");
   const [chatSending, setChatSending] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const chatShouldAutoScrollRef = useRef(true);
   const chatPopupRef = useRef<Window | null>(null);
   const chatPopupWatchRef = useRef<number | null>(null);
+  const mobileChatHistoryPushedRef = useRef(false);
 
   const persistLowSpec = (next: boolean) => {
     setLowSpecMode(next);
@@ -268,40 +266,55 @@ export default function TournamentDrawViewerPage() {
 
     let mounted = true;
 
+    const resetChatState = () => {
+      setChatCanJoin(false);
+      setChatUserId("");
+      setChatNickname("");
+      setChatSession(null);
+      setChatMessages([]);
+      setChatUnreadCount(0);
+      setChatPopupOpen(false);
+      setChatExpanded(false);
+      setChatOpen(false);
+      mobileChatHistoryPushedRef.current = false;
+    };
+
     const fetchChatSession = async () => {
-      const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/session`, {
-        method: "GET",
-        cache: "no-store",
-      });
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/session`, {
+          method: "GET",
+          cache: "no-store",
+        });
 
-      const data = await response.json();
-      if (!mounted) return;
+        const data = await response.json().catch(() => ({}));
+        if (!mounted) return;
 
-      if (response.ok && data.canJoin) {
-        setChatCanJoin(true);
-        setChatNickname(data.nickname);
-        setChatSession(data.chatSession);
+        if (response.ok && data.canJoin) {
+          setChatCanJoin(true);
+          setChatUserId(typeof data.userId === "string" ? data.userId : "");
+          setChatNickname(data.nickname);
+          setChatSession(data.chatSession);
 
-        if (data.chatSession?.id) {
-          const supabase = createClient();
-          const { data: msgData, error: msgError } = await supabase
-            .from("draw_chat_messages")
-            .select("id,chat_session_id,user_id,nickname,message,created_at")
-            .eq("chat_session_id", data.chatSession.id)
-            .order("created_at", { ascending: true })
-            .order("id", { ascending: true });
+          if (data.chatSession?.id) {
+            const supabase = createClient();
+            const { data: msgData, error: msgError } = await supabase
+              .from("draw_chat_messages")
+              .select("id,chat_session_id,user_id,nickname,message,created_at")
+              .eq("chat_session_id", data.chatSession.id)
+              .order("created_at", { ascending: true })
+              .order("id", { ascending: true });
 
-          if (!msgError && msgData) {
-            setChatMessages(msgData as ChatMessage[]);
+            if (!msgError && msgData) {
+              setChatMessages(msgData as ChatMessage[]);
+            }
           }
+        } else {
+          resetChatState();
         }
-      } else {
-        setChatCanJoin(false);
-        setChatNickname("");
-        setChatSession(null);
-        setChatMessages([]);
-        setChatPopupOpen(false);
-        setChatOpen(false);
+      } catch (error) {
+        if (!mounted) return;
+        // Keep the previous chat UI state on transient network failures.
+        console.error("Failed to fetch draw chat session:", error);
       }
     };
 
@@ -409,13 +422,17 @@ export default function TournamentDrawViewerPage() {
         },
         (payload) => {
           const newMsg = payload.new as ChatMessage;
+          const shouldStickToBottom = chatShouldAutoScrollRef.current;
           setChatMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
           setTimeout(() => {
-            if (chatShouldAutoScrollRef.current) {
+            if (shouldStickToBottom) {
               chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+              setChatUnreadCount(0);
+            } else {
+              setChatUnreadCount((prev) => prev + 1);
             }
           }, 50);
         }
@@ -477,7 +494,8 @@ export default function TournamentDrawViewerPage() {
     if (!chatCanJoin) return;
 
     if (isCompactLayout) {
-      // Mobile: open sheet overlay
+      // Mobile: open fixed overlay (compact mode)
+      setChatExpanded(false);
       setChatOpen(true);
       setTimeout(() => {
         chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -498,7 +516,10 @@ export default function TournamentDrawViewerPage() {
         "width=500,height=700,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
       );
 
-      if (!popup) return;
+      if (!popup) {
+        window.location.href = chatUrl;
+        return;
+      }
 
       chatPopupRef.current = popup;
       setChatPopupOpen(true);
@@ -520,32 +541,35 @@ export default function TournamentDrawViewerPage() {
   };
 
   const handleChatSend = async () => {
-    if (!chatSession?.id || !chatInputMessage.trim()) return;
+    if (!chatSession?.id || !chatInputMessage.trim() || chatSending) return;
 
     setChatSending(true);
 
-    const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chatSessionId: chatSession.id,
-        message: chatInputMessage.trim(),
-      }),
-    });
-
-    setChatSending(false);
-
-    if (!response.ok) {
-      toast({
-        variant: "error",
-        title: "메시지 전송 실패",
-        description: "잠시 후 다시 시도해주세요.",
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chatSessionId: chatSession.id,
+          message: chatInputMessage.trim(),
+        }),
       });
-      return;
-    }
 
-    setChatInputMessage("");
-    chatShouldAutoScrollRef.current = true;
+      if (!response.ok) {
+        toast({
+          variant: "error",
+          title: "메시지 전송 실패",
+          description: "잠시 후 다시 시도해주세요.",
+        });
+        return;
+      }
+
+      setChatInputMessage("");
+      chatShouldAutoScrollRef.current = true;
+      setTimeout(() => chatInputRef.current?.focus(), 0);
+    } finally {
+      setChatSending(false);
+    }
   };
 
   const handleChatKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -559,7 +583,46 @@ export default function TournamentDrawViewerPage() {
     const target = e.currentTarget;
     const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
     chatShouldAutoScrollRef.current = isAtBottom;
+    if (isAtBottom) {
+      setChatUnreadCount(0);
+    }
   };
+
+  const handleCloseMobileChat = () => {
+    if (typeof window !== "undefined" && mobileChatHistoryPushedRef.current) {
+      window.history.back();
+      return;
+    }
+    setChatExpanded(false);
+    setChatOpen(false);
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isCompactLayout) return;
+    if (chatOpen && !mobileChatHistoryPushedRef.current) {
+      window.history.pushState({ drawChatOverlay: true }, "");
+      mobileChatHistoryPushedRef.current = true;
+    }
+  }, [chatOpen, isCompactLayout]);
+
+  useEffect(() => {
+    if (!chatOpen) {
+      mobileChatHistoryPushedRef.current = false;
+    }
+  }, [chatOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPopState = () => {
+      if (isCompactLayout && chatOpen) {
+        setChatExpanded(false);
+        setChatOpen(false);
+        mobileChatHistoryPushedRef.current = false;
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [chatOpen, isCompactLayout]);
 
   useEffect(() => {
     return () => {
@@ -574,7 +637,11 @@ export default function TournamentDrawViewerPage() {
   const stateBadgeBaseClass = "h-6 border-slate-200 bg-slate-50 text-slate-700";
 
   return (
-    <main className="min-h-screen bg-slate-50/70">
+    <main
+      className={`min-h-screen bg-slate-50/70 ${
+        isCompactLayout && chatOpen ? (chatExpanded ? "pb-[60vh]" : "pb-48") : ""
+      }`}
+    >
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -840,95 +907,122 @@ export default function TournamentDrawViewerPage() {
         )}
       </div>
 
-      {/* Mobile Chat Sheet */}
-      <Sheet open={chatOpen} onOpenChange={setChatOpen} side="bottom">
-        <SheetContent className="h-[60vh] p-0">
-          <SheetHeader className="border-b bg-white px-4 py-3">
-            <SheetTitle className="text-base">라이브 채팅</SheetTitle>
-            <SheetDescription className="text-xs">
-              {chatNickname && `입장명: ${chatNickname}`}
+      {isCompactLayout && chatOpen && (
+        <section className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 shadow-[0_-4px_14px_rgba(15,23,42,0.1)] backdrop-blur">
+          <div className="flex items-center justify-between border-b px-3 py-2">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-slate-900">라이브 채팅</p>
               {chatSession && (
                 <Badge
                   variant="outline"
                   className={
                     chatSession.status === "live"
-                      ? "ml-2 h-6 border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : `ml-2 ${stateBadgeBaseClass}`
+                      ? "h-6 border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : stateBadgeBaseClass
                   }
                 >
                   {chatSession.status === "live" ? "진행 중" : "종료"}
                 </Badge>
               )}
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="flex h-[calc(100%-8rem)] flex-col">
-            <div
-              className="flex-1 overflow-y-auto px-4 py-4"
-              onScroll={handleChatScroll}
-            >
-              <div className="space-y-2">
-                {chatMessages.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-slate-400">
-                    첫 번째 메시지를 보내보세요!
-                  </p>
-                ) : (
-                  chatMessages.map((m) => (
-                    <div
-                      key={m.id}
-                      className="rounded-lg bg-white px-3 py-2 shadow-sm"
-                    >
-                      <div className="mb-1 flex items-baseline gap-2">
-                        <span className="text-xs font-semibold text-slate-700">
-                          {m.nickname}
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                          {new Date(m.created_at).toLocaleTimeString("ko-KR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                      <p className="whitespace-pre-wrap break-words text-sm text-slate-800">
-                        {m.message}
-                      </p>
-                    </div>
-                  ))
-                )}
-                <div ref={chatMessagesEndRef} />
-              </div>
             </div>
-
-            <div className="border-t bg-white p-4">
-              <div className="flex gap-2">
-                <Input
-                  value={chatInputMessage}
-                  onChange={(e) => setChatInputMessage(e.target.value)}
-                  onKeyDown={handleChatKeyDown}
-                  placeholder="메시지를 입력하세요"
-                  maxLength={300}
-                  disabled={chatSending || chatSession?.status !== "live"}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleChatSend}
-                  disabled={
-                    !chatInputMessage.trim() ||
-                    chatSending ||
-                    chatSession?.status !== "live"
-                  }
-                  size="sm"
-                >
-                  전송
-                </Button>
-              </div>
-              <p className="mt-1 text-[10px] text-slate-400">
-                Enter로 전송 • {chatInputMessage.length}/300
-              </p>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setChatExpanded((prev) => !prev)}
+                aria-label={chatExpanded ? "기본 채팅으로 축소" : "채팅 확장"}
+              >
+                {chatExpanded ? "기본" : "확장"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={handleCloseMobileChat}
+                aria-label="채팅 닫기"
+              >
+                닫기
+              </Button>
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
+
+          <div
+            className={chatExpanded ? "h-[42vh] overflow-y-auto px-3 py-2" : "h-[96px] overflow-hidden px-3 py-2"}
+            onScroll={chatExpanded ? handleChatScroll : undefined}
+          >
+            {chatMessages.length === 0 ? (
+              <p className="py-2 text-center text-xs text-slate-400">아직 메시지가 없습니다.</p>
+            ) : (
+              <ul className="space-y-1 text-[13px] leading-5">
+                {(chatExpanded ? chatMessages : chatMessages.slice(-4)).map((m) => {
+                  const isMine = chatUserId !== "" && m.user_id === chatUserId;
+                  return (
+                    <li key={m.id} className={isMine ? "rounded bg-emerald-50/70 px-1" : "px-1"}>
+                      <span className={isMine ? "font-semibold text-emerald-700" : "font-semibold text-slate-700"}>
+                        {isMine ? "나" : m.nickname}
+                      </span>
+                      <span className="mx-1 text-slate-400">:</span>
+                      <span className={chatExpanded ? "break-words text-slate-800" : "inline-block max-w-full truncate align-bottom text-slate-800"}>
+                        {m.message}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div ref={chatMessagesEndRef} />
+          </div>
+
+          {chatExpanded && chatUnreadCount > 0 && (
+            <div className="flex justify-center border-t border-dashed bg-white/80 py-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  chatShouldAutoScrollRef.current = true;
+                  chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                  setChatUnreadCount(0);
+                }}
+              >
+                새 메시지 {chatUnreadCount}개
+              </Button>
+            </div>
+          )}
+
+          <div className="border-t px-3 py-2">
+            <div className="flex gap-2">
+              <Input
+                ref={chatInputRef}
+                value={chatInputMessage}
+                onChange={(e) => setChatInputMessage(e.target.value)}
+                onKeyDown={handleChatKeyDown}
+                placeholder="메시지를 입력하세요"
+                maxLength={300}
+                disabled={chatSession?.status !== "live"}
+                className="h-9 flex-1"
+              />
+              <Button
+                onClick={handleChatSend}
+                disabled={!chatInputMessage.trim() || chatSending || chatSession?.status !== "live"}
+                variant="outline"
+                size="sm"
+                className="h-9 px-3"
+              >
+                전송
+              </Button>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-400">
+              {chatNickname ? `입장명: ${chatNickname} • ` : ""}
+              {chatInputMessage.length}/300
+            </p>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

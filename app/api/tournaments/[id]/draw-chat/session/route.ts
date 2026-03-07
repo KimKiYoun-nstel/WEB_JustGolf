@@ -100,6 +100,7 @@ export async function GET(
     const canJoin = chatSession.status === "live" && nickname.length > 0;
 
     return NextResponse.json({
+      userId: guard.user.id,
       nickname,
       canJoin,
       chatSession: {

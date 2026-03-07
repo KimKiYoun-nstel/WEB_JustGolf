@@ -28,6 +28,7 @@ export default function DrawChatPage() {
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
 
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState("");
   const [nickname, setNickname] = useState("");
   const [canJoin, setCanJoin] = useState(false);
   const [chatSession, setChatSession] = useState<ChatSessionInfo | null>(null);
@@ -36,13 +37,17 @@ export default function DrawChatPage() {
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
+  const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
 
   const scrollToBottom = (force = false) => {
     if (force || shouldAutoScrollRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      setUnreadCount(0);
     }
   };
 
@@ -53,49 +58,56 @@ export default function DrawChatPage() {
       setLoading(true);
       setMsg("");
 
-      const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/session`, {
-        method: "GET",
-        cache: "no-store",
-      });
+      try {
+        const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/session`, {
+          method: "GET",
+          cache: "no-store",
+        });
 
-      const data = await response.json();
+        const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.canJoin) {
-        setMsg(
-          data.reason === "nickname_required"
-            ? "프로필에서 닉네임을 설정해주세요."
-            : data.reason === "chat_not_live"
-              ? "채팅 세션이 종료되었습니다."
-              : data.reason === "live_draw_session_not_found"
-                ? "라이브 조편성 세션이 없습니다."
-                : "채팅에 입장할 수 없습니다."
-        );
-        setLoading(false);
-        return;
-      }
-
-      setNickname(data.nickname);
-      setCanJoin(data.canJoin);
-      setChatSession(data.chatSession);
-
-      if (data.chatSession?.id) {
-        const supabase = createClient();
-        const { data: msgData, error: msgError } = await supabase
-          .from("draw_chat_messages")
-          .select("id,chat_session_id,user_id,nickname,message,created_at")
-          .eq("chat_session_id", data.chatSession.id)
-          .order("created_at", { ascending: true })
-          .order("id", { ascending: true });
-
-        if (!msgError && msgData) {
-          setMessages(msgData as ChatMessage[]);
-          const uniqueNicks = Array.from(new Set((msgData as ChatMessage[]).map(m => m.nickname)));
-          setParticipants(uniqueNicks);
-          setTimeout(() => scrollToBottom(true), 100);
+        if (!response.ok || !data.canJoin) {
+          setMsg(
+            data.reason === "nickname_required"
+              ? "프로필에서 닉네임을 설정해주세요."
+              : data.reason === "chat_not_live"
+                ? "채팅 세션이 종료되었습니다."
+                : data.reason === "live_draw_session_not_found"
+                  ? "라이브 조편성 세션이 없습니다."
+                  : "채팅에 입장할 수 없습니다."
+          );
+          setLoading(false);
+          return;
         }
-      }
 
-      setLoading(false);
+        setNickname(data.nickname);
+        setCurrentUserId(typeof data.userId === "string" ? data.userId : "");
+        setCanJoin(data.canJoin);
+        setChatSession(data.chatSession);
+
+        if (data.chatSession?.id) {
+          const supabase = createClient();
+          const { data: msgData, error: msgError } = await supabase
+            .from("draw_chat_messages")
+            .select("id,chat_session_id,user_id,nickname,message,created_at")
+            .eq("chat_session_id", data.chatSession.id)
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true });
+
+          if (!msgError && msgData) {
+            setMessages(msgData as ChatMessage[]);
+            const uniqueNicks = Array.from(new Set((msgData as ChatMessage[]).map((m) => m.nickname)));
+            setParticipants(uniqueNicks);
+            setTimeout(() => scrollToBottom(true), 100);
+          }
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Failed to fetch chat page session:", error);
+        setMsg("네트워크 오류로 채팅 세션을 불러오지 못했습니다.");
+        setLoading(false);
+      }
     };
 
     void fetchSession();
@@ -117,6 +129,7 @@ export default function DrawChatPage() {
         },
         (payload) => {
           const newMsg = payload.new as ChatMessage;
+          const shouldStickToBottom = shouldAutoScrollRef.current;
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
@@ -125,7 +138,13 @@ export default function DrawChatPage() {
             if (prev.includes(newMsg.nickname)) return prev;
             return [...prev, newMsg.nickname];
           });
-          setTimeout(() => scrollToBottom(), 50);
+          setTimeout(() => {
+            if (shouldStickToBottom) {
+              scrollToBottom(true);
+            } else {
+              setUnreadCount((prev) => prev + 1);
+            }
+          }, 50);
         }
       )
       .subscribe();
@@ -136,30 +155,33 @@ export default function DrawChatPage() {
   }, [chatSession?.id]);
 
   const handleSend = async () => {
-    if (!chatSession?.id || !inputMessage.trim()) return;
+    if (!chatSession?.id || !inputMessage.trim() || sending) return;
 
     setSending(true);
     setMsg("");
 
-    const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chatSessionId: chatSession.id,
-        message: inputMessage.trim(),
-      }),
-    });
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chatSessionId: chatSession.id,
+          message: inputMessage.trim(),
+        }),
+      });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({ error: "전송 실패" }));
-      setMsg(data.error ?? "메시지 전송에 실패했습니다.");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: "전송 실패" }));
+        setMsg(data.error ?? "메시지 전송에 실패했습니다.");
+        return;
+      }
+
+      setInputMessage("");
+      shouldAutoScrollRef.current = true;
+      setTimeout(() => inputRef.current?.focus(), 0);
+    } finally {
       setSending(false);
-      return;
     }
-
-    setInputMessage("");
-    setSending(false);
-    shouldAutoScrollRef.current = true;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -173,11 +195,35 @@ export default function DrawChatPage() {
     const target = e.currentTarget;
     const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
     shouldAutoScrollRef.current = isAtBottom;
+    if (isAtBottom) {
+      setUnreadCount(0);
+    }
   };
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateViewportHeight = () => {
+      const header = document.querySelector("header");
+      const headerHeight = header instanceof HTMLElement ? header.getBoundingClientRect().height : 0;
+      const nextHeight = Math.max(320, window.innerHeight - Math.round(headerHeight));
+      setViewportHeight(nextHeight);
+    };
+
+    updateViewportHeight();
+    window.addEventListener("resize", updateViewportHeight);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportHeight);
+    };
+  }, []);
+
   return (
-    <main className="flex h-screen flex-col bg-slate-50">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3 shadow-sm">
+    <main
+      className="flex flex-col overflow-hidden bg-slate-50"
+      style={viewportHeight ? { height: `${viewportHeight}px` } : undefined}
+    >
+      <div className="z-20 flex shrink-0 items-center justify-between border-b bg-white px-4 py-3 shadow-sm">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">라이브 채팅</h1>
           {nickname && (
@@ -217,45 +263,57 @@ export default function DrawChatPage() {
           </Card>
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col">
             <div
-              className="flex-1 overflow-y-auto px-4 py-4"
+              className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
               onScroll={handleScroll}
             >
-              <div className="space-y-3">
-              {messages.length === 0 ? (
-                <p className="py-8 text-center text-sm text-slate-400">
-                  첫 번째 메시지를 보내보세요!
-                </p>
-              ) : (
-                messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className="rounded-lg bg-white px-3 py-2 shadow-sm"
-                  >
-                    <div className="mb-1 flex items-baseline gap-2">
-                      <span className="text-xs font-semibold text-slate-700">
-                        {m.nickname}
+              <div className="space-y-1 text-[13px] leading-5">
+                {messages.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-400">
+                    첫 번째 메시지를 보내보세요!
+                  </p>
+                ) : (
+                  messages.map((m) => (
+                    <p
+                      key={m.id}
+                      className={
+                        m.user_id === currentUserId
+                          ? "rounded bg-emerald-50/70 px-2 py-1"
+                          : "px-2 py-1"
+                      }
+                    >
+                      <span className={m.user_id === currentUserId ? "font-semibold text-emerald-700" : "font-semibold text-slate-700"}>
+                        {m.user_id === currentUserId ? "나" : m.nickname}
                       </span>
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(m.created_at).toLocaleTimeString("ko-KR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    <p className="whitespace-pre-wrap break-words text-sm text-slate-800">
-                      {m.message}
+                      <span className="mx-1 text-slate-400">:</span>
+                      <span className="break-words text-slate-800">{m.message}</span>
                     </p>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </div>
 
-            <div className="border-t bg-white p-4">
+            {unreadCount > 0 && (
+              <div className="flex justify-center border-t border-dashed bg-white/80 py-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    shouldAutoScrollRef.current = true;
+                    scrollToBottom(true);
+                  }}
+                >
+                  새 메시지 {unreadCount}개
+                </Button>
+              </div>
+            )}
+
+            <div className="z-20 shrink-0 border-t bg-white p-3">
               {msg && (
                 <div className="mb-2 rounded bg-red-50 px-3 py-1 text-xs text-red-700">
                   {msg}
@@ -263,13 +321,14 @@ export default function DrawChatPage() {
               )}
               <div className="flex gap-2">
                 <Input
+                  ref={inputRef}
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="메시지를 입력하세요 (최대 300자)"
                   maxLength={300}
-                  disabled={sending || chatSession.status !== "live"}
-                  className="flex-1"
+                  disabled={chatSession.status !== "live"}
+                  className="h-10 flex-1"
                 />
                 <Button
                   onClick={handleSend}
@@ -279,7 +338,8 @@ export default function DrawChatPage() {
                     chatSession.status !== "live"
                   }
                   size="sm"
-                  className="h-10"
+                  variant="outline"
+                  className="h-10 px-3"
                 >
                   전송
                 </Button>
@@ -290,8 +350,8 @@ export default function DrawChatPage() {
             </div>
           </div>
 
-          <aside className="w-48 border-l bg-white">
-            <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+          <aside className="w-40 shrink-0 border-l bg-white sm:w-44 md:w-48">
+            <div className="flex h-full min-h-0 flex-col">
               <div className="border-b px-3 py-2">
                 <h2 className="text-xs font-semibold text-slate-600">참가자 ({participants.length})</h2>
               </div>
@@ -300,7 +360,7 @@ export default function DrawChatPage() {
                   {participants.map((nick, idx) => (
                     <li key={idx} className="flex items-center gap-2 text-xs text-slate-700">
                       <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      {nick}
+                      <span className="truncate">{nick}</span>
                     </li>
                   ))}
                 </ul>
