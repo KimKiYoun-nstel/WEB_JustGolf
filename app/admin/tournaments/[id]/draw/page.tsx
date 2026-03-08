@@ -51,11 +51,18 @@ type RegistrationRow = {
 type DrawApiResponse = {
   session: DrawSessionRow | null;
   events: DrawEventRow[];
+  chatSession?: {
+    id: number;
+    draw_session_id: number;
+    status: "live" | "closed";
+  } | null;
   error?: string;
 };
 
 type DrawAction =
   | "start_session"
+  | "chat_open"
+  | "chat_close"
   | "shuffle_deck"
   | "start_step"
   | "pick_result"
@@ -146,6 +153,7 @@ export default function AdminTournamentDrawPage() {
   const [saving, setSaving] = useState(false);
   const [session, setSession] = useState<DrawSessionRow | null>(null);
   const [events, setEvents] = useState<DrawEventRecord[]>([]);
+  const [chatSession, setChatSession] = useState<DrawApiResponse["chatSession"]>(null);
   const [msg, setMsg] = useState("");
   const [nicknameByRegistrationId, setNicknameByRegistrationId] = useState<
     Record<number, string>
@@ -162,6 +170,8 @@ export default function AdminTournamentDrawPage() {
   const [movePlayerId, setMovePlayerId] = useState("");
   const [moveTargetGroupNo, setMoveTargetGroupNo] = useState("1");
   const autoPickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatPopupRef = useRef<Window | null>(null);
+  const chatPopupWatchRef = useRef<number | null>(null);
   const statePhaseRef = useRef<string | null>(null);
   const stateRef = useRef<DrawState | null>(null);
   const prevRemainingOrderRef = useRef<number[] | null>(null);
@@ -172,6 +182,7 @@ export default function AdminTournamentDrawPage() {
   const [isCompactLayout, setIsCompactLayout] = useState(false);
   const [mobileGroupsPanelOpen, setMobileGroupsPanelOpen] = useState(false);
   const [mobileRemainingPanelOpen, setMobileRemainingPanelOpen] = useState(false);
+  const [chatWindowOpen, setChatWindowOpen] = useState(false);
 
   const persistLowSpec = (next: boolean) => {
     setLowSpecMode(next);
@@ -200,6 +211,7 @@ export default function AdminTournamentDrawPage() {
     }
 
     setSession(data.session ?? null);
+    setChatSession(data.chatSession ?? null);
     const normalized = (data.events ?? [])
       .map(toEventRecord)
       .filter((value): value is DrawEventRecord => value !== null)
@@ -350,6 +362,10 @@ export default function AdminTournamentDrawPage() {
     return () => {
       if (autoPickTimerRef.current) {
         clearTimeout(autoPickTimerRef.current);
+      }
+      if (chatPopupWatchRef.current) {
+        clearInterval(chatPopupWatchRef.current);
+        chatPopupWatchRef.current = null;
       }
     };
   }, []);
@@ -585,6 +601,49 @@ export default function AdminTournamentDrawPage() {
     await postAction("reset_draw");
   };
 
+  const handleToggleChatSession = async () => {
+    if (!session) return;
+    const action: DrawAction = chatSession?.status === "live" ? "chat_close" : "chat_open";
+    await postAction(action, { sessionId: session.id });
+  };
+
+  const handleOpenChatWindow = () => {
+    if (!session) return;
+    const chatUrl = `/t/${tournamentId}/draw/chat`;
+    const existing = chatPopupRef.current;
+
+    if (existing && !existing.closed) {
+      existing.focus();
+      setChatWindowOpen(true);
+      return;
+    }
+
+    const popup = window.open(
+      chatUrl,
+      "_blank",
+      "width=500,height=700,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+    );
+
+    if (!popup) return;
+
+    chatPopupRef.current = popup;
+    setChatWindowOpen(true);
+
+    if (chatPopupWatchRef.current) {
+      clearInterval(chatPopupWatchRef.current);
+    }
+
+    chatPopupWatchRef.current = window.setInterval(() => {
+      if (!chatPopupRef.current || chatPopupRef.current.closed) {
+        setChatWindowOpen(false);
+        if (chatPopupWatchRef.current) {
+          clearInterval(chatPopupWatchRef.current);
+          chatPopupWatchRef.current = null;
+        }
+      }
+    }, 1000);
+  };
+
   const selectedTargetGroupNo = Number(targetGroupNo);
   const selectedAssignGroupNo = Number(assignGroupNo);
   const selectedTargetGroupFull = fullGroupNos.has(selectedTargetGroupNo);
@@ -620,10 +679,13 @@ export default function AdminTournamentDrawPage() {
   );
   const canUndo = Boolean(events.length > 0 && events[events.length - 1]?.event_type === "ASSIGN_CONFIRMED");
   const canMove = Boolean(state && assignedMembers.length > 0);
+  const isChatLive = chatSession?.status === "live";
+  const canOpenChatWindow = isChatLive && Boolean(session);
+  const stateBadgeBaseClass = "h-6 border-slate-200 bg-slate-50 text-slate-700";
 
   return (
     <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-3 px-3 py-6 md:px-4 lg:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-3xl font-semibold text-slate-900">라이브 조편성 관리</h1>
@@ -631,34 +693,89 @@ export default function AdminTournamentDrawPage() {
               세션 시작, 스텝 진행, 당첨/확정, 이동/되돌리기를 수행합니다.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/t/${tournamentId}/draw`}>시청자 화면</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {session && (
+              <div className="mr-1 flex items-center gap-1">
+                <Badge
+                  variant="outline"
+                  className={
+                    isChatLive
+                      ? "h-6 border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : stateBadgeBaseClass
+                  }
+                >
+                  채팅 {isChatLive ? "LIVE" : "CLOSED"}
+                </Badge>
+                {canOpenChatWindow && (
+                  <Badge
+                    variant="outline"
+                    className={
+                      chatWindowOpen
+                        ? "h-6 border-sky-200 bg-sky-50 text-sky-700"
+                        : stateBadgeBaseClass
+                    }
+                  >
+                    창 {chatWindowOpen ? "열림" : "닫힘"}
+                  </Badge>
+                )}
+              </div>
+            )}
+            {session && (
+              <>
+                <Button
+                  onClick={handleToggleChatSession}
+                  disabled={saving}
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                >
+                  {isChatLive ? "채팅 종료" : "채팅 시작"}
+                </Button>
+                <Button
+                  onClick={handleOpenChatWindow}
+                  variant="outline"
+                  disabled={!canOpenChatWindow}
+                  size="sm"
+                  className="h-8"
+                >
+                  {chatWindowOpen ? "채팅창 포커스" : "채팅창 열기"}
+                </Button>
+              </>
+            )}
+            <Button asChild variant="outline" size="sm" className="h-8">
+              <Link href={`/t/${tournamentId}/draw`} className="no-underline hover:no-underline">
+                시청자 화면
+              </Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href={`/admin/tournaments/${tournamentId}/groups`}>기존 조편성</Link>
+            <Button asChild variant="outline" size="sm" className="h-8">
+              <Link
+                href={`/admin/tournaments/${tournamentId}/groups`}
+                className="no-underline hover:no-underline"
+              >
+                기존 조편성
+              </Link>
             </Button>
           </div>
         </div>
 
         {msg && (
           <Card className="rounded-[28px] border border-red-200 bg-red-50 shadow-sm">
-            <CardContent className="py-2 text-sm text-red-700">{msg}</CardContent>
+            <CardContent className="py-1.5 text-sm text-red-700">{msg}</CardContent>
           </Card>
         )}
 
         {loading ? (
           <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-            <CardContent className="py-6 text-sm text-slate-500">로딩 중...</CardContent>
+            <CardContent className="py-4 text-sm text-slate-500">로딩 중...</CardContent>
           </Card>
         ) : (
           <>
             {!session ? (
               <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">라이브 세션 시작</CardTitle>
+                <CardHeader className="px-3 py-2">
+                  <CardTitle className="text-base">라이브 세션 시작</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-2 px-3 pb-3">
                   <div className="grid gap-2 md:grid-cols-2">
                     <div className="space-y-1">
                       <label className="text-sm font-medium">조 수(groupCount)</label>
@@ -677,7 +794,13 @@ export default function AdminTournamentDrawPage() {
                       />
                     </div>
                   </div>
-                  <Button onClick={handleStartSession} disabled={saving}>
+                  <Button
+                    onClick={handleStartSession}
+                    disabled={saving}
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                  >
                     {saving ? "처리 중..." : "세션 시작"}
                   </Button>
                 </CardContent>
@@ -686,15 +809,25 @@ export default function AdminTournamentDrawPage() {
               <>
                 <div className="grid items-start gap-2 lg:grid-cols-[2fr_1fr]">
                   <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-                    <CardHeader className="px-3 py-1.5">
+                    <CardHeader className="px-3 py-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <CardTitle className="text-sm">진행 컨트롤</CardTitle>
                         {state && (
                           <div className="flex flex-wrap items-center gap-1 text-[11px]">
-                            <Badge variant="secondary" className="h-5 px-2 capitalize">
+                            <Badge
+                              variant="outline"
+                              className="h-6 border-amber-200 bg-amber-50 px-2 capitalize text-amber-700"
+                            >
                               Phase: {state.phase}
                             </Badge>
-                            <Badge variant="outline" className="h-5 px-2 capitalize">
+                            <Badge
+                              variant="outline"
+                              className={
+                                state.status === "live"
+                                  ? "h-6 border-emerald-200 bg-emerald-50 px-2 capitalize text-emerald-700"
+                                  : `${stateBadgeBaseClass} px-2 capitalize`
+                              }
+                            >
                               Session: {state.status}
                             </Badge>
                             <span className="text-slate-600">
@@ -709,7 +842,7 @@ export default function AdminTournamentDrawPage() {
                         )}
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-1.5 px-3 pb-2 pt-0">
+                    <CardContent className="space-y-1 px-3 pb-1.5 pt-0">
                       <div className="grid gap-2 md:grid-cols-[170px_130px_160px_auto]">
                         <div className="space-y-1">
                           <label className="text-xs font-medium">모드</label>
@@ -775,6 +908,7 @@ export default function AdminTournamentDrawPage() {
                           onClick={handleShuffleDeck}
                           disabled={saving || !canShuffleDeck}
                           variant="outline"
+                          size="sm"
                           className="h-8 px-3 text-xs"
                         >
                           덱 섞기
@@ -782,6 +916,8 @@ export default function AdminTournamentDrawPage() {
                         <Button
                           onClick={handleStartStep}
                           disabled={saving || !canStartStep}
+                          variant="outline"
+                          size="sm"
                           className="h-8 px-3 text-xs"
                         >
                           {startStepButtonLabel}
@@ -790,6 +926,7 @@ export default function AdminTournamentDrawPage() {
                           onClick={handleUndoLast}
                           disabled={saving || !canUndo}
                           variant="outline"
+                          size="sm"
                           className="h-8 px-3 text-xs"
                         >
                           되돌리기
@@ -798,6 +935,7 @@ export default function AdminTournamentDrawPage() {
                           onClick={handleResetDraw}
                           disabled={saving}
                           variant="destructive"
+                          size="sm"
                           className="h-8 px-3 text-xs"
                         >
                           리셋
@@ -826,6 +964,8 @@ export default function AdminTournamentDrawPage() {
                         <Button
                           onClick={handleAssignConfirm}
                           disabled={saving || !canAssign}
+                          variant="outline"
+                          size="sm"
                           className="h-8 px-3 text-xs"
                         >
                           배정확정
@@ -839,10 +979,10 @@ export default function AdminTournamentDrawPage() {
                   </Card>
 
                   <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-                    <CardHeader className="px-3 py-1.5">
+                    <CardHeader className="px-3 py-1">
                       <CardTitle className="text-sm">재편성(멤버 이동)</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-1.5 px-3 pb-2 pt-0">
+                    <CardContent className="space-y-1 px-3 pb-1.5 pt-0">
                       <div className="space-y-1">
                         <label className="text-xs font-medium">이동할 참가자</label>
                         <select
@@ -882,6 +1022,8 @@ export default function AdminTournamentDrawPage() {
                         <Button
                           onClick={handleMoveMember}
                           disabled={saving || !canMove}
+                          variant="outline"
+                          size="sm"
                           className="h-8 self-end px-3 text-xs"
                         >
                           멤버 이동
@@ -929,13 +1071,15 @@ export default function AdminTournamentDrawPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500">{state.groupCount}개 조</span>
                             {isCompactLayout ? (
-                              <button
+                              <Button
                                 type="button"
                                 onClick={() => setMobileGroupsPanelOpen((prev) => !prev)}
-                                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2 text-xs"
                               >
                                 {mobileGroupsPanelOpen ? "접기" : "펼치기"}
-                              </button>
+                              </Button>
                             ) : null}
                           </div>
                         </div>
@@ -994,13 +1138,15 @@ export default function AdminTournamentDrawPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500">{state.remainingPlayerIds.length}명</span>
                             {isCompactLayout ? (
-                              <button
+                              <Button
                                 type="button"
                                 onClick={() => setMobileRemainingPanelOpen((prev) => !prev)}
-                                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2 text-xs"
                               >
                                 {mobileRemainingPanelOpen ? "접기" : "펼치기"}
-                              </button>
+                              </Button>
                             ) : null}
                           </div>
                         </div>

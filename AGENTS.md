@@ -4,6 +4,31 @@
 - 기본 언어는 **한국어(한글)**.
 - PR/커밋 메시지/릴리즈 노트는 팀 규칙이 따로 없으면 한국어로 작성하되, 제목은 짧고 명확하게.
 
+## 커밋 컨벤션 (Conventional Commits)
+- **모든 커밋은 Conventional Commits 형식**을 따른다:
+  - `feat: 새로운 기능 추가`
+  - `fix: 버그 수정`
+  - `docs: 문서 변경`
+  - `style: 코드 포맷팅 (기능 변경 없음)`
+  - `refactor: 코드 리팩터링`
+  - `test: 테스트 추가/수정`
+  - `chore: 빌드/설정/의존성 변경`
+  - `perf: 성능 개선`
+- 커밋 메시지 형식:
+  ```
+  <type>: <subject>
+  
+  <body> (선택)
+  ```
+- 예시:
+  ```
+  feat: 라이브 조편성 채팅 기능 구현
+  
+  - DB: draw_chat_sessions, draw_chat_messages 스키마
+  - API: 관리자 채팅 세션 라이프사이클
+  - UI: PC 팝업 및 모바일 Sheet 오버레이
+  ```
+
 ## 기술 스택(필수 명시)
 - **Next.js (App Router)**
 - **Supabase (Postgres/Auth/RLS/Realtime, @supabase/ssr 사용)**

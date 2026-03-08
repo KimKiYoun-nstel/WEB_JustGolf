@@ -38,9 +38,17 @@ type DrawEventRow = {
   created_at: string;
 };
 
+type DrawChatSessionRow = {
+  id: number;
+  draw_session_id: number;
+  status: "live" | "closed";
+};
+
 type DrawActionBody = {
   action?:
     | "start_session"
+    | "chat_open"
+    | "chat_close"
     | "shuffle_deck"
     | "start_step"
     | "pick_result"
@@ -174,6 +182,64 @@ async function ensureGroupRow(
   }
 
   return inserted.data.id as number;
+}
+
+async function activateDrawChatSession(
+  supabaseAdmin: ReturnType<typeof createServiceRoleSupabaseClient>,
+  params: {
+    drawSessionId: number;
+    tournamentId: number;
+    userId: string;
+    startedAtIso?: string;
+  }
+) {
+  const startedAtIso = params.startedAtIso ?? new Date().toISOString();
+  const upsertRes = await supabaseAdmin
+    .from("draw_chat_sessions")
+    .upsert(
+      {
+        draw_session_id: params.drawSessionId,
+        tournament_id: params.tournamentId,
+        status: "live",
+        started_by: params.userId,
+        started_at: startedAtIso,
+        closed_at: null,
+      },
+      {
+        onConflict: "draw_session_id",
+      }
+    )
+    .select("id")
+    .single();
+
+  if (upsertRes.error || !upsertRes.data?.id) {
+    return {
+      error: upsertRes.error?.message ?? "채팅 세션 시작에 실패했습니다.",
+    };
+  }
+
+  return { id: Number(upsertRes.data.id) };
+}
+
+async function closeDrawChatSession(
+  supabaseAdmin: ReturnType<typeof createServiceRoleSupabaseClient>,
+  drawSessionId: number
+) {
+  const closedAt = new Date().toISOString();
+  const closeRes = await supabaseAdmin
+    .from("draw_chat_sessions")
+    .update({
+      status: "closed",
+      closed_at: closedAt,
+    })
+    .eq("draw_session_id", drawSessionId)
+    .eq("status", "live");
+
+  if (closeRes.error) {
+    return { error: closeRes.error.message };
+  }
+
+  return { ok: true as const };
 }
 
 async function syncAssignmentToGroupsTable(
@@ -384,7 +450,7 @@ export async function GET(
     }
 
     if (!sessionRes.data) {
-      return NextResponse.json({ session: null, events: [] }, { status: 200 });
+      return NextResponse.json({ session: null, events: [], chatSession: null }, { status: 200 });
     }
 
     const session = sessionRes.data as DrawSessionRow;
@@ -399,9 +465,25 @@ export async function GET(
       return NextResponse.json({ error: eventRes.error.message }, { status: 500 });
     }
 
+    const chatSessionRes = await supabaseAdmin
+      .from("draw_chat_sessions")
+      .select("id,draw_session_id,status")
+      .eq("draw_session_id", session.id)
+      .eq("tournament_id", tournamentId)
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (chatSessionRes.error) {
+      return NextResponse.json({ error: chatSessionRes.error.message }, { status: 500 });
+    }
+
+    const chatSession = (chatSessionRes.data ?? null) as DrawChatSessionRow | null;
+
     return NextResponse.json({
       session,
       events: (eventRes.data ?? []) as DrawEventRow[],
+      chatSession,
     });
   } catch (error) {
     console.error("Draw API GET error:", error);
@@ -587,6 +669,21 @@ export async function POST(
         );
       }
 
+      const chatSessionRes = await activateDrawChatSession(supabaseAdmin, {
+        drawSessionId: Number(newSessionRes.data.id),
+        tournamentId,
+        userId: guard.user.id,
+        startedAtIso: restartedAt,
+      });
+
+      if ("error" in chatSessionRes) {
+        await supabaseAdmin.from("draw_sessions").delete().eq("id", newSessionRes.data.id);
+        return NextResponse.json(
+          { error: chatSessionRes.error },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json({ ok: true, session: newSessionRes.data }, { status: 200 });
     }
 
@@ -699,6 +796,21 @@ export async function POST(
         );
       }
 
+      const chatSessionRes = await activateDrawChatSession(supabaseAdmin, {
+        drawSessionId: session.id,
+        tournamentId,
+        userId: guard.user.id,
+        startedAtIso: startedAt,
+      });
+
+      if ("error" in chatSessionRes) {
+        await supabaseAdmin.from("draw_sessions").delete().eq("id", session.id);
+        return NextResponse.json(
+          { error: chatSessionRes.error },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json({ session }, { status: 201 });
     }
 
@@ -718,6 +830,26 @@ export async function POST(
         { error: "Tournament and session do not match." },
         { status: 400 }
       );
+    }
+
+    if (body.action === "chat_open") {
+      const reopenChatRes = await activateDrawChatSession(supabaseAdmin, {
+        drawSessionId: session.id,
+        tournamentId,
+        userId: guard.user.id,
+      });
+      if ("error" in reopenChatRes) {
+        return NextResponse.json({ error: reopenChatRes.error }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, chatSessionId: reopenChatRes.id }, { status: 200 });
+    }
+
+    if (body.action === "chat_close") {
+      const closeChatRes = await closeDrawChatSession(supabaseAdmin, session.id);
+      if ("error" in closeChatRes) {
+        return NextResponse.json({ error: closeChatRes.error }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true }, { status: 200 });
     }
 
     if (body.action === "shuffle_deck") {
@@ -1083,6 +1215,16 @@ export async function POST(
         })
         .eq("id", session.id);
 
+      if (willFinish) {
+        const closeChatRes = await closeDrawChatSession(supabaseAdmin, session.id);
+        if ("error" in closeChatRes) {
+          return NextResponse.json(
+            { error: closeChatRes.error },
+            { status: 500 }
+          );
+        }
+      }
+
       return NextResponse.json({ event: eventRes.data, willFinish }, { status: 201 });
     }
 
@@ -1231,6 +1373,18 @@ export async function POST(
           ended_at: null,
         })
         .eq("id", session.id);
+
+      const reopenChatRes = await activateDrawChatSession(supabaseAdmin, {
+        drawSessionId: session.id,
+        tournamentId,
+        userId: guard.user.id,
+      });
+      if ("error" in reopenChatRes) {
+        return NextResponse.json(
+          { error: reopenChatRes.error },
+          { status: 500 }
+        );
+      }
 
       return NextResponse.json({ event: undoRes.data }, { status: 201 });
     }

@@ -5,6 +5,19 @@
 - 기술 스택: **Next.js(App Router) + Supabase + Vercel**.
 - 목표: 기능 구현뿐 아니라 **운영/보안/테스트/문서**까지 포함한 완성.
 
+## 1-1. 커밋 컨벤션 (Conventional Commits)
+- **모든 커밋은 Conventional Commits 형식**을 따른다:
+  - `feat:` — 새로운 기능 추가
+  - `fix:` — 버그 수정
+  - `docs:` — 문서 변경
+  - `style:` — 코드 포맷팅 (기능 변경 없음)
+  - `refactor:` — 코드 리팩터링
+  - `test:` — 테스트 추가/수정
+  - `chore:` — 빌드/설정/의존성 변경
+  - `perf:` — 성능 개선
+- 커밋 타입은 영문, 메시지는 한국어로 작성한다.
+- 본문(body)에는 변경 내역을 상세히 기록한다.
+
 ## 2. 환경/보안
 - Supabase 개발/운영 프로젝트 분리:
   - 개발: `env.local` 또는 `.env.local`
