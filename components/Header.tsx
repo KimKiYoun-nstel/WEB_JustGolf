@@ -16,6 +16,7 @@ const HIDE_HEADER_PATTERNS = [
   /^\/tournaments$/,
   /^\/t\/[^/]+$/,
   /^\/t\/[^/]+\/participants$/,
+  /^\/jeju(\/.*)?$/,    // 달콧 별장 시스템 — 독립 레이아웃 사용
 ];
 
 export default function Header() {

@@ -1,32 +1,40 @@
-import Link from "next/link";
-import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
+﻿import { createRequestSupabaseClient } from "@/lib/apiGuard";
+import DashboardClient from "./_components/DashboardClient";
 
-export default function JejuPage() {
+export const dynamic = "force-dynamic";
+
+export default async function JejuPage() {
+  const supabase = await createRequestSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // 이번 달 예약 통계 (서버에서 초기값 계산)
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  const { data: thisMonthReservations } = await supabase
+    .from("dalkkot_reservations")
+    .select("id, status, adults, children")
+    .gte("check_in", firstDay)
+    .lte("check_in", lastDay)
+    .not("status", "in", '("rejected","cancelled")');
+
+  // villa_id 가져오기 (첫 번째 별장)
+  const { data: villas } = await supabase.from("dalkkot_villas").select("id").limit(1);
+  const villaId = villas?.[0]?.id ?? "";
+
+  const total = thisMonthReservations?.length ?? 0;
+  const confirmed = thisMonthReservations?.filter((r) => r.status === "confirmed").length ?? 0;
+  const pending = thisMonthReservations?.filter((r) => ["pending", "waiting_deposit"].includes(r.status)).length ?? 0;
+  const guests = thisMonthReservations?.reduce((s, r) => s + (r.adults ?? 0) + (r.children ?? 0), 0) ?? 0;
+
   return (
-    <main className="min-h-screen bg-slate-50/70">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-12">
-        <Card className="border-slate-200/70">
-          <CardHeader>
-            <CardTitle>제주달콧</CardTitle>
-            <CardDescription>준비 중인 페이지입니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-slate-600">
-              콘텐츠를 준비하고 있습니다. 조금만 기다려 주세요.
-            </p>
-            <Button asChild variant="outline">
-              <Link href="/start">메인화면으로 돌아가기</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+    <DashboardClient
+      stats={{ total, confirmed, pending, guests }}
+      villaId={villaId}
+      currentUserId={user?.id ?? ""}
+    />
   );
 }

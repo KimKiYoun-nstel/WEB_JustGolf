@@ -1,0 +1,723 @@
+/* 달콧 별장 시스템 전용 스타일 - app/jeju/layout.tsx에서 import */
+/* 색상 토큰(@theme inline)은 app/globals.css에 정의되어 있음 */
+
+/* ===== APP WRAPPER ===== */
+.dalkkot-body { background: var(--color-dalkkot-cream); color: #374151; }
+
+/* ===== TOP NAVIGATION ===== */
+.dalkkot-header { background: var(--color-dalkkot-wood-dark); }
+.dal-nav-link-active {
+  color: #FDF6EC;
+  background: rgba(255,255,255,0.15);
+  border-bottom: 2px solid #A8C4B0;
+}
+
+/* ===== HERO SECTION ===== */
+.dal-hero {
+  position: relative; overflow: hidden;
+  border-radius: 0 0 16px 16px;
+  margin: 0 -1.5rem 28px;
+  min-height: 200px;
+}
+.dal-hero-bg {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(135deg, rgba(92,61,46,0.88) 0%, rgba(74,93,67,0.82) 100%),
+    url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1400&q=80') center/cover;
+}
+.dal-hero-content {
+  position: relative; z-index: 1;
+  padding: 40px 48px;
+}
+.dal-hero-title {
+  font-size: 26px; font-weight: 700;
+  color: #FDF6EC; margin-bottom: 6px; line-height: 1.3;
+}
+.dal-hero-sub {
+  font-size: 14px; color: rgba(255,255,255,0.8);
+  margin-bottom: 20px;
+}
+
+/* ===== STATS GRID ===== */
+.dal-stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 16px; margin-bottom: 24px;
+}
+.dal-stat-card {
+  background: #fff; border-radius: 10px;
+  padding: 20px; display: flex; align-items: center; gap: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid #E5E7EB;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dal-stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.07); }
+.dal-stat-icon {
+  width: 48px; height: 48px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.dal-stat-icon-total     { background: #E3F2FD; color: #2196F3; }
+.dal-stat-icon-confirmed { background: #E8F5E9; color: #4CAF50; }
+.dal-stat-icon-pending   { background: #FFF3E0; color: #FF9800; }
+.dal-stat-icon-guests    { background: #EDE7F6; color: #7B1FA2; }
+.dal-stat-number { font-size: 28px; font-weight: 700; color: #1F2937; line-height: 1; }
+.dal-stat-label  { font-size: 13px; color: #6B7280; margin-top: 2px; }
+
+/* ===== DASHBOARD GRID ===== */
+.dal-dashboard-grid {
+  display: grid; grid-template-columns: 1fr 420px;
+  gap: 20px; align-items: start;
+}
+
+/* ===== PANEL ===== */
+.dal-panel {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid #E5E7EB;
+  overflow: hidden;
+}
+.dal-panel + .dal-panel { margin-top: 20px; }
+.dal-panel-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #F3F4F6;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
+}
+.dal-panel-title {
+  font-size: 16px; font-weight: 600; color: #1F2937;
+  display: flex; align-items: center; gap: 8px;
+}
+.dal-panel-subtitle { font-size: 13px; color: #9CA3AF; margin-top: 2px; }
+.dal-panel-actions { display: flex; align-items: center; gap: 4px; }
+.dal-panel-actions-bar {
+  padding: 8px 20px;
+  display: flex; gap: 4px;
+  border-bottom: 1px solid #F3F4F6;
+}
+.dal-badge-count {
+  background: #FF9800; color: white;
+  font-size: 12px; font-weight: 700;
+  padding: 2px 8px; border-radius: 12px; margin-left: 6px;
+}
+
+/* ===== PAGE HEADER ===== */
+.dal-page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24px 0 20px;
+}
+.dal-page-title {
+  font-size: 22px; font-weight: 700; color: #1F2937;
+  display: flex; align-items: center; gap: 10px;
+}
+
+/* ===== BUTTONS ===== */
+.dal-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 18px; border-radius: 6px;
+  font-size: 14px; font-weight: 600; white-space: nowrap;
+  transition: all 0.2s ease;
+  cursor: pointer; border: none;
+}
+.dal-btn-primary { background: #4F7C5F; color: white; }
+.dal-btn-primary:hover { background: #3d6349; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79,124,95,0.4); }
+.dal-btn-outline {
+  background: transparent; color: #4B5563;
+  border: 1.5px solid #D1D5DB;
+}
+.dal-btn-outline:hover { border-color: #7B9E87; color: #4F7C5F; }
+.dal-btn-sm { padding: 7px 13px; font-size: 13px; }
+.dal-btn-confirm { background: #4CAF50; color: white; border-radius: 6px; }
+.dal-btn-confirm:hover { background: #43A047; }
+.dal-btn-reject  { background: #EF4444; color: white; border-radius: 6px; }
+.dal-btn-reject:hover  { background: #DC2626; }
+
+.dal-icon-btn {
+  width: 30px; height: 30px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #6B7280; font-size: 14px;
+  transition: all 0.2s ease;
+  border: 1px solid #E5E7EB;
+  cursor: pointer; background: transparent;
+}
+.dal-icon-btn:hover { background: #F3F4F6; color: #374151; }
+.dal-icon-btn.active { background: #4F7C5F; color: white; border-color: #4F7C5F; }
+
+/* ===== TABLES ===== */
+.dal-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 14px;
+}
+.dal-table thead { background: #F9FAFB; }
+.dal-table th {
+  padding: 11px 16px; text-align: left;
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: #6B7280;
+  border-bottom: 1px solid #E5E7EB;
+  white-space: nowrap;
+}
+.dal-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #F3F4F6;
+  color: #374151;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.dal-table .dal-tr { transition: background 0.2s ease; cursor: pointer; }
+.dal-table .dal-tr:hover { background: #FDF6EC; }
+.dal-table .dal-tr:last-child td { border-bottom: none; }
+.dal-guest-name { font-weight: 600; color: #1F2937; }
+.dal-text-muted { color: #9CA3AF; }
+.dal-empty-row { text-align: center; color: #9CA3AF; padding: 32px !important; }
+.dal-action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ===== STATUS BADGES ===== */
+.dal-badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+}
+.dal-badge-confirmed { background: #E8F5E9; color: #2E7D32; }
+.dal-badge-pending   { background: #FFF3E0; color: #E65100; }
+.dal-badge-rejected  { background: #FEE2E2; color: #C62828; }
+.dal-badge-waiting   { background: #E3F2FD; color: #1565C0; }
+.dal-badge-cancelled { background: #F1F5F9; color: #475569; }
+
+/* ===== PAGINATION ===== */
+.dal-pagination {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 14px;
+  border-top: 1px solid #F3F4F6;
+}
+.dal-page-btn {
+  min-width: 32px; height: 32px; padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 500; color: #6B7280;
+  border: 1px solid #E5E7EB;
+  transition: all 0.2s ease; cursor: pointer; background: transparent;
+}
+.dal-page-btn:hover { background: #F3F4F6; color: #374151; }
+.dal-page-btn.active { background: #4F7C5F; color: white; border-color: #4F7C5F; }
+
+/* ===== CALENDAR ===== */
+.dal-calendar-wrapper { padding: 0 12px 12px; }
+.dal-cal-day-headers {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 2px; margin-bottom: 4px;
+}
+.dal-cal-day-header {
+  text-align: center; padding: 6px 0;
+  font-size: 12px; font-weight: 600; color: #6B7280;
+  text-transform: uppercase;
+}
+.dal-cal-day-header:first-child { color: #EF4444; }
+.dal-cal-day-header:last-child  { color: #3B82F6; }
+.dal-cal-weeks { display: flex; flex-direction: column; gap: 2px; }
+.dal-cal-week  { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dal-cal-cell {
+  min-height: 80px; padding: 4px;
+  border-radius: 6px;
+  border: 1.5px solid transparent;
+  transition: all 0.2s ease;
+  background: #F9FAFB;
+  cursor: pointer;
+}
+.dal-cal-cell:hover { border-color: #7B9E87; background: #F0F7F3; }
+.dal-cal-cell.today { border-color: #4F7C5F; background: #EBF4EE; }
+.dal-cal-cell.other-month { background: #F3F4F6; opacity: 0.5; }
+.dal-cal-cell.sunday  .dal-cal-date { color: #EF4444; }
+.dal-cal-cell.saturday .dal-cal-date { color: #3B82F6; }
+.dal-cal-date {
+  font-size: 13px; font-weight: 600;
+  color: #374151; display: block;
+  margin-bottom: 2px;
+}
+.dal-cal-cell.today .dal-cal-date { color: #4F7C5F; font-weight: 700; }
+.dal-cal-event {
+  display: block; padding: 2px 5px;
+  border-radius: 3px; font-size: 11px; font-weight: 600;
+  color: white; margin-bottom: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+.dal-cal-event.pending { opacity: 0.75; border: 1px dashed rgba(255,255,255,0.5); }
+
+/* Full calendar */
+.dal-calendar-full .dal-cal-cell { min-height: 100px; }
+
+/* ===== MODAL ===== */
+.dal-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.dal-modal {
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.10);
+  width: 100%; max-width: 520px;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.dal-modal-wide { max-width: 720px; }
+.dal-modal-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #F3F4F6;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.dal-modal-title {
+  font-size: 19px; font-weight: 700; color: #1F2937;
+  display: flex; align-items: center; gap: 8px;
+}
+.dal-modal-close {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #9CA3AF; font-size: 16px;
+  transition: all 0.2s ease; cursor: pointer; border: none; background: transparent;
+}
+.dal-modal-close:hover { background: #F3F4F6; color: #374151; }
+.dal-modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+.dal-modal-footer {
+  padding: 14px 24px 20px;
+  display: flex; gap: 8px; justify-content: flex-end;
+  border-top: 1px solid #F3F4F6;
+  flex-shrink: 0;
+}
+
+/* ===== FORMS ===== */
+.dal-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.dal-form-group { display: flex; flex-direction: column; gap: 6px; }
+.dal-form-group.span-2 { grid-column: span 2; }
+.dal-form-label { font-size: 13px; font-weight: 600; color: #4B5563; }
+.dal-form-input, .dal-form-select, .dal-form-textarea {
+  padding: 10px 12px; border-radius: 6px;
+  border: 1.5px solid #D1D5DB; font-size: 14px;
+  color: #374151; background: #fff;
+  transition: border-color 0.2s ease;
+  width: 100%;
+}
+.dal-form-input:focus, .dal-form-select:focus, .dal-form-textarea:focus {
+  outline: none; border-color: #4F7C5F;
+  box-shadow: 0 0 0 3px rgba(79,124,95,0.15);
+}
+.dal-form-textarea { resize: vertical; min-height: 80px; }
+
+/* ===== DETAIL VIEW ===== */
+.dal-detail-guest-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px; background: #FDF6EC; border-radius: 10px;
+  margin-bottom: 20px;
+}
+.dal-detail-avatar {
+  width: 60px; height: 60px; border-radius: 50%;
+  background: #8B5E3C; display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 24px; flex-shrink: 0;
+}
+.dal-detail-name  { font-size: 18px; font-weight: 700; color: #1F2937; }
+.dal-detail-phone { font-size: 13px; color: #6B7280; margin-top: 2px; }
+.dal-detail-info-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px; margin-bottom: 18px;
+}
+.dal-detail-info-label { font-size: 12px; font-weight: 600; color: #9CA3AF; text-transform: uppercase; }
+.dal-detail-info-value { font-size: 15px; font-weight: 600; color: #1F2937; margin-top: 2px; }
+
+/* ===== COLOR PICKER ===== */
+.dal-color-picker { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 0; }
+.dal-color-swatch {
+  width: 26px; height: 26px; border-radius: 50%;
+  cursor: pointer; border: 3px solid transparent;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.dal-color-swatch:hover { transform: scale(1.2); }
+.dal-color-swatch.selected {
+  border-color: #374151;
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #374151;
+}
+
+/* ===== DATE RANGE DISPLAY ===== */
+.dal-date-range {
+  display: flex; align-items: center; gap: 10px;
+  background: #FDF6EC; border: 1.5px solid #E5E7EB;
+  border-radius: 6px; padding: 8px 14px;
+  font-size: 13px; font-weight: 600; color: #374151;
+}
+.dal-range-nights { font-size: 11px; color: #9CA3AF; font-weight: 400; margin-left: 4px; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1024px) {
+  .dal-dashboard-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .dal-stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .dal-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .dal-hero-content { padding: 28px 20px; }
+  .dal-hero-title { font-size: 20px; }
+  .dal-form-grid { grid-template-columns: 1fr; }
+  .dal-form-group.span-2 { grid-column: span 1; }
+  .dal-page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .dal-detail-info-grid { grid-template-columns: 1fr; }
+  .dal-cal-cell { min-height: 60px; }
+  .dal-modal { border-radius: 16px; }
+}
+
+/* ===== 예약 상태 배지 (기존 호환) ===== */
+.dalkkot-badge-pending        { background: #FFF3E0; color: #E65100; }
+.dalkkot-badge-waiting_deposit{ background: #E3F2FD; color: #1565C0; }
+.dalkkot-badge-confirmed      { background: #E8F5E9; color: #2E7D32; }
+.dalkkot-badge-rejected       { background: #FEE2E2; color: #C62828; }
+.dalkkot-badge-cancelled      { background: #F1F5F9; color: #475569; }
+/* 달콧 레이아웃 베이스 스타일 */
+.dalkkot-body {
+  background-color: var(--color-dalkkot-cream);
+  color: var(--color-dalkkot-wood-dark);
+  font-family: var(--font-sans), sans-serif;
+}
+
+/* 달콧 헤더 */
+.dalkkot-header {
+  background-color: var(--color-dalkkot-wood-dark);
+  color: var(--color-dalkkot-cream);
+}
+
+/* 예약 상태 배지 스타일 */
+.dalkkot-badge-pending {
+  background-color: #FEF9C3;
+  color: #854D0E;
+}
+.dalkkot-badge-waiting_deposit {
+  background-color: #FFEDD5;
+  color: #9A3412;
+}
+.dalkkot-badge-confirmed {
+  background-color: #DCFCE7;
+  color: #14532D;
+}
+.dalkkot-badge-rejected {
+  background-color: #FEE2E2;
+  color: #7F1D1D;
+}
+.dalkkot-badge-cancelled {
+  background-color: #F1F5F9;
+  color: #475569;
+}
+
+/* 예약 캘린더 색상 팔레트 */
+:root {
+  --dalkkot-cal-0: #4CAF50;
+  --dalkkot-cal-1: #2196F3;
+  --dalkkot-cal-2: #FF9800;
+  --dalkkot-cal-3: #9C27B0;
+  --dalkkot-cal-4: #E91E63;
+  --dalkkot-cal-5: #00BCD4;
+  --dalkkot-cal-6: #FF5722;
+  --dalkkot-cal-7: #607D8B;
+}
+
+/* ===== 알림 배너 ===== */
+.dal-notif-stack {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 20px;
+}
+.dal-notif-banner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; border-radius: 12px;
+  border-left: 5px solid transparent;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+.dal-notif-confirmed { background: #F0FDF4; border-left-color: #22C55E; }
+.dal-notif-deposit   { background: #EFF6FF; border-left-color: #3B82F6; }
+.dal-notif-icon { font-size: 26px; flex-shrink: 0; }
+.dal-notif-body { flex: 1; min-width: 0; }
+.dal-notif-title {
+  font-size: 15px; font-weight: 700; color: #1F2937; margin-bottom: 3px;
+}
+.dal-notif-desc { font-size: 13px; color: #6B7280; }
+.dal-notif-action {
+  padding: 8px 16px; border-radius: 6px;
+  font-size: 13px; font-weight: 600;
+  background: #1F2937; color: white;
+  border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: background 0.2s;
+}
+.dal-notif-action:hover { background: #374151; }
+.dal-notif-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #9CA3AF;
+  border: none; background: transparent; cursor: pointer; flex-shrink: 0;
+  transition: all 0.2s;
+}
+.dal-notif-close:hover { background: rgba(0,0,0,0.08); color: #374151; }
+
+/* ===== 관리자 현황 요약 ===== */
+.dal-admin-summary {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 12px; margin-bottom: 20px;
+}
+.dal-admin-summary-item {
+  background: #fff; border-radius: 10px;
+  padding: 18px 16px; text-align: center;
+  border: 1.5px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.dal-admin-summary-item.active {
+  border-color: #4F7C5F;
+  box-shadow: 0 2px 10px rgba(79,124,95,0.18);
+}
+.dal-admin-summary-count {
+  display: block; font-size: 32px; font-weight: 800; line-height: 1.1;
+}
+.dal-admin-summary-label {
+  display: block; font-size: 12px; color: #6B7280; margin-top: 5px; font-weight: 500;
+}
+
+/* ===== 공통 입력 ===== */
+.dal-input {
+  padding: 10px 12px; border-radius: 6px;
+  border: 1.5px solid #D1D5DB; font-size: 14px;
+  color: #374151; background: #fff;
+  transition: border-color 0.2s ease; width: 100%;
+}
+.dal-input:focus {
+  outline: none; border-color: #4F7C5F;
+  box-shadow: 0 0 0 3px rgba(79,124,95,0.15);
+}
+.dal-loading-row {
+  padding: 32px; text-align: center; color: #9CA3AF; font-size: 14px;
+}
+
+/* ===== 모바일 개선 ===== */
+@media (max-width: 768px) {
+  .dal-admin-summary { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .dal-admin-summary { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .dal-admin-summary-count { font-size: 26px; }
+  .dal-notif-banner { padding: 12px 14px; gap: 10px; }
+  .dal-notif-action { display: none; }
+  .dal-notif-title { font-size: 14px; }
+  .dal-notif-desc { font-size: 12px; }
+  .dal-btn { min-height: 44px; }
+  .dal-btn-sm { min-height: 38px; }
+  .dal-panel { overflow-x: auto; }
+  .dal-table th, .dal-table td { padding: 10px 12px; }
+  .dal-page-title { font-size: 20px; }
+}
+
+/* ── 예약일 범위 표시 ── */
+.dal-date-range-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #FDF6EC;
+  border: 1px solid #F0DFC0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+.dal-date-range-val { color: #1F2937; }
+.dal-date-range-arrow { color: #9CA3AF; font-size: 14px; }
+.dal-range-nights { font-size: 11px; color: #9CA3AF; font-weight: 400; margin-left: 4px; }
+
+/* ── 이용수칙 노트 ── */
+.dal-rules-note {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #FEF9C3;
+  border: 1px solid #FDE68A;
+  font-size: 12px;
+  color: #78350F;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.dal-rules-agree {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+.dal-rules-agree input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #4F7C5F;
+  cursor: pointer;
+}
+
+/* ── 캘린더 이벤트 호버 툴팁 ── */
+.dal-cal-event-wrapper {
+  position: relative;
+  display: block;
+}
+.dal-cal-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  min-width: 150px;
+  max-width: 200px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #1F2937;
+  color: #F9FAFB;
+  font-size: 11px;
+  line-height: 1.5;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.dal-cal-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 12px;
+  border: 5px solid transparent;
+  border-top-color: #1F2937;
+}
+.dal-cal-tooltip strong { color: #FCD34D; display: block; margin-bottom: 2px; }
+
+/* ===== DETAIL VIEW ===== */
+.dal-detail-guest-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; background: #FDF6EC; border-radius: 12px;
+  margin-bottom: 16px;
+}
+.dal-detail-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #8B5E3C; display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 20px; font-weight: 700; flex-shrink: 0;
+}
+.dal-detail-name   { font-size: 17px; font-weight: 700; color: #1F2937; }
+.dal-detail-status { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.dal-detail-info-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 16px;
+}
+.dal-detail-info-item {
+  padding: 10px 14px; border-radius: 8px;
+  background: #F9FAFB; border: 1px solid #F3F4F6;
+}
+.dal-detail-info-label { font-size: 10px; font-weight: 600; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.4px; }
+.dal-detail-info-value { font-size: 15px; font-weight: 700; color: #1F2937; margin-top: 4px; }
+.dal-notes-section { margin-bottom: 16px; }
+.dal-notes-label   { font-size: 11px; font-weight: 600; color: #6B7280; margin-bottom: 6px; }
+.dal-notes-text {
+  background: #F9FAFB; border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; color: #374151;
+  border: 1px solid #E5E7EB; min-height: 40px;
+}
+.dal-detail-calendar {
+  border: 1px solid #F3F4F6; border-radius: 10px;
+  padding: 14px; background: #F9FAFB;
+}
+.dal-detail-cal-title {
+  font-size: 11px; font-weight: 600; color: #6B7280;
+  margin-bottom: 10px;
+}
+.dal-mini-cal-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.dal-mini-cal-table thead th {
+  text-align: center; padding: 3px 2px;
+  font-size: 10px; font-weight: 600; color: #9CA3AF;
+}
+.dal-mini-cal-table tbody td {
+  text-align: center; padding: 4px 2px;
+  font-size: 12px; color: #374151; line-height: 1.4;
+}
+
+/* ===== TOAST ===== */
+.dal-toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.dal-toast {
+  padding: 12px 18px; border-radius: 8px;
+  background: #374151; color: #fff;
+  font-size: 13px; font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  display: flex; align-items: center; gap: 8px;
+  animation: dal-toast-in 0.3s ease;
+  min-width: 240px; pointer-events: all;
+}
+.dal-toast-success { background: #4A5D43; }
+.dal-toast-error   { background: #B91C1C; }
+.dal-toast-warning { background: #B45309; }
+@keyframes dal-toast-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ===== MODAL BACK BUTTON ===== */
+.dal-modal-back {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 6px;
+  border: none; background: transparent; cursor: pointer;
+  color: #6B7280; transition: background 0.15s;
+  flex-shrink: 0;
+}
+.dal-modal-back:hover { background: #F3F4F6; }
+
+/* ===== METER INPUT ===== */
+.dal-meter-section { display: flex; flex-direction: column; gap: 10px; }
+.dal-meter-loading { text-align: center; color: #9CA3AF; font-size: 13px; padding: 24px 0; }
+.dal-meter-hint { font-size: 12px; color: #6B7280; margin: 0 0 4px; }
+
+.dal-meter-ref-card {
+  background: #F9FAFB; border: 1px solid #E5E7EB;
+  border-radius: 8px; padding: 12px 14px; margin-bottom: 4px;
+}
+.dal-meter-ref-title { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+.dal-meter-ref-grid {
+  display: grid; grid-template-columns: 56px 1fr;
+  gap: 4px 8px; font-size: 12px; color: #6B7280;
+}
+.dal-meter-ref-grid span:nth-child(even) { font-weight: 600; color: #374151; }
+
+.dal-meter-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid #F3F4F6;
+  flex-wrap: wrap;
+}
+.dal-meter-label { font-size: 13px; font-weight: 600; width: 64px; flex-shrink: 0; }
+.dal-meter-input-wrap { display: flex; align-items: center; gap: 6px; }
+.dal-meter-input  { width: 110px !important; }
+.dal-meter-unit   { font-size: 12px; color: #9CA3AF; white-space: nowrap; }
+.dal-meter-calc   { font-size: 11px; color: #6B7280; white-space: nowrap; }
+.dal-meter-cost   { font-weight: 700; color: #B45309; }
+
+.dal-meter-total {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #FFFBEB; border: 1px solid #FDE68A;
+  border-radius: 8px; padding: 10px 14px; margin-top: 4px;
+}
+.dal-meter-total span { font-size: 13px; color: #92400E; }
+.dal-meter-total strong { font-size: 16px; font-weight: 700; color: #B45309; }
+
+.dal-checkout-rules {
+  background: #FFF7ED; border: 1px solid #FED7AA;
+  border-radius: 8px; padding: 12px 14px; margin-top: 4px;
+}
+.dal-checkout-rules-title { font-size: 12px; font-weight: 700; color: #B45309; margin-bottom: 6px; }
+.dal-checkout-rules ul { margin: 0; padding: 0; list-style: none; }
+.dal-checkout-rules li { font-size: 12px; color: #78350F; line-height: 1.7; }
+
+.dal-bank-info {
+  background: #F0FDF4; border: 1px solid #BBF7D0;
+  border-radius: 8px; padding: 12px 14px; margin-top: 4px;
+}
+.dal-bank-title  { font-size: 12px; font-weight: 700; color: #14532D; margin-bottom: 4px; }
+.dal-bank-detail { font-size: 14px; font-weight: 600; color: #166534; }

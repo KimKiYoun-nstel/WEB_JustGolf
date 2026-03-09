@@ -54,7 +54,8 @@ export async function middleware(request: NextRequest) {
   // /start 등 보호된 페이지 접근 시 승인 상태 확인 (RPC 함수 사용)
   if (!isAdmin && (request.nextUrl.pathname.startsWith("/start") || 
       request.nextUrl.pathname.startsWith("/admin") ||
-      request.nextUrl.pathname.startsWith("/tournaments"))) {
+      request.nextUrl.pathname.startsWith("/tournaments") ||
+      request.nextUrl.pathname.startsWith("/jeju"))) {
     const { data: isApproved, error } = await supabase.rpc("is_approved_user", { uid: user.id });
 
     if (error || !isApproved) {
