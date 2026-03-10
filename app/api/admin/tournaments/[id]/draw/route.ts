@@ -429,7 +429,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid tournament id" }, { status: 400 });
     }
 
-    const guard = await requireApiUser({ requireAdmin: true });
+    const guard = await requireApiUser({ requireTournamentAdminFor: tournamentId });
     if ("error" in guard) {
       return guard.error;
     }
@@ -507,7 +507,7 @@ export async function POST(
       return NextResponse.json({ error: "action is required" }, { status: 400 });
     }
 
-    const guard = await requireApiUser({ requireAdmin: true });
+    const guard = await requireApiUser({ requireTournamentAdminFor: tournamentId });
     if ("error" in guard) {
       return guard.error;
     }

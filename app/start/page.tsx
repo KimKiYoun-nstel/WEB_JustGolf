@@ -4,8 +4,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
+import { createClient } from "../../lib/supabaseClient";
+import {
+  getTournamentAdminAccess,
+  listManagedTournamentIds,
+} from "../../lib/tournamentAdminAccess";
 
 type QuickCardItem = {
   title: string;
@@ -13,6 +17,13 @@ type QuickCardItem = {
   href: string;
   cta: string;
   primary?: boolean;
+};
+
+type ManagedTournament = {
+  id: number;
+  title: string;
+  event_date: string;
+  status: string;
 };
 
 function QuickCard({ item }: { item: QuickCardItem }) {
@@ -41,25 +52,41 @@ function QuickCard({ item }: { item: QuickCardItem }) {
 export default function StartPage() {
   const { user, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [managedTournaments, setManagedTournaments] = useState<ManagedTournament[]>([]);
 
   useEffect(() => {
     if (!user?.id) {
       setIsAdmin(false);
+      setManagedTournaments([]);
       return;
     }
 
-    const fetchProfile = async () => {
+    const fetchAccess = async () => {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
+      const access = await getTournamentAdminAccess(supabase, user.id);
+      setIsAdmin(access.isAdmin);
 
-      setIsAdmin(data?.is_admin === true);
+      if (access.isAdmin) {
+        setManagedTournaments([]);
+        return;
+      }
+
+      const managedIds = await listManagedTournamentIds(supabase, user.id);
+      if (managedIds.length === 0) {
+        setManagedTournaments([]);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("tournaments")
+        .select("id,title,event_date,status")
+        .in("id", managedIds)
+        .order("event_date", { ascending: false });
+
+      setManagedTournaments((data ?? []) as ManagedTournament[]);
     };
 
-    fetchProfile();
+    void fetchAccess();
   }, [user?.id]);
 
   const userCards: QuickCardItem[] = [
@@ -71,7 +98,7 @@ export default function StartPage() {
       primary: true,
     },
     {
-      title: "제주소식 바로가기",
+      title: "제주투어 바로가기",
       description: "준비 중인 페이지입니다.\n곧 업데이트됩니다.",
       href: "/jeju",
       cta: "페이지 열기",
@@ -83,10 +110,10 @@ export default function StartPage() {
       cta: "게시판으로 이동",
     },
     {
-      title: "관리자 도움말",
+      title: "관리자 안내",
       description: "운영 정책과 화면 설명을\n빠르게 확인할 수 있습니다.",
       href: "/admin/help",
-      cta: "도움말 보기",
+      cta: "안내문 보기",
     },
   ];
 
@@ -140,8 +167,45 @@ export default function StartPage() {
             </div>
           </section>
         ) : null}
+
+        {!loading && !isAdmin && managedTournaments.length > 0 ? (
+          <section className="mt-12 border-t border-slate-200 pt-10">
+            <div className="mb-6 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">
+                Tournament Admin Mode
+              </p>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">담당 대회 관리</h2>
+              <p className="text-sm text-slate-500">
+                권한이 부여된 대회의 관리 페이지로 바로 이동할 수 있습니다.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              {managedTournaments.map((tournament) => (
+                <QuickCard
+                  key={tournament.id}
+                  item={{
+                    title: tournament.title,
+                    description: `${tournament.event_date}\n상태: ${tournament.status}`,
+                    href: `/admin/tournaments/${tournament.id}/dashboard`,
+                    cta: "대회 관리 열기",
+                    primary: true,
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <Link
+                href="/admin/tournaments"
+                className="inline-flex items-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                담당 대회 목록 보기
+              </Link>
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );
 }
-

@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { TOURNAMENT_FILES_BUCKET } from "../../../../../lib/storage";
 import { useAuth } from "../../../../../lib/auth";
+import { getTournamentAdminAccess } from "../../../../../lib/tournamentAdminAccess";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../../components/ui/card";
@@ -72,15 +73,10 @@ export default function AdminFilesPage() {
       return;
     }
 
-    const checkAdmin = async () => {
+    const checkAccess = async () => {
       const supabase = createClient();
-      const pRes = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
-
-      if (!pRes.data?.is_admin) {
+      const access = await getTournamentAdminAccess(supabase, user.id, tournamentId);
+      if (!access.canManageTournament) {
         setUnauthorized(true);
         setLoading(false);
         return;
@@ -89,7 +85,7 @@ export default function AdminFilesPage() {
       await load();
     };
 
-    checkAdmin();
+    void checkAccess();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
 

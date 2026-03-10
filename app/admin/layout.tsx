@@ -1,20 +1,21 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect */
-
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/auth";
 import { createClient } from "../../lib/supabaseClient";
+import { getTournamentAdminAccess } from "../../lib/tournamentAdminAccess";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { useToast } from "../../components/ui/toast";
 
-type AdminProfile = {
-  is_admin: boolean;
-  nickname: string | null;
-};
+function parseTournamentId(pathname: string): number | null {
+  const matched = pathname.match(/^\/admin\/tournaments\/(\d+)(?:\/|$)/);
+  if (!matched) return null;
+  const parsed = Number(matched[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export default function AdminLayout({
   children,
@@ -22,43 +23,51 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, loading } = useAuth();
-  const router = useRouter();
+  const pathname = usePathname();
   const [checking, setChecking] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [nickname, setNickname] = useState("");
+  const [accessGranted, setAccessGranted] = useState(false);
   const [error, setError] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     if (loading) return;
 
-    if (!user) {
-      setIsAdmin(false);
+    if (!user?.id) {
+      setAccessGranted(false);
       setChecking(false);
       return;
     }
 
     (async () => {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("is_admin,nickname")
-        .eq("id", user.id)
-        .single();
 
-      if (error) {
-        setError(error.message);
-        setIsAdmin(false);
+      try {
+        const tournamentId = parseTournamentId(pathname);
+
+        if (pathname === "/admin/tournaments") {
+          const access = await getTournamentAdminAccess(supabase, user.id);
+          setAccessGranted(access.isAdmin || access.hasAnyManagedTournament);
+          setChecking(false);
+          return;
+        }
+
+        if (tournamentId) {
+          const access = await getTournamentAdminAccess(supabase, user.id, tournamentId);
+          setAccessGranted(access.canManageTournament);
+          setChecking(false);
+          return;
+        }
+
+        const access = await getTournamentAdminAccess(supabase, user.id);
+        setAccessGranted(access.isAdmin);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "권한 확인 중 오류가 발생했습니다.");
+        setAccessGranted(false);
+      } finally {
         setChecking(false);
-        return;
       }
-
-      const profile = data as AdminProfile;
-      setNickname(profile.nickname ?? "");
-      setIsAdmin(Boolean(profile.is_admin));
-      setChecking(false);
     })();
-  }, [loading, user?.id]);
+  }, [loading, pathname, user?.id]);
 
   useEffect(() => {
     if (!error) return;
@@ -74,9 +83,9 @@ export default function AdminLayout({
 
   if (loading || checking) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-4 md:px-6 lg:px-8 py-10">
+      <main className="min-h-screen bg-slate-50/70 px-4 py-10 md:px-6 lg:px-8">
         <Card className="mx-auto max-w-3xl border-slate-200/70 p-6">
-          <p className="text-sm text-slate-500">관리자 권한 확인 중...</p>
+          <p className="text-sm text-slate-500">권한을 확인하는 중입니다...</p>
         </Card>
       </main>
     );
@@ -84,11 +93,9 @@ export default function AdminLayout({
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-4 md:px-6 lg:px-8 py-10">
+      <main className="min-h-screen bg-slate-50/70 px-4 py-10 md:px-6 lg:px-8">
         <Card className="mx-auto max-w-3xl border-slate-200/70 p-6">
-          <p className="text-sm text-slate-600">
-            관리자 페이지는 로그인 후 이용 가능해요.
-          </p>
+          <p className="text-sm text-slate-600">관리 페이지는 로그인 후 이용할 수 있습니다.</p>
           <Button asChild variant="outline" className="mt-4">
             <Link href="/login">로그인으로 이동</Link>
           </Button>
@@ -97,23 +104,18 @@ export default function AdminLayout({
     );
   }
 
-  if (!isAdmin) {
+  if (!accessGranted) {
     return (
-      <main className="min-h-screen bg-slate-50/70 px-4 md:px-6 lg:px-8 py-10">
+      <main className="min-h-screen bg-slate-50/70 px-4 py-10 md:px-6 lg:px-8">
         <Card className="mx-auto max-w-3xl border-slate-200/70 p-6">
-          <p className="text-sm text-slate-600">관리자 권한이 없습니다.</p>
+          <p className="text-sm text-slate-600">접근 권한이 없습니다.</p>
           <Button asChild variant="outline" className="mt-4">
-            <Link href="/start">홈으로 이동</Link>
+            <Link href="/start">시작 페이지로 이동</Link>
           </Button>
         </Card>
       </main>
     );
   }
 
-  // 간소화된 AdminLayout: 권한 체크만 수행, 레이아웃은 children에게 위임
-  return (
-    <div className="min-h-screen bg-slate-50/70">
-      {children}
-    </div>
-  );
+  return <div className="min-h-screen bg-slate-50/70">{children}</div>;
 }

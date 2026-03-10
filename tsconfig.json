@@ -39,6 +39,7 @@
   "exclude": [
     "node_modules",
     ".next/dev/types/**/*.ts",
-    "UI_MIG_TEMPLET/**"
+    "UI_MIG_TEMPLET/**",
+    "RefRepo/**"
   ]
 }

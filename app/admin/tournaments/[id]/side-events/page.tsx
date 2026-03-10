@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
+import { getTournamentAdminAccess } from "../../../../../lib/tournamentAdminAccess";
 import { formatRegistrationStatus, formatTournamentStatus } from "../../../../../lib/statusLabels";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -56,6 +57,22 @@ type SideEventRegistration = {
 type RoundType = "pre" | "post";
 type Status = "draft" | "open" | "closed" | "done";
 
+const SIDE_EVENT_REGISTRATION_STATUSES: SideEventRegistration["status"][] = [
+  "applied",
+  "confirmed",
+  "waitlisted",
+  "canceled",
+];
+
+type SideEventStatusSummary = Record<SideEventRegistration["status"], number>;
+
+const createEmptySideEventStatusSummary = (): SideEventStatusSummary => ({
+  applied: 0,
+  confirmed: 0,
+  waitlisted: 0,
+  canceled: 0,
+});
+
 const toInputDateTime = (value: string | null) => {
   if (!value) return "";
   return value.slice(0, 16);
@@ -75,6 +92,7 @@ export default function AdminSideEventsPage() {
   const [sideEventRegs, setSideEventRegs] = useState<
     Map<number, SideEventRegistration[]>
   >(new Map());
+  const [updatingRegistrationId, setUpdatingRegistrationId] = useState<number | null>(null);
 
   // Available meal options
   const [mealOptions, setMealOptions] = useState<Array<{ id: number; name: string }>>([]);
@@ -135,10 +153,7 @@ export default function AdminSideEventsPage() {
           .order("id", { ascending: true });
 
         if (!serRes.error) {
-          const filtered = ((serRes.data ?? []) as SideEventRegistration[]).filter(
-            (row) => row.status !== "canceled"
-          );
-          seRegMap.set(se.id, filtered);
+          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
         }
       }
       setSideEventRegs(seRegMap);
@@ -170,30 +185,10 @@ export default function AdminSideEventsPage() {
       return;
     }
 
-    const checkAdmin = async () => {
+    const checkAccess = async () => {
       const supabase = createClient();
-      // 1. Check if user is admin
-      const pRes = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
-
-      const isAdmin = pRes.data?.is_admin ?? false;
-
-      // 2. Check if user is round manager for this tournament
-      const mgrRes = await supabase
-        .from("manager_permissions")
-        .select("can_manage_side_events")
-        .eq("tournament_id", tournamentId)
-        .eq("user_id", user.id)
-        .is("revoked_at", null)
-        .single();
-
-      const canManageRounds = mgrRes.data?.can_manage_side_events ?? false;
-
-      // Allow access if either admin or round manager
-      if (!isAdmin && !canManageRounds) {
+      const access = await getTournamentAdminAccess(supabase, user.id, tournamentId);
+      if (!access.canManageTournament) {
         setUnauthorized(true);
         setLoading(false);
         return;
@@ -202,7 +197,7 @@ export default function AdminSideEventsPage() {
       await loadSideEvents();
     };
 
-    checkAdmin();
+    void checkAccess();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, user?.id, authLoading]);
 
@@ -310,6 +305,33 @@ export default function AdminSideEventsPage() {
     }
   }, []);
 
+  const updateSideEventRegistrationStatus = async (
+    registrationId: number,
+    currentStatus: SideEventRegistration["status"],
+    nextStatus: SideEventRegistration["status"]
+  ) => {
+    if (currentStatus === nextStatus) return;
+
+    const supabase = createClient();
+    setMsg("");
+    setUpdatingRegistrationId(registrationId);
+
+    const { error } = await supabase
+      .from("side_event_registrations")
+      .update({ status: nextStatus })
+      .eq("id", registrationId);
+
+    setUpdatingRegistrationId(null);
+
+    if (error) {
+      setMsg(`신청 상태 변경 실패: ${friendlyError(error)}`);
+      return;
+    }
+
+    setMsg("신청 상태를 변경했습니다.");
+    await loadSideEvents();
+  };
+
   const editSideEvent = useCallback((se: SideEvent) => {
     setEditingId(se.id);
     setRoundType(se.round_type);
@@ -337,6 +359,59 @@ export default function AdminSideEventsPage() {
     pre: sideEvents.filter(se => se.round_type === "pre"),
     post: sideEvents.filter(se => se.round_type === "post"),
   };
+
+  const sideEventSummary = useMemo(() => {
+    let totalActiveRegistrations = 0;
+    let preActiveRegistrations = 0;
+    let postActiveRegistrations = 0;
+    let totalRegistrationHistoryCount = 0;
+
+    const totalStatusSummary = createEmptySideEventStatusSummary();
+    const preStatusSummary = createEmptySideEventStatusSummary();
+    const postStatusSummary = createEmptySideEventStatusSummary();
+
+    const topRounds = sideEvents
+      .map((sideEvent) => {
+        const regs = sideEventRegs.get(sideEvent.id) ?? [];
+        const activeRegistrationCount = regs.filter((row) => row.status !== "canceled").length;
+
+        totalActiveRegistrations += activeRegistrationCount;
+        totalRegistrationHistoryCount += regs.length;
+
+        regs.forEach((row) => {
+          totalStatusSummary[row.status] += 1;
+          if (sideEvent.round_type === "pre") preStatusSummary[row.status] += 1;
+          if (sideEvent.round_type === "post") postStatusSummary[row.status] += 1;
+        });
+
+        if (sideEvent.round_type === "pre") preActiveRegistrations += activeRegistrationCount;
+        if (sideEvent.round_type === "post") postActiveRegistrations += activeRegistrationCount;
+
+        return {
+          id: sideEvent.id,
+          title: sideEvent.title,
+          roundType: sideEvent.round_type,
+          registrationCount: activeRegistrationCount,
+        };
+      })
+      .sort((a, b) => b.registrationCount - a.registrationCount)
+      .slice(0, 3);
+
+    return {
+      totalRounds: sideEvents.length,
+      preRounds: groupedByRoundType.pre.length,
+      postRounds: groupedByRoundType.post.length,
+      totalActiveRegistrations,
+      preActiveRegistrations,
+      postActiveRegistrations,
+      totalRegistrationHistoryCount,
+      totalStatusSummary,
+      preStatusSummary,
+      postStatusSummary,
+      topRounds,
+    };
+  }, [groupedByRoundType.post.length, groupedByRoundType.pre.length, sideEventRegs, sideEvents]);
+
   const mealOptionMap = useMemo(
     () => new Map(mealOptions.map((option) => [option.id, option.name])),
     [mealOptions]
@@ -372,6 +447,7 @@ export default function AdminSideEventsPage() {
   const renderSideEventCard = useCallback(
     (se: SideEvent) => {
       const seRegs = sideEventRegs.get(se.id) ?? [];
+      const activeRegistrationCount = seRegs.filter((row) => row.status !== "canceled").length;
       const mealLabel = se.meal_option_id ? mealOptionMap.get(se.meal_option_id) ?? "선택됨" : "없음";
 
       return (
@@ -387,7 +463,10 @@ export default function AdminSideEventsPage() {
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-slate-600">
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                    신청 {seRegs.length}명
+                    활성 신청 {activeRegistrationCount}명
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                    신청 이력 {seRegs.length}건
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
                     식사 {mealLabel}
@@ -451,6 +530,27 @@ export default function AdminSideEventsPage() {
                           <p>숙박: {renderTriState(r.lodging_selected)}</p>
                           <p className="col-span-2">메모: {r.memo ?? "-"}</p>
                         </div>
+                        <div className="mt-3 space-y-1">
+                          <label className="text-xs font-medium text-slate-600">상태 변경</label>
+                          <select
+                            value={r.status}
+                            onChange={(event) =>
+                              void updateSideEventRegistrationStatus(
+                                r.id,
+                                r.status,
+                                event.target.value as SideEventRegistration["status"]
+                              )
+                            }
+                            disabled={updatingRegistrationId === r.id}
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs"
+                          >
+                            {SIDE_EVENT_REGISTRATION_STATUSES.map((optionStatus) => (
+                              <option key={optionStatus} value={optionStatus}>
+                                {formatRegistrationStatus(optionStatus)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </article>
                     ))}
                   </div>
@@ -460,6 +560,7 @@ export default function AdminSideEventsPage() {
                         <TableRow>
                           <TableHead>닉네임</TableHead>
                           <TableHead>상태</TableHead>
+                          <TableHead>상태 변경</TableHead>
                           <TableHead>식사</TableHead>
                           <TableHead>숙박</TableHead>
                         </TableRow>
@@ -472,6 +573,26 @@ export default function AdminSideEventsPage() {
                               <Badge variant="secondary">
                                 {formatRegistrationStatus(r.status)}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <select
+                                value={r.status}
+                                onChange={(event) =>
+                                  void updateSideEventRegistrationStatus(
+                                    r.id,
+                                    r.status,
+                                    event.target.value as SideEventRegistration["status"]
+                                  )
+                                }
+                                disabled={updatingRegistrationId === r.id}
+                                className="h-9 w-full min-w-[120px] rounded-xl border border-slate-200 bg-white px-2 text-sm"
+                              >
+                                {SIDE_EVENT_REGISTRATION_STATUSES.map((optionStatus) => (
+                                  <option key={optionStatus} value={optionStatus}>
+                                    {formatRegistrationStatus(optionStatus)}
+                                  </option>
+                                ))}
+                              </select>
                             </TableCell>
                             <TableCell>
                               <span className="text-sm text-slate-600">
@@ -495,7 +616,16 @@ export default function AdminSideEventsPage() {
         </Card>
       );
     },
-    [deleteSideEvent, editSideEvent, formatDateTime, mealOptionMap, renderTriState, sideEventRegs]
+    [
+      deleteSideEvent,
+      editSideEvent,
+      formatDateTime,
+      mealOptionMap,
+      renderTriState,
+      sideEventRegs,
+      updateSideEventRegistrationStatus,
+      updatingRegistrationId,
+    ]
   );
 
   const renderRoundSection = useCallback(
@@ -552,6 +682,100 @@ export default function AdminSideEventsPage() {
           <Button onClick={() => router.back()} variant="secondary" className="w-full md:w-auto">
             뒤로
           </Button>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-100 bg-[#F2F4F7] px-3 py-6 md:px-4 lg:px-6">
+        <div className="mx-auto w-full max-w-7xl">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle>라운드 요약</CardTitle>
+              <p className="text-sm text-slate-500">사전/사후 라운드 구성과 신청 현황을 빠르게 확인합니다.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-medium text-slate-500">전체 라운드</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">{sideEventSummary.totalRounds}개</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-medium text-amber-800">사전/사후 라운드</p>
+                  <p className="mt-1 text-xl font-bold text-amber-900">
+                    {sideEventSummary.preRounds}/{sideEventSummary.postRounds}개
+                  </p>
+                  <p className="mt-1 text-xs text-amber-700">
+                    활성 {sideEventSummary.preActiveRegistrations}/{sideEventSummary.postActiveRegistrations}명
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
+                  <p className="text-xs font-medium text-indigo-700">활성 신청자</p>
+                  <p className="mt-1 text-xl font-bold text-indigo-900">
+                    {sideEventSummary.totalActiveRegistrations}명
+                  </p>
+                  <p className="mt-1 text-xs text-indigo-700">
+                    신청 {sideEventSummary.totalStatusSummary.applied} / 확정{" "}
+                    {sideEventSummary.totalStatusSummary.confirmed}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs font-medium text-emerald-700">신청 이력</p>
+                  <p className="mt-1 text-xl font-bold text-emerald-900">
+                    {sideEventSummary.totalRegistrationHistoryCount}건
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    대기 {sideEventSummary.totalStatusSummary.waitlisted} / 취소{" "}
+                    {sideEventSummary.totalStatusSummary.canceled}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold text-slate-600">전체 상태</p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    신청 {sideEventSummary.totalStatusSummary.applied} / 확정{" "}
+                    {sideEventSummary.totalStatusSummary.confirmed} / 대기{" "}
+                    {sideEventSummary.totalStatusSummary.waitlisted} / 취소{" "}
+                    {sideEventSummary.totalStatusSummary.canceled}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-semibold text-amber-800">사전 상태</p>
+                  <p className="mt-2 text-xs text-amber-700">
+                    신청 {sideEventSummary.preStatusSummary.applied} / 확정{" "}
+                    {sideEventSummary.preStatusSummary.confirmed} / 대기{" "}
+                    {sideEventSummary.preStatusSummary.waitlisted} / 취소{" "}
+                    {sideEventSummary.preStatusSummary.canceled}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
+                  <p className="text-xs font-semibold text-indigo-700">사후 상태</p>
+                  <p className="mt-2 text-xs text-indigo-700">
+                    신청 {sideEventSummary.postStatusSummary.applied} / 확정{" "}
+                    {sideEventSummary.postStatusSummary.confirmed} / 대기{" "}
+                    {sideEventSummary.postStatusSummary.waitlisted} / 취소{" "}
+                    {sideEventSummary.postStatusSummary.canceled}
+                  </p>
+                </div>
+              </div>
+
+              {sideEventSummary.topRounds.length === 0 ? (
+                <p className="text-sm text-slate-500">등록된 라운드가 없습니다.</p>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold text-slate-600">신청 상위 라운드</p>
+                  <div className="mt-2 grid gap-2 md:grid-cols-3">
+                    {sideEventSummary.topRounds.map((round) => (
+                      <p key={round.id} className="text-xs text-slate-600">
+                        [{round.roundType === "pre" ? "사전" : "사후"}] {round.title} · 활성 신청{" "}
+                        {round.registrationCount}명
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </section>
 

@@ -328,14 +328,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await requireApiUser({ requireAdmin: true });
-    if ("error" in guard) return guard.error;
-
     const { id } = await params;
     const tournamentId = Number(id);
     if (!Number.isFinite(tournamentId) || tournamentId <= 0) {
       return NextResponse.json({ error: "유효하지 않은 대회 ID입니다." }, { status: 400 });
     }
+
+    const guard = await requireApiUser({ requireTournamentAdminFor: tournamentId });
+    if ("error" in guard) return guard.error;
 
     const scopeParam = request.nextUrl.searchParams.get("scope");
     const format = request.nextUrl.searchParams.get("format") ?? "xlsx";

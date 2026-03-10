@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { useAuth } from "../../../../../lib/auth";
+import { getTournamentAdminAccess } from "../../../../../lib/tournamentAdminAccess";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import {
@@ -39,61 +40,31 @@ type TournamentExtra = {
   is_active: boolean;
 };
 
-export default function TournamentExtrasPage() {
+export default function AdminExtrasPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
+  const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
 
-  const { user, loading } = useAuth();
-  const [t, setT] = useState<Tournament | null>(null);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [tournament, setTournament] = useState<Tournament | null>(null);
   const [extras, setExtras] = useState<TournamentExtra[]>([]);
-  const [activityName, setActivityName] = useState("");
-  const [description, setDescription] = useState("");
-  const [msg, setMsg] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
-  const { toast } = useToast();
+  const [msg, setMsg] = useState("");
 
   const friendlyError = (error: { code?: string; message: string }) => {
-    if (error.code === "23505") return "이미 동일한 이름의 활동이 있습니다.";
-    if (error.code === "42501" || error.message.toLowerCase().includes("permission")) {
-      return "권한이 없습니다. 관리자만 접근 가능합니다.";
-    }
+    if (error.code === "23505") return "이미 같은 이름의 활동이 있습니다.";
+    if (error.code === "42501") return "권한이 없습니다.";
     return error.message;
   };
 
-  useEffect(() => {
-    if (!Number.isFinite(tournamentId)) return;
-    if (loading) return;
-    void checkAdmin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournamentId, loading, user]);
-
-  const checkAdmin = async () => {
-    const supabase = createClient();
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    const { data } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", user.id)
-      .single();
-
-    if (!data?.is_admin) {
-      setMsg("관리자만 접근할 수 있습니다.");
-      return;
-    }
-
-    setIsAdmin(true);
-    await fetchData();
-  };
-
-  const fetchData = async () => {
+  const loadData = async () => {
     const supabase = createClient();
 
     const tRes = await supabase
@@ -103,14 +74,11 @@ export default function TournamentExtrasPage() {
       .single();
 
     if (tRes.error) {
-      toast({
-        variant: "error",
-        title: "대회 조회 실패",
-        description: friendlyError(tRes.error),
-      });
+      setMsg(`대회 조회 실패: ${friendlyError(tRes.error)}`);
+      setLoading(false);
       return;
     }
-    setT(tRes.data as Tournament);
+    setTournament(tRes.data as Tournament);
 
     const extrasRes = await supabase
       .from("tournament_extras")
@@ -120,174 +88,160 @@ export default function TournamentExtrasPage() {
       .order("display_order", { ascending: true });
 
     if (extrasRes.error) {
-      toast({
-        variant: "error",
-        title: "활동 조회 실패",
-        description: friendlyError(extrasRes.error),
-      });
+      setMsg(`활동 조회 실패: ${friendlyError(extrasRes.error)}`);
+      setLoading(false);
       return;
     }
 
     setExtras((extrasRes.data ?? []) as TournamentExtra[]);
+    setLoading(false);
   };
 
-  const addActivity = async () => {
-    const supabase = createClient();
-    const name = activityName.trim();
+  useEffect(() => {
+    if (!Number.isFinite(tournamentId)) return;
+    if (authLoading) return;
 
-    if (!name) {
-      toast({ variant: "error", title: "활동명을 입력해 주세요." });
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const checkAccessAndLoad = async () => {
+      const supabase = createClient();
+      const access = await getTournamentAdminAccess(supabase, user.id, tournamentId);
+      if (!access.canManageTournament) {
+        setMsg("해당 대회의 관리자 권한이 없습니다.");
+        setLoading(false);
+        return;
+      }
+
+      setHasAccess(true);
+      await loadData();
+    };
+
+    void checkAccessAndLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentId, authLoading, user?.id]);
+
+  useEffect(() => {
+    if (!msg) return;
+    const isError = /실패|오류|없습니다|권한/.test(msg);
+    toast({
+      variant: isError ? "error" : "success",
+      title: msg,
+    });
+    setMsg("");
+  }, [msg, toast]);
+
+  const addExtra = async () => {
+    const supabase = createClient();
+    const activityName = newName.trim();
+    if (!activityName) {
+      setMsg("활동명을 입력해 주세요.");
       return;
     }
 
     if (extras.length >= 3) {
-      toast({ variant: "error", title: "활동은 최대 3개까지 등록할 수 있습니다." });
+      setMsg("활동은 최대 3개까지 등록할 수 있습니다.");
       return;
     }
 
-    const nextOrder = extras.length > 0 ? Math.max(...extras.map((e) => e.display_order)) + 1 : 0;
-
     const { error } = await supabase.from("tournament_extras").insert({
       tournament_id: tournamentId,
-      activity_name: name,
-      description: description.trim() || null,
-      display_order: nextOrder,
+      activity_name: activityName,
+      description: newDescription.trim() || null,
+      display_order: extras.length + 1,
       is_active: true,
     });
 
     if (error) {
-      toast({
-        variant: "error",
-        title: "활동 추가 실패",
-        description: friendlyError(error),
-      });
+      setMsg(`활동 등록 실패: ${friendlyError(error)}`);
       return;
     }
 
-    toast({ variant: "success", title: "활동이 추가되었습니다." });
-    setActivityName("");
-    setDescription("");
-    await fetchData();
+    setNewName("");
+    setNewDescription("");
+    setMsg("활동이 등록되었습니다.");
+    await loadData();
   };
 
-  const deleteActivity = async (id: number) => {
+  const removeExtra = async (extraId: number) => {
     const supabase = createClient();
     const { error } = await supabase.rpc("admin_soft_delete_tournament_extra", {
-      extra_id: id,
+      p_extra_id: extraId,
     });
 
     if (error) {
-      toast({
-        variant: "error",
-        title: "활동 삭제 실패",
-        description: friendlyError(error),
-      });
+      setMsg(`활동 삭제 실패: ${friendlyError(error)}`);
       return;
     }
 
-    toast({ variant: "success", title: "활동이 삭제되었습니다." });
-    await fetchData();
+    setMsg("활동이 삭제되었습니다.");
+    await loadData();
   };
 
-  const startEdit = (extra: TournamentExtra) => {
-    setEditingId(extra.id);
-    setEditingName(extra.activity_name);
-    setEditingDescription(extra.description ?? "");
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditingName("");
-    setEditingDescription("");
-  };
-
-  const saveEdit = async (id: number) => {
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const supabase = createClient();
     const name = editingName.trim();
     if (!name) {
-      toast({ variant: "error", title: "활동명을 입력해 주세요." });
+      setMsg("활동명을 입력해 주세요.");
       return;
     }
 
-    const supabase = createClient();
     const { error } = await supabase
       .from("tournament_extras")
       .update({
         activity_name: name,
         description: editingDescription.trim() || null,
       })
-      .eq("id", id);
+      .eq("id", editingId);
 
     if (error) {
-      toast({
-        variant: "error",
-        title: "활동 수정 실패",
-        description: friendlyError(error),
-      });
+      setMsg(`활동 수정 실패: ${friendlyError(error)}`);
       return;
     }
 
-    toast({ variant: "success", title: "활동이 수정되었습니다." });
-    cancelEdit();
-    await fetchData();
+    setEditingId(null);
+    setEditingName("");
+    setEditingDescription("");
+    setMsg("활동이 수정되었습니다.");
+    await loadData();
   };
 
-  const moveUp = async (id: number) => {
+  const moveOrder = async (extraId: number, direction: "up" | "down") => {
+    const currentIndex = extras.findIndex((item) => item.id === extraId);
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= extras.length) return;
+
+    const current = extras[currentIndex];
+    const target = extras[targetIndex];
     const supabase = createClient();
-    const idx = extras.findIndex((e) => e.id === id);
-    if (idx === 0) return;
 
-    const current = extras[idx];
-    const above = extras[idx - 1];
-
-    await supabase
+    const first = await supabase
       .from("tournament_extras")
-      .update({ display_order: above.display_order })
+      .update({ display_order: target.display_order })
       .eq("id", current.id);
+    if (first.error) {
+      setMsg(`순서 변경 실패: ${friendlyError(first.error)}`);
+      return;
+    }
 
-    await supabase
+    const second = await supabase
       .from("tournament_extras")
       .update({ display_order: current.display_order })
-      .eq("id", above.id);
+      .eq("id", target.id);
+    if (second.error) {
+      setMsg(`순서 변경 실패: ${friendlyError(second.error)}`);
+      return;
+    }
 
-    await fetchData();
+    await loadData();
   };
 
-  const moveDown = async (id: number) => {
-    const supabase = createClient();
-    const idx = extras.findIndex((e) => e.id === id);
-    if (idx === extras.length - 1) return;
-
-    const current = extras[idx];
-    const below = extras[idx + 1];
-
-    await supabase
-      .from("tournament_extras")
-      .update({ display_order: below.display_order })
-      .eq("id", current.id);
-
-    await supabase
-      .from("tournament_extras")
-      .update({ display_order: current.display_order })
-      .eq("id", below.id);
-
-    await fetchData();
-  };
-
-  if (!isAdmin) {
-    return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-            <CardContent className="py-10">
-              <p className="text-sm text-slate-500">{msg || "권한 확인 중..."}</p>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  if (!t) {
+  if (loading) {
     return (
       <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
         <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
@@ -301,45 +255,53 @@ export default function TournamentExtrasPage() {
     );
   }
 
+  if (!hasAccess) {
+    return (
+      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+            <CardContent className="py-10">
+              <p className="text-sm text-slate-500">{msg || "권한 확인 중..."}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
       <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold text-slate-900">{t.title}</h1>
-          <p className="text-sm text-slate-500">{t.event_date} · 추가 활동 관리</p>
+          <h1 className="text-3xl font-semibold text-slate-900">{tournament?.title}</h1>
+          <p className="text-sm text-slate-500">{tournament?.event_date} · 추가 활동 관리</p>
         </div>
 
         <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>추가 활동 등록</CardTitle>
-            <CardDescription>
-              참가자가 선택할 수 있는 추가 활동을 등록합니다. (최대 3개)
-            </CardDescription>
+            <CardDescription>대회당 최대 3개의 활동을 등록할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">활동명 *</label>
+              <label className="text-sm font-medium">활동명</label>
               <Input
-                value={activityName}
-                onChange={(e) => setActivityName(e.target.value)}
-                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
-                placeholder="예: 드라이버 비거리 분석"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="예: 골프존 스윙 분석"
               />
             </div>
-
             <div className="space-y-2">
               <label className="text-sm font-medium">설명 (선택)</label>
-              <textarea
-                className="min-h-[80px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="활동에 대한 간단한 설명"
+              <Input
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="활동 안내 문구"
               />
             </div>
-
             <div className="flex items-center gap-3">
-              <Button onClick={addActivity}>활동 추가</Button>
-              <Badge variant="outline">{extras.length} / 3개 사용 중</Badge>
+              <Button onClick={() => void addExtra()}>활동 추가</Button>
+              <Badge variant="outline">{extras.length} / 3 사용 중</Badge>
             </div>
           </CardContent>
         </Card>
@@ -347,7 +309,6 @@ export default function TournamentExtrasPage() {
         <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>현재 활동 목록</CardTitle>
-            <CardDescription>순서를 변경하거나 삭제할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent>
             {extras.length === 0 ? (
@@ -359,81 +320,82 @@ export default function TournamentExtrasPage() {
                     <TableHead>순서</TableHead>
                     <TableHead>활동명</TableHead>
                     <TableHead>설명</TableHead>
-                    <TableHead className="text-center">작업</TableHead>
+                    <TableHead className="text-right">작업</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {extras.map((extra, idx) => (
-                    <TableRow key={extra.id}>
-                      <TableCell className="font-medium">{idx + 1}</TableCell>
-                      <TableCell>
-                        {editingId === extra.id ? (
-                          <Input
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            placeholder="활동명"
-                          />
-                        ) : (
-                          extra.activity_name
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {editingId === extra.id ? (
-                          <textarea
-                            className="min-h-[64px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-                            value={editingDescription}
-                            onChange={(e) => setEditingDescription(e.target.value)}
-                            placeholder="설명"
-                          />
-                        ) : (
-                          extra.description || "-"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center gap-2">
-                          {editingId === extra.id ? (
-                            <>
-                              <Button onClick={() => saveEdit(extra.id)} size="sm">
+                  {extras.map((extra, index) => {
+                    const editing = editingId === extra.id;
+                    return (
+                      <TableRow key={extra.id}>
+                        <TableCell>{extra.display_order}</TableCell>
+                        <TableCell>
+                          {editing ? (
+                            <Input
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                            />
+                          ) : (
+                            extra.activity_name
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editing ? (
+                            <Input
+                              value={editingDescription}
+                              onChange={(e) => setEditingDescription(e.target.value)}
+                            />
+                          ) : (
+                            extra.description ?? "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void moveOrder(extra.id, "up")}
+                              disabled={index === 0}
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void moveOrder(extra.id, "down")}
+                              disabled={index === extras.length - 1}
+                            >
+                              ↓
+                            </Button>
+                            {editing ? (
+                              <Button size="sm" onClick={() => void saveEdit()}>
                                 저장
                               </Button>
-                              <Button onClick={cancelEdit} size="sm" variant="outline">
-                                취소
-                              </Button>
-                            </>
-                          ) : (
-                            <>
+                            ) : (
                               <Button
-                                onClick={() => moveUp(extra.id)}
                                 size="sm"
                                 variant="outline"
-                                disabled={idx === 0}
+                                onClick={() => {
+                                  setEditingId(extra.id);
+                                  setEditingName(extra.activity_name);
+                                  setEditingDescription(extra.description ?? "");
+                                }}
                               >
-                                위
-                              </Button>
-                              <Button
-                                onClick={() => moveDown(extra.id)}
-                                size="sm"
-                                variant="outline"
-                                disabled={idx === extras.length - 1}
-                              >
-                                아래
-                              </Button>
-                              <Button onClick={() => startEdit(extra)} size="sm" variant="secondary">
                                 수정
                               </Button>
-                              <Button
-                                onClick={() => deleteActivity(extra.id)}
-                                size="sm"
-                                variant="destructive"
-                              >
-                                삭제
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            )}
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => void removeExtra(extra.id)}
+                            >
+                              삭제
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -446,6 +408,11 @@ export default function TournamentExtrasPage() {
           </Button>
           <Button asChild variant="outline">
             <Link href={`/t/${tournamentId}`}>공개 페이지</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="#" onClick={(e) => { e.preventDefault(); router.back(); }}>
+              뒤로
+            </Link>
           </Button>
         </div>
       </div>

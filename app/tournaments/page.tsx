@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/auth";
 import { formatRegistrationStatus, formatTournamentStatus } from "../../lib/statusLabels";
+import { getTournamentAdminAccess, listManagedTournamentIds } from "../../lib/tournamentAdminAccess";
 import { useToast } from "../../components/ui/toast";
 
 type Tournament = {
@@ -34,6 +35,24 @@ type RegistrationStatusRow = {
   relation: string | null;
 };
 
+type SideEventRow = {
+  id: number;
+  tournament_id: number;
+  round_type: "pre" | "post";
+  title: string;
+};
+
+type SideEventRegistrationRow = {
+  side_event_id: number;
+};
+
+type SideEventSummary = {
+  id: number;
+  round_type: "pre" | "post";
+  title: string;
+  registration_count: number;
+};
+
 const STATUS_BADGE_STYLE: Record<string, string> = {
   open: "bg-emerald-100 text-emerald-700",
   draft: "bg-blue-100 text-blue-700",
@@ -48,6 +67,8 @@ const createEmptyRegistrationSummary = (): RegistrationSummary => ({
   canceled: 0,
 });
 
+const formatRoundType = (roundType: "pre" | "post") => (roundType === "pre" ? "사전" : "사후");
+
 export default function TournamentsPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -55,6 +76,9 @@ export default function TournamentsPage() {
   const [error, setError] = useState("");
   const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
   const [registrationSummaries, setRegistrationSummaries] = useState<Record<number, RegistrationSummary>>({});
+  const [sideEventSummaries, setSideEventSummaries] = useState<Record<number, SideEventSummary[]>>({});
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
+  const [managedTournamentIds, setManagedTournamentIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -64,7 +88,9 @@ export default function TournamentsPage() {
     let active = true;
 
     (async () => {
+      setIsLoading(true);
       const supabase = createClient();
+
       const { data, error } = await supabase
         .from("tournaments")
         .select("id,title,event_date,course_name,location,tee_time,notes,status")
@@ -85,21 +111,20 @@ export default function TournamentsPage() {
 
       if (tournamentIds.length === 0) {
         setRegistrationSummaries({});
+        setSideEventSummaries({});
         setMyStatuses({});
+        setIsGlobalAdmin(false);
+        setManagedTournamentIds([]);
         setIsLoading(false);
         return;
       }
 
-      // DB에서 직접 집계하여 효율적으로 조회 (RPC 함수 사용)
-      const { data: countData, error: countError } = await supabase
-        .rpc('get_registration_counts_by_tournaments', { 
-          tournament_ids: tournamentIds 
-        });
+      const { data: countData, error: countError } = await supabase.rpc(
+        "get_registration_counts_by_tournaments",
+        { tournament_ids: tournamentIds }
+      );
 
-      console.log('=== Registration Count Debug ===');
-      console.log('tournamentIds count:', tournamentIds.length);
-      console.log('countData (aggregated):', countData);
-      console.log('countError:', countError);
+      if (!active) return;
 
       if (!countError && countData) {
         const nextSummaries: Record<number, RegistrationSummary> = {};
@@ -111,16 +136,83 @@ export default function TournamentsPage() {
           if (row.status === "canceled") current.canceled = row.count;
           nextSummaries[row.tournament_id] = current;
         });
-        console.log('nextSummaries count:', Object.keys(nextSummaries).length);
         setRegistrationSummaries(nextSummaries);
       } else {
         setRegistrationSummaries({});
       }
 
+      const { data: sideEventData, error: sideEventError } = await supabase
+        .from("side_events")
+        .select("id,tournament_id,round_type,title")
+        .in("tournament_id", tournamentIds)
+        .order("tournament_id", { ascending: true })
+        .order("round_type", { ascending: true })
+        .order("id", { ascending: true });
+
+      if (!active) return;
+
+      if (!sideEventError && sideEventData) {
+        const sideEventRows = (sideEventData ?? []) as SideEventRow[];
+        const sideEventIds = sideEventRows.map((row) => row.id);
+        const registrationCountMap = new Map<number, number>();
+
+        if (sideEventIds.length > 0) {
+          const { data: sideEventRegistrationData, error: sideEventRegistrationError } = await supabase
+            .from("side_event_registrations")
+            .select("side_event_id")
+            .in("side_event_id", sideEventIds)
+            .neq("status", "canceled");
+
+          if (!active) return;
+
+          if (!sideEventRegistrationError && sideEventRegistrationData) {
+            (sideEventRegistrationData as SideEventRegistrationRow[]).forEach((row) => {
+              registrationCountMap.set(
+                row.side_event_id,
+                (registrationCountMap.get(row.side_event_id) ?? 0) + 1
+              );
+            });
+          }
+        }
+
+        const nextSideEventSummaries: Record<number, SideEventSummary[]> = {};
+        sideEventRows.forEach((row) => {
+          const summaryRow: SideEventSummary = {
+            id: row.id,
+            round_type: row.round_type,
+            title: row.title,
+            registration_count: registrationCountMap.get(row.id) ?? 0,
+          };
+
+          const bucket = nextSideEventSummaries[row.tournament_id] ?? [];
+          bucket.push(summaryRow);
+          nextSideEventSummaries[row.tournament_id] = bucket;
+        });
+
+        setSideEventSummaries(nextSideEventSummaries);
+      } else {
+        setSideEventSummaries({});
+      }
+
       if (!user?.id) {
         setMyStatuses({});
+        setIsGlobalAdmin(false);
+        setManagedTournamentIds([]);
         setIsLoading(false);
         return;
+      }
+
+      const access = await getTournamentAdminAccess(supabase, user.id);
+      if (!active) return;
+
+      setIsGlobalAdmin(access.isAdmin);
+
+      if (access.isAdmin) {
+        setManagedTournamentIds([]);
+      } else {
+        const scopedIds = await listManagedTournamentIds(supabase, user.id);
+        if (!active) return;
+        setManagedTournamentIds(scopedIds);
       }
 
       const { data: regData, error: regError } = await supabase
@@ -165,6 +257,7 @@ export default function TournamentsPage() {
   };
 
   const summaryCount = useMemo(() => rows.length, [rows.length]);
+  const managedTournamentIdSet = useMemo(() => new Set(managedTournamentIds), [managedTournamentIds]);
 
   return (
     <main className="min-h-screen bg-[#F9FAFB]">
@@ -214,6 +307,8 @@ export default function TournamentsPage() {
               const badgeClass = STATUS_BADGE_STYLE[t.status] ?? "bg-slate-100 text-slate-600";
               const myStatus = myStatuses[t.id];
               const registrationSummary = registrationSummaries[t.id] ?? createEmptyRegistrationSummary();
+              const sideEventSummary = sideEventSummaries[t.id] ?? [];
+              const canManageTournament = isGlobalAdmin || managedTournamentIdSet.has(t.id);
 
               return (
                 <article
@@ -244,6 +339,21 @@ export default function TournamentsPage() {
                         <p>메모: {t.notes ?? "-"}</p>
                       </div>
 
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-600">사전/사후 라운드 요약</p>
+                        {sideEventSummary.length === 0 ? (
+                          <p className="mt-1 text-xs text-slate-400">생성된 라운드가 없습니다.</p>
+                        ) : (
+                          <div className="mt-2 space-y-1">
+                            {sideEventSummary.map((sideEvent) => (
+                              <p key={sideEvent.id} className="text-xs text-slate-600">
+                                [{formatRoundType(sideEvent.round_type)}] {sideEvent.title} · 신청 {sideEvent.registration_count}명
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       {user ? (
                         <p className="text-xs font-semibold text-slate-500">
                           내 참가 상태: {myStatus ? formatStatus(myStatus) : "미신청"}
@@ -251,13 +361,21 @@ export default function TournamentsPage() {
                       ) : null}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:min-w-[140px]">
                       <Link
                         href={`/t/${t.id}/participants`}
                         className="inline-flex items-center justify-center rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
                       >
                         상세 보기
                       </Link>
+                      {canManageTournament ? (
+                        <Link
+                          href={`/admin/tournaments/${t.id}/dashboard`}
+                          className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-green-700"
+                        >
+                          관리 페이지
+                        </Link>
+                      ) : null}
                     </div>
                   </div>
                 </article>
@@ -269,4 +387,3 @@ export default function TournamentsPage() {
     </main>
   );
 }
-

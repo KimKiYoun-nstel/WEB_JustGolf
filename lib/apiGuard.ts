@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 
 type GuardOptions = {
   requireAdmin?: boolean;
+  requireTournamentAdminFor?: number;
   requireApproved?: boolean;
   requireOnboardingCompleted?: boolean;
 };
@@ -66,7 +67,7 @@ export async function requireApiUser(options: GuardOptions = {}): Promise<GuardR
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: NextResponse.json({ error: "인증 필요" }, { status: 401 }) };
+    return { error: NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 }) };
   }
 
   if (
@@ -83,7 +84,11 @@ export async function requireApiUser(options: GuardOptions = {}): Promise<GuardR
 
   let profile: { is_admin: boolean; is_approved: boolean } | null = null;
 
-  if (options.requireAdmin || options.requireApproved) {
+  if (
+    options.requireAdmin ||
+    options.requireApproved ||
+    typeof options.requireTournamentAdminFor === "number"
+  ) {
     const { data, error } = await supabase
       .from("profiles")
       .select("is_admin, is_approved")
@@ -103,13 +108,46 @@ export async function requireApiUser(options: GuardOptions = {}): Promise<GuardR
 
     if (options.requireAdmin && !data.is_admin) {
       return {
-        error: NextResponse.json({ error: "관리자 권한 필요" }, { status: 403 }),
+        error: NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 }),
       };
+    }
+
+    if (
+      typeof options.requireTournamentAdminFor === "number" &&
+      Number.isFinite(options.requireTournamentAdminFor) &&
+      !data.is_admin
+    ) {
+      const permissionRes = await supabase
+        .from("manager_permissions")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("tournament_id", options.requireTournamentAdminFor)
+        .eq("can_manage_tournament", true)
+        .is("revoked_at", null)
+        .maybeSingle();
+
+      if (permissionRes.error) {
+        return {
+          error: NextResponse.json(
+            { error: "대회 관리자 권한 확인에 실패했습니다." },
+            { status: 500 }
+          ),
+        };
+      }
+
+      if (!permissionRes.data) {
+        return {
+          error: NextResponse.json(
+            { error: "해당 대회의 관리자 권한이 없습니다." },
+            { status: 403 }
+          ),
+        };
+      }
     }
 
     if (options.requireApproved && !data.is_approved) {
       return {
-        error: NextResponse.json({ error: "승인 필요" }, { status: 403 }),
+        error: NextResponse.json({ error: "승인이 필요합니다." }, { status: 403 }),
       };
     }
   }
