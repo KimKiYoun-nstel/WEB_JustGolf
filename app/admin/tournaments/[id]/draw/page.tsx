@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "../../../../../lib/auth";
 import { createClient } from "../../../../../lib/supabaseClient";
+import { getTournamentAdminAccess } from "../../../../../lib/tournamentAdminAccess";
 import { replayDrawEvents } from "../../../../../lib/draw/reducer";
 import type {
   DrawEventRecord,
@@ -146,8 +148,11 @@ function isDeckOrderShuffled(prev: number[], next: number[]) {
 
 export default function AdminTournamentDrawPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
   const { toast } = useToast();
+  const [accessReady, setAccessReady] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -248,9 +253,37 @@ export default function AdminTournamentDrawPage() {
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
+    if (authLoading) return;
+    if (!user?.id) {
+      router.replace("/login");
+      return;
+    }
+
+    const checkAccess = async () => {
+      setAccessReady(false);
+      const supabase = createClient();
+      const access = await getTournamentAdminAccess(supabase, user.id, tournamentId);
+      if (access.isAdmin) {
+        setAccessReady(true);
+        return;
+      }
+
+      if (access.canManageSideEvents) {
+        router.replace(`/t/${tournamentId}/draw`);
+        return;
+      }
+
+      router.replace(`/admin/tournaments/${tournamentId}/side-events`);
+    };
+
+    void checkAccess();
+  }, [authLoading, router, tournamentId, user?.id]);
+
+  useEffect(() => {
+    if (!Number.isFinite(tournamentId) || !accessReady) return;
     loadSnapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tournamentId]);
+  }, [tournamentId, accessReady]);
 
   useEffect(() => {
     if (!session?.id) return;

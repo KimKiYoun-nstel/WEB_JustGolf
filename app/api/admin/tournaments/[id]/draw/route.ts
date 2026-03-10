@@ -512,9 +512,23 @@ export async function POST(
       return guard.error;
     }
 
+    const isGlobalAdmin = guard.profile?.is_admin === true;
+    const requireGlobalAdminForSessionActivation = () => {
+      if (isGlobalAdmin) return null;
+      return NextResponse.json(
+        { error: "라이브 조편성 세션 활성화 권한은 상위 관리자에게만 있습니다." },
+        { status: 403 }
+      );
+    };
+
     const supabaseAdmin = createServiceRoleSupabaseClient();
 
     if (body.action === "reset_draw") {
+      const permissionError = requireGlobalAdminForSessionActivation();
+      if (permissionError) {
+        return permissionError;
+      }
+
       const latestSessionRes = await supabaseAdmin
         .from("draw_sessions")
         .select(
@@ -688,6 +702,11 @@ export async function POST(
     }
 
     if (body.action === "start_session") {
+      const permissionError = requireGlobalAdminForSessionActivation();
+      if (permissionError) {
+        return permissionError;
+      }
+
       const liveSessionCheck = await supabaseAdmin
         .from("draw_sessions")
         .select("id,status")

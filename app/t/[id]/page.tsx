@@ -70,6 +70,8 @@ type SideEvent = {
   notes: string | null;
   max_participants: number | null;
   status: string;
+  open_at: string | null;
+  close_at: string | null;
   meal_option_id: number | null;
   lodging_available: boolean;
   lodging_required: boolean;
@@ -204,6 +206,53 @@ export default function TournamentDetailPage() {
       return currentStatus;
     }
     return "applied";
+  };
+
+  const isSideEventOpenForApplication = (sideEvent: SideEvent) => {
+    if (sideEvent.status !== "open") return false;
+
+    const now = Date.now();
+    if (sideEvent.open_at) {
+      const openAtMs = new Date(sideEvent.open_at).getTime();
+      if (!Number.isNaN(openAtMs) && now < openAtMs) return false;
+    }
+    if (sideEvent.close_at) {
+      const closeAtMs = new Date(sideEvent.close_at).getTime();
+      if (!Number.isNaN(closeAtMs) && now > closeAtMs) return false;
+    }
+    return true;
+  };
+
+  const getSideEventApplyBlockedReason = (sideEvent: SideEvent) => {
+    if (sideEvent.status !== "open") {
+      return "해당 라운드는 모집 상태가 아니어서 신청할 수 없습니다.";
+    }
+
+    const now = Date.now();
+    if (sideEvent.open_at) {
+      const openAtMs = new Date(sideEvent.open_at).getTime();
+      if (!Number.isNaN(openAtMs) && now < openAtMs) {
+        return "아직 신청 오픈 전 라운드입니다.";
+      }
+    }
+    if (sideEvent.close_at) {
+      const closeAtMs = new Date(sideEvent.close_at).getTime();
+      if (!Number.isNaN(closeAtMs) && now > closeAtMs) {
+        return "신청 마감된 라운드입니다.";
+      }
+    }
+    return "";
+  };
+
+  const getLatestSideEventRegistrationForParticipant = (
+    rows: SideEventRegistration[],
+    registrationId: number
+  ): SideEventRegistration | undefined => {
+    const matched = rows
+      .filter((row) => row.registration_id === registrationId)
+      .sort((a, b) => b.id - a.id);
+
+    return matched.find((row) => row.status !== "canceled") ?? matched[0];
   };
 
   useEffect(() => {
@@ -358,7 +407,9 @@ export default function TournamentDetailPage() {
     // Load side events for this tournament
     const seRes = await supabase
       .from("side_events")
-      .select("id,round_type,title,tee_time,location,notes,max_participants,status,meal_option_id,lodging_available,lodging_required")
+      .select(
+        "id,round_type,title,tee_time,location,notes,max_participants,status,open_at,close_at,meal_option_id,lodging_available,lodging_required"
+      )
       .eq("tournament_id", tournamentId)
       .order("round_type,id", { ascending: true });
 
@@ -406,7 +457,10 @@ export default function TournamentDetailPage() {
 
         nextTargetMap.set(se.id, resolvedTargetRegId);
         const myDefaultSideReg = resolvedTargetRegId
-          ? seRows.find((row) => row.registration_id === resolvedTargetRegId)
+          ? getLatestSideEventRegistrationForParticipant(
+              seRows,
+              resolvedTargetRegId
+            )
           : undefined;
         nextMealMap.set(se.id, myDefaultSideReg?.meal_selected ?? null);
         nextLodgingMap.set(se.id, myDefaultSideReg?.lodging_selected ?? null);
@@ -1094,7 +1148,7 @@ export default function TournamentDetailPage() {
     setMsg("");
     const uid = user?.id;
     if (!uid) {
-      setMsg("신청하려면 로그인 필요! (/login)");
+      setMsg("신청하려면 로그인이 필요합니다. (/login)");
       return;
     }
     if (isApproved === false) {
@@ -1102,18 +1156,27 @@ export default function TournamentDetailPage() {
       return;
     }
 
-    const targetRegistrationId =
-      sideEventTargetRegistrationIds.get(sideEventId) ?? null;
+    const targetSideEvent = sideEvents.find((sideEvent) => sideEvent.id === sideEventId);
+    if (!targetSideEvent) {
+      setMsg("라운드 정보를 찾을 수 없습니다.");
+      return;
+    }
+    if (!isSideEventOpenForApplication(targetSideEvent)) {
+      setMsg(getSideEventApplyBlockedReason(targetSideEvent));
+      return;
+    }
+
+    const targetRegistrationId = sideEventTargetRegistrationIds.get(sideEventId) ?? null;
     if (!targetRegistrationId) {
       setMsg("라운드에 등록할 참가자를 먼저 선택해주세요.");
       return;
     }
 
     const targetReg = regs.find(
-      (r) =>
-        r.id === targetRegistrationId &&
-        r.registering_user_id === uid &&
-        r.status !== "canceled"
+      (row) =>
+        row.id === targetRegistrationId &&
+        row.registering_user_id === uid &&
+        row.status !== "canceled"
     );
     if (!targetReg) {
       setMsg("선택한 참가자의 참가 신청 정보를 찾을 수 없습니다.");
@@ -1122,35 +1185,33 @@ export default function TournamentDetailPage() {
 
     const mealSelected = sideEventMealSelections.get(sideEventId) ?? null;
     const lodgingSelected = sideEventLodgingSelections.get(sideEventId) ?? null;
-
-    const existing = (sideEventRegs.get(sideEventId) ?? []).find(
-      (r) => r.registration_id === targetReg.id
+    const sideEventRows = sideEventRegs.get(sideEventId) ?? [];
+    const latestRow = getLatestSideEventRegistrationForParticipant(sideEventRows, targetReg.id);
+    const activeRow = sideEventRows.find(
+      (row) => row.registration_id === targetReg.id && row.status !== "canceled"
     );
 
-    if (existing) {
+    if (activeRow) {
+      if (activeRow.status !== "applied") {
+        setMsg("신청 상태(applied)에서만 취소/수정할 수 있어요. 확정/대기 상태는 관리자에게 문의해주세요.");
+        return;
+      }
+
       const { error } = await supabase
         .from("side_event_registrations")
         .update({
-          registration_id: targetReg.id,
-          user_id: targetReg.user_id,
-          nickname: targetReg.nickname,
-          memo: null,
           status: "applied",
           meal_selected: mealSelected,
           lodging_selected: lodgingSelected,
         })
-        .eq("id", existing.id);
+        .eq("id", activeRow.id);
 
       if (error) {
-        setMsg(`❌ 라운드 신청 실패: ${friendlyError(error)}`);
+        setMsg(`라운드 신청 정보 수정 실패: ${friendlyError(error)}`);
         return;
       }
 
-      setMsg(
-        existing.status === "canceled"
-          ? "✅ 라운드 재신청 완료!"
-          : "✅ 라운드 신청 정보가 수정되었습니다!"
-      );
+      setMsg("라운드 신청 정보를 수정했습니다.");
       await refresh();
       return;
     }
@@ -1168,49 +1229,66 @@ export default function TournamentDetailPage() {
         lodging_selected: lodgingSelected,
       });
 
-    if (error) setMsg(`❌ 라운드 신청 실패: ${friendlyError(error)}`);
-    else {
-      setMsg("✅ 라운드 신청 완료!");
-      await refresh();
+    if (error) {
+      setMsg(`라운드 신청 실패: ${friendlyError(error)}`);
+      return;
     }
+
+    setMsg(
+      latestRow?.status === "canceled"
+        ? "취소 이력을 유지하고 새 신청을 등록했습니다."
+        : "라운드 신청 완료!"
+    );
+    await refresh();
   };
+
 
   const cancelSideEventMine = async (sideEventId: number) => {
     const supabase = createClient();
     setMsg("");
     const uid = user?.id;
     if (!uid) {
-      setMsg("로그인 필요");
+      setMsg("로그인이 필요합니다.");
       return;
     }
 
-    const targetRegistrationId =
-      sideEventTargetRegistrationIds.get(sideEventId) ?? null;
+    const targetRegistrationId = sideEventTargetRegistrationIds.get(sideEventId) ?? null;
     if (!targetRegistrationId) {
       setMsg("취소할 참가자를 먼저 선택해주세요.");
       return;
     }
 
-    const regs = sideEventRegs.get(sideEventId) ?? [];
-    const mine = regs.find((r) => r.registration_id === targetRegistrationId);
-    if (!mine) {
-      setMsg("선택한 참가자의 라운드 신청 내역이 없습니다.");
+    const sideEventRows = sideEventRegs.get(sideEventId) ?? [];
+    const latestRow = getLatestSideEventRegistrationForParticipant(
+      sideEventRows,
+      targetRegistrationId
+    );
+
+    if (!latestRow) {
+      setMsg("선택한 참가자의 라운드 신청 이력이 없습니다.");
+      return;
+    }
+
+    if (latestRow.status !== "applied") {
+      setMsg("신청 상태(applied)에서만 취소할 수 있습니다.");
       return;
     }
 
     const { error } = await supabase
       .from("side_event_registrations")
       .update({ status: "canceled" })
-      .eq("id", mine.id);
+      .eq("id", latestRow.id);
 
-    if (error) setMsg(`❌ 라운드 취소 실패: ${friendlyError(error)}`);
-    else {
-      setMsg("✅ 라운드 취소 완료!");
-      await refresh();
+    if (error) {
+      setMsg(`라운드 취소 실패: ${friendlyError(error)}`);
+      return;
     }
+
+    setMsg("라운드 취소 완료! 취소 이력은 유지됩니다.");
+    await refresh();
   };
 
-  // 내가 등록한 모든 참가자 (본인 + 제3자)
+  // 내게 등록된 모든 참가자(본인 + 동반자)
   const myParticipantList = regs.filter(
     (r) => r.registering_user_id === user?.id
   );
@@ -2184,10 +2262,13 @@ export default function TournamentDetailPage() {
                     (r) => r.id === selectedTargetRegistrationId
                   );
                   const selectedTargetSideReg = selectedTargetRegistrationId
-                    ? seRegs.find(
-                        (r) => r.registration_id === selectedTargetRegistrationId
+                    ? getLatestSideEventRegistrationForParticipant(
+                        seRegs,
+                        selectedTargetRegistrationId
                       )
                     : undefined;
+                  const canApplySideEvent = isSideEventOpenForApplication(se);
+                  const canCancelSideEvent = selectedTargetSideReg?.status === "applied";
                   return (
                     <Card
                       key={se.id}
@@ -2363,6 +2444,7 @@ export default function TournamentDetailPage() {
                               <Button
                                 onClick={() => applySideEvent(se.id)}
                                 size="sm"
+                                disabled={!canApplySideEvent}
                               >
                                 신청
                               </Button>
@@ -2370,10 +2452,21 @@ export default function TournamentDetailPage() {
                                 onClick={() => cancelSideEventMine(se.id)}
                                 size="sm"
                                 variant="outline"
+                                disabled={!canCancelSideEvent}
                               >
                                 취소
                               </Button>
                             </div>
+                            {!canApplySideEvent ? (
+                              <p className="text-xs text-rose-500">
+                                {getSideEventApplyBlockedReason(se)}
+                              </p>
+                            ) : null}
+                            {!canCancelSideEvent && selectedTargetSideReg ? (
+                              <p className="text-xs text-slate-500">
+                                신청 상태(applied)에서만 취소할 수 있습니다.
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </CardContent>

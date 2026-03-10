@@ -35,10 +35,16 @@ export async function middleware(request: NextRequest) {
   // (관리자 승인 해제 시 신규 가입 후 최초 로그인과 동일한 흐름 적용)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_approved,is_admin")
+    .select("is_approved,is_admin,nickname,email")
     .eq("id", user.id)
     .maybeSingle();
   const isAdmin = profile?.is_admin === true;
+  const normalizedNickname = (profile?.nickname ?? "").trim();
+  const normalizedEmail = (profile?.email ?? "").trim();
+  const hasRequiredOnboardingFields =
+    normalizedNickname.length > 0 &&
+    normalizedEmail.length > 0 &&
+    !normalizedNickname.toLowerCase().startsWith("user-");
 
   if (!isAdmin && profile?.is_approved === false) {
     const onboardingUrl = new URL("/auth/onboarding", request.url);
@@ -46,7 +52,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const onboardingCompleted = user.user_metadata?.onboarding_completed === true;
-  if (!onboardingCompleted) {
+  if (!onboardingCompleted || !hasRequiredOnboardingFields) {
     const onboardingUrl = new URL("/auth/onboarding", request.url);
     return redirectWithCookies(onboardingUrl);
   }

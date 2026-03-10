@@ -104,15 +104,15 @@ const adminFeatureRows: AdminFeatureRow[] = [
     hrefLabel: "대회 선택",
     interactions:
       "사전/사후 라운드 생성/수정/삭제, 라운드 상태 관리, 신청자 목록 확인, 식사/숙박 선택값 확인",
-    notes: "대회별 라운드 관리자 권한으로도 접근 가능",
+    notes: "대회별 임시 관리자 권한으로도 접근 가능",
   },
   {
-    menu: "라운드 관리자 권한",
+    menu: "대회 관리자 권한",
     routeLabel: "/admin/tournaments/[id]/manager-setup",
     href: "/admin/tournaments",
     hrefLabel: "대회 선택",
-    interactions: "이메일/닉네임 검색 후 라운드 관리자 권한 부여/회수",
-    notes: "권한은 해당 대회에만 적용",
+    interactions: "이메일/닉네임 검색 후 대회 관리자 권한 부여/회수",
+    notes: "권한은 해당 대회에만 적용 (해당 대회 관리 메뉴 전반 접근 가능)",
   },
   {
     menu: "활동/메뉴/파일",

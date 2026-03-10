@@ -3,8 +3,13 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "../../../lib/auth";
 import { createClient } from "../../../lib/supabaseClient";
+import {
+  getTournamentAdminAccess,
+  listManagedTournamentIds,
+} from "../../../lib/tournamentAdminAccess";
 import { formatTournamentStatus } from "../../../lib/statusLabels";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
@@ -27,25 +32,58 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default function AdminTournamentsPage() {
+  const { user, loading: authLoading } = useAuth();
   const [rows, setRows] = useState<TournamentRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    if (authLoading) return;
+
+    if (!user?.id) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
     setMsg("");
+    setLoading(true);
     const supabase = createClient();
-    const { data, error } = await supabase
+
+    const access = await getTournamentAdminAccess(supabase, user.id);
+    setIsAdmin(access.isAdmin);
+
+    let scopedIds: number[] | null = null;
+    if (!access.isAdmin) {
+      scopedIds = await listManagedTournamentIds(supabase, user.id);
+      if (scopedIds.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+    }
+
+    let query = supabase
       .from("tournaments")
       .select("id,title,event_date,status")
       .order("event_date", { ascending: false });
 
+    if (scopedIds) {
+      query = query.in("id", scopedIds);
+    }
+
+    const { data, error } = await query;
     if (error) {
       setMsg(`조회 실패: ${error.message}`);
+      setLoading(false);
       return;
     }
 
     setRows((data ?? []) as TournamentRow[]);
-  };
+    setLoading(false);
+  }, [authLoading, user]);
 
   const deleteTournament = async (tournamentId: number, title: string, status: string) => {
     if (status === "deleted") {
@@ -66,8 +104,8 @@ export default function AdminTournamentsPage() {
 
     const confirmMessage =
       `"${title}" 대회를 삭제하시겠습니까?\n\n` +
-      `현재 신청자 ${registrationCount ?? 0}명\n` +
-      "삭제하면 상태가 deleted로 변경되며 목록에서 제외됩니다.";
+      `현재 신청자: ${registrationCount ?? 0}명\n` +
+      "삭제하면 상태가 deleted로 변경되어 목록에서 제외됩니다.";
 
     if (!confirm(confirmMessage)) return;
 
@@ -86,8 +124,8 @@ export default function AdminTournamentsPage() {
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     if (!msg) return;
@@ -118,15 +156,24 @@ export default function AdminTournamentsPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN TOURNAMENTS</p>
-              <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">대회 목록</h1>
+              <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+                {isAdmin ? "대회 목록" : "내 담당 대회"}
+              </h1>
+              {!isAdmin ? (
+                <p className="text-sm text-slate-500">
+                  권한이 부여된 대회만 표시됩니다.
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={load} variant="secondary">
+              <Button onClick={() => void load()} variant="secondary" disabled={loading}>
                 새로고침
               </Button>
-              <Button asChild>
-                <Link href="/admin/tournaments/new">새 대회 만들기</Link>
-              </Button>
+              {isAdmin ? (
+                <Button asChild>
+                  <Link href="/admin/tournaments/new">새 대회 만들기</Link>
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -150,6 +197,24 @@ export default function AdminTournamentsPage() {
           </div>
         </section>
 
+        {loading ? (
+          <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+            <CardContent className="py-10">
+              <p className="text-sm text-slate-500">로딩 중...</p>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {!loading && rows.length === 0 ? (
+          <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+            <CardContent className="py-10">
+              <p className="text-sm text-slate-500">
+                표시할 대회가 없습니다. 권한 부여 상태를 확인해 주세요.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <section className="space-y-3">
           {rows.map((row) => (
             <Card
@@ -172,41 +237,53 @@ export default function AdminTournamentsPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/edit`}>수정</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/dashboard`}>대회 현황</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/registrations`}>신청자 관리</Link>
-                  </Button>
+                  {isAdmin ? (
+                    <>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/edit`}>수정</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/dashboard`}>대회 현황</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/registrations`}>신청자 관리</Link>
+                      </Button>
+                    </>
+                  ) : null}
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/admin/tournaments/${row.id}/side-events`}>라운드 관리</Link>
                   </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/files`}>파일 관리</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/meal-options`}>메뉴 관리</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/extras`}>활동 관리</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/groups`}>조편성표</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/draw`}>라이브 조편성</Link>
-                  </Button>
+                  {isAdmin ? (
+                    <>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/files`}>파일 관리</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/meal-options`}>메뉴 관리</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/extras`}>활동 관리</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/groups`}>조편성표</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/draw`}>라이브 조편성</Link>
+                      </Button>
+                    </>
+                  ) : (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/t/${row.id}/draw`}>라이브 조편성 시청</Link>
+                    </Button>
+                  )}
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${row.id}/participants`}>참가자 현황</Link>
                   </Button>
-                  {row.status !== "deleted" ? (
+                  {isAdmin && row.status !== "deleted" ? (
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => deleteTournament(row.id, row.title, row.status)}
+                      onClick={() => void deleteTournament(row.id, row.title, row.status)}
                     >
                       삭제
                     </Button>

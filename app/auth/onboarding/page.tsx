@@ -123,6 +123,11 @@ export default function OnboardingPage() {
       return;
     }
 
+    if (nextNickname.toLowerCase().startsWith("user-")) {
+      setMsg("닉네임은 user- 로 시작할 수 없습니다.");
+      return;
+    }
+
     if (!nextEmail) {
       setMsg("이메일을 입력해주세요.");
       return;
@@ -230,6 +235,8 @@ export default function OnboardingPage() {
       const { error: metadataError } = await supabase.auth.updateUser({
         data: {
           ...currentMetadata,
+          nickname: nextNickname,
+          display_name: nextNickname,
           phone: nextPhone || null,
           contact_email: normalizedEmail,
           onboarding_completed: true,

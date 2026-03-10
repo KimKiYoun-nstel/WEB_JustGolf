@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
@@ -41,6 +41,22 @@ export default function AdminUsersPage() {
   const [approvalRequired, setApprovalRequired] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const { toast } = useToast();
+
+  const userSummary = useMemo(() => {
+    const total = rows.length;
+    const approved = rows.filter((row) => row.is_approved).length;
+    const pending = rows.filter((row) => !row.is_approved).length;
+    const admins = rows.filter((row) => row.is_admin).length;
+    const emailMissing = rows.filter((row) => !row.email).length;
+
+    return {
+      total,
+      approved,
+      pending,
+      admins,
+      emailMissing,
+    };
+  }, [rows]);
 
   const load = async () => {
     setMsg("");
@@ -251,6 +267,29 @@ export default function AdminUsersPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-medium text-slate-500">현재 회원수</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">{userSummary.total}명</p>
+                </div>
+                <div className="rounded-2xl border border-green-200 bg-green-50 p-3">
+                  <p className="text-xs font-medium text-green-700">승인 완료</p>
+                  <p className="mt-1 text-xl font-bold text-green-900">{userSummary.approved}명</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-medium text-amber-700">승인 대기</p>
+                  <p className="mt-1 text-xl font-bold text-amber-900">{userSummary.pending}명</p>
+                </div>
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
+                  <p className="text-xs font-medium text-indigo-700">관리자</p>
+                  <p className="mt-1 text-xl font-bold text-indigo-900">{userSummary.admins}명</p>
+                </div>
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3">
+                  <p className="text-xs font-medium text-rose-700">이메일 미기입</p>
+                  <p className="mt-1 text-xl font-bold text-rose-900">{userSummary.emailMissing}명</p>
+                </div>
+              </div>
+
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-slate-800">가입 승인</p>
