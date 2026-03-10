@@ -237,37 +237,49 @@ export default function AdminTournamentsPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/edit`}>수정</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/dashboard`}>대회 현황</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/registrations`}>신청자 관리</Link>
-                  </Button>
+                  {isAdmin ? (
+                    <>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/edit`}>수정</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/dashboard`}>대회 현황</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/registrations`}>신청자 관리</Link>
+                      </Button>
+                    </>
+                  ) : null}
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/admin/tournaments/${row.id}/side-events`}>라운드 관리</Link>
                   </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/files`}>파일 관리</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/meal-options`}>메뉴 관리</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/extras`}>활동 관리</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/groups`}>조편성표</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/draw`}>라이브 조편성</Link>
-                  </Button>
+                  {isAdmin ? (
+                    <>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/files`}>파일 관리</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/meal-options`}>메뉴 관리</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/extras`}>활동 관리</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/groups`}>조편성표</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/admin/tournaments/${row.id}/draw`}>라이브 조편성</Link>
+                      </Button>
+                    </>
+                  ) : (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/t/${row.id}/draw`}>라이브 조편성 시청</Link>
+                    </Button>
+                  )}
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${row.id}/participants`}>참가자 현황</Link>
                   </Button>
-                  {row.status !== "deleted" ? (
+                  {isAdmin && row.status !== "deleted" ? (
                     <Button
                       size="sm"
                       variant="destructive"

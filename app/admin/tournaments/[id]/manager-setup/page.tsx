@@ -86,6 +86,7 @@ export default function ManagerSetupPage() {
       .from("manager_permissions")
       .select("id,user_id,can_manage_tournament,can_manage_side_events,granted_at,revoked_at")
       .eq("tournament_id", tournamentId)
+      .eq("can_manage_side_events", true)
       .is("revoked_at", null)
       .order("granted_at", { ascending: false });
     if (mgrRes.error) {
@@ -193,7 +194,7 @@ export default function ManagerSetupPage() {
     const { error } = await supabase.from("manager_permissions").insert({
       tournament_id: tournamentId,
       user_id: targetUserId,
-      can_manage_tournament: true,
+      can_manage_tournament: false,
       can_manage_side_events: true,
       granted_by: user.id,
     });
@@ -272,8 +273,8 @@ export default function ManagerSetupPage() {
             <CardTitle className="text-lg">권한 안내</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-slate-700">
-            <p>권한을 부여받은 사용자는 이 대회의 관리자 메뉴를 사용할 수 있습니다.</p>
-            <p>권한은 현재 대회에만 적용되며, 다른 대회에는 영향을 주지 않습니다.</p>
+            <p>권한을 부여받은 사용자는 이 대회의 사전/사후 라운드 관리 메뉴를 사용할 수 있습니다.</p>
+            <p>조추첨을 포함한 나머지 관리자 기능은 상위 관리자만 사용할 수 있습니다.</p>
           </CardContent>
         </Card>
 
@@ -348,11 +349,7 @@ export default function ManagerSetupPage() {
                   {managers.map((mgr) => (
                     <TableRow key={mgr.id}>
                       <TableCell className="font-medium">{mgr.nickname}</TableCell>
-                      <TableCell>
-                        {mgr.can_manage_tournament
-                          ? "대회 관리"
-                          : (mgr.can_manage_side_events ? "라운드 관리" : "-")}
-                      </TableCell>
+                      <TableCell>{mgr.can_manage_side_events ? "라운드 관리" : "-"}</TableCell>
                       <TableCell className="text-sm text-slate-600">
                         {new Date(mgr.granted_at).toLocaleString("ko-KR")}
                       </TableCell>

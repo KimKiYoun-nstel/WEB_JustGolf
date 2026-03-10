@@ -188,7 +188,7 @@ export default function AdminSideEventsPage() {
     const checkAccess = async () => {
       const supabase = createClient();
       const access = await getTournamentAdminAccess(supabase, user.id, tournamentId);
-      if (!access.canManageTournament) {
+      if (!access.canManageSideEvents) {
         setUnauthorized(true);
         setLoading(false);
         return;

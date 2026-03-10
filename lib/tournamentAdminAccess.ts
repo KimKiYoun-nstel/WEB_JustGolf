@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type TournamentAdminAccess = {
   isAdmin: boolean;
   canManageTournament: boolean;
+  canManageSideEvents: boolean;
   hasAnyManagedTournament: boolean;
 };
 
@@ -21,6 +22,7 @@ export async function getTournamentAdminAccess(
     return {
       isAdmin: false,
       canManageTournament: false,
+      canManageSideEvents: false,
       hasAnyManagedTournament: false,
     };
   }
@@ -30,6 +32,7 @@ export async function getTournamentAdminAccess(
     return {
       isAdmin: true,
       canManageTournament: true,
+      canManageSideEvents: true,
       hasAnyManagedTournament: true,
     };
   }
@@ -40,7 +43,7 @@ export async function getTournamentAdminAccess(
       .select("id")
       .eq("user_id", userId)
       .eq("tournament_id", tournamentId)
-      .eq("can_manage_tournament", true)
+      .eq("can_manage_side_events", true)
       .is("revoked_at", null)
       .maybeSingle();
 
@@ -48,6 +51,7 @@ export async function getTournamentAdminAccess(
       return {
         isAdmin: false,
         canManageTournament: false,
+        canManageSideEvents: false,
         hasAnyManagedTournament: false,
       };
     }
@@ -55,7 +59,8 @@ export async function getTournamentAdminAccess(
     const allowed = Boolean(permissionRes.data);
     return {
       isAdmin: false,
-      canManageTournament: allowed,
+      canManageTournament: false,
+      canManageSideEvents: allowed,
       hasAnyManagedTournament: allowed,
     };
   }
@@ -64,13 +69,14 @@ export async function getTournamentAdminAccess(
     .from("manager_permissions")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
-    .eq("can_manage_tournament", true)
+    .eq("can_manage_side_events", true)
     .is("revoked_at", null);
 
   if (managedCountRes.error) {
     return {
       isAdmin: false,
       canManageTournament: false,
+      canManageSideEvents: false,
       hasAnyManagedTournament: false,
     };
   }
@@ -78,6 +84,7 @@ export async function getTournamentAdminAccess(
   return {
     isAdmin: false,
     canManageTournament: false,
+    canManageSideEvents: false,
     hasAnyManagedTournament: (managedCountRes.count ?? 0) > 0,
   };
 }
@@ -90,7 +97,7 @@ export async function listManagedTournamentIds(
     .from("manager_permissions")
     .select("tournament_id")
     .eq("user_id", userId)
-    .eq("can_manage_tournament", true)
+    .eq("can_manage_side_events", true)
     .is("revoked_at", null);
 
   if (managedRes.error) return [];

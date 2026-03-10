@@ -176,7 +176,7 @@ export default function StartPage() {
               </p>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">담당 대회 관리</h2>
               <p className="text-sm text-slate-500">
-                권한이 부여된 대회의 관리 페이지로 바로 이동할 수 있습니다.
+                권한이 부여된 대회의 라운드 관리 페이지로 바로 이동할 수 있습니다.
               </p>
             </div>
 
@@ -187,8 +187,8 @@ export default function StartPage() {
                   item={{
                     title: tournament.title,
                     description: `${tournament.event_date}\n상태: ${tournament.status}`,
-                    href: `/admin/tournaments/${tournament.id}/dashboard`,
-                    cta: "대회 관리 열기",
+                    href: `/admin/tournaments/${tournament.id}/side-events`,
+                    cta: "라운드 관리 열기",
                     primary: true,
                   }}
                 />

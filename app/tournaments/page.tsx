@@ -308,7 +308,7 @@ export default function TournamentsPage() {
               const myStatus = myStatuses[t.id];
               const registrationSummary = registrationSummaries[t.id] ?? createEmptyRegistrationSummary();
               const sideEventSummary = sideEventSummaries[t.id] ?? [];
-              const canManageTournament = isGlobalAdmin || managedTournamentIdSet.has(t.id);
+              const canManageSideEvents = isGlobalAdmin || managedTournamentIdSet.has(t.id);
 
               return (
                 <article
@@ -368,12 +368,12 @@ export default function TournamentsPage() {
                       >
                         상세 보기
                       </Link>
-                      {canManageTournament ? (
+                      {canManageSideEvents ? (
                         <Link
-                          href={`/admin/tournaments/${t.id}/dashboard`}
+                          href={`/admin/tournaments/${t.id}/side-events`}
                           className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-green-700"
                         >
-                          관리 페이지
+                          라운드 관리
                         </Link>
                       ) : null}
                     </div>

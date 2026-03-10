@@ -334,7 +334,7 @@ export async function GET(
       return NextResponse.json({ error: "유효하지 않은 대회 ID입니다." }, { status: 400 });
     }
 
-    const guard = await requireApiUser({ requireTournamentAdminFor: tournamentId });
+    const guard = await requireApiUser({ requireAdmin: true });
     if ("error" in guard) return guard.error;
 
     const scopeParam = request.nextUrl.searchParams.get("scope");

@@ -32,6 +32,8 @@ const ADMIN_TOURNAMENT_TABS = [
   { id: "draw", label: "추첨" },
 ];
 
+const SCOPED_MANAGER_TABS = [{ id: "side-events", label: "라운드" }];
+
 function getCurrentTab(pathname: string, tournamentId: string): string {
   const match = pathname.match(new RegExp(`/admin/tournaments/${tournamentId}/([^/]+)`));
   return match ? match[1] : "dashboard";
@@ -56,12 +58,16 @@ export default function AdminTournamentLayout({
   const [tournament, setTournament] = useState<TournamentInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
 
   const currentTab = getCurrentTab(pathname, tournamentId);
 
   useEffect(() => {
     if (authLoading) return;
+
+    setUnauthorized(false);
+    setLoading(true);
 
     if (!user?.id || !Number.isFinite(parsedTournamentId)) {
       setUnauthorized(true);
@@ -73,11 +79,16 @@ export default function AdminTournamentLayout({
       const supabase = createClient();
 
       const access = await getTournamentAdminAccess(supabase, user.id, parsedTournamentId);
-      if (!access.canManageTournament) {
+      const canAccessScopedTab =
+        access.canManageSideEvents && (currentTab === "side-events" || currentTab === "draw");
+
+      if (!access.isAdmin && !canAccessScopedTab) {
         setUnauthorized(true);
         setLoading(false);
         return;
       }
+
+      setIsGlobalAdmin(access.isAdmin);
 
       const { data: tournamentData } = await supabase
         .from("tournaments")
@@ -93,7 +104,9 @@ export default function AdminTournamentLayout({
     };
 
     void checkAccessAndLoadTournament();
-  }, [user?.id, authLoading, parsedTournamentId]);
+  }, [user?.id, authLoading, parsedTournamentId, currentTab]);
+
+  const tabs = isGlobalAdmin ? ADMIN_TOURNAMENT_TABS : SCOPED_MANAGER_TABS;
 
   if (loading) {
     return (
@@ -136,7 +149,7 @@ export default function AdminTournamentLayout({
               <div className="max-w-full overflow-x-auto">
                 <Tabs value={currentTab}>
                   <TabsList className="ml-auto h-9 w-max gap-1 bg-slate-100/80 p-1">
-                    {ADMIN_TOURNAMENT_TABS.map((tab) => (
+                    {tabs.map((tab) => (
                       <TabsTrigger key={tab.id} value={tab.id} asChild className="px-2.5 py-1 text-sm">
                         <Link href={`/admin/tournaments/${tournamentId}/${tab.id}`}>{tab.label}</Link>
                       </TabsTrigger>
@@ -145,6 +158,12 @@ export default function AdminTournamentLayout({
                 </Tabs>
               </div>
             </div>
+
+            {!isGlobalAdmin ? (
+              <Button asChild variant="outline" size="sm" className="hidden md:inline-flex">
+                <Link href={`/t/${tournamentId}/draw`}>추첨 시청</Link>
+              </Button>
+            ) : null}
 
             <button
               onClick={() => setTabMenuOpen(true)}
@@ -163,7 +182,7 @@ export default function AdminTournamentLayout({
               <SheetClose onClick={() => setTabMenuOpen(false)} />
             </SheetHeader>
             <nav className="mt-6 space-y-2">
-              {ADMIN_TOURNAMENT_TABS.map((tab) => (
+              {tabs.map((tab) => (
                 <Button
                   key={tab.id}
                   asChild
@@ -174,6 +193,16 @@ export default function AdminTournamentLayout({
                   <Link href={`/admin/tournaments/${tournamentId}/${tab.id}`}>{tab.label}</Link>
                 </Button>
               ))}
+              {!isGlobalAdmin ? (
+                <Button
+                  asChild
+                  className="w-full justify-start"
+                  variant="ghost"
+                  onClick={() => setTabMenuOpen(false)}
+                >
+                  <Link href={`/t/${tournamentId}/draw`}>추첨 시청</Link>
+                </Button>
+              ) : null}
             </nav>
           </SheetContent>
         </Sheet>

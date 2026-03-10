@@ -17,6 +17,11 @@ function parseTournamentId(pathname: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseTournamentTab(pathname: string): string | null {
+  const matched = pathname.match(/^\/admin\/tournaments\/\d+\/([^/]+)(?:\/|$)/);
+  return matched?.[1] ?? null;
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -31,6 +36,7 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (loading) return;
+    setChecking(true);
 
     if (!user?.id) {
       setAccessGranted(false);
@@ -53,7 +59,10 @@ export default function AdminLayout({
 
         if (tournamentId) {
           const access = await getTournamentAdminAccess(supabase, user.id, tournamentId);
-          setAccessGranted(access.canManageTournament);
+          const tab = parseTournamentTab(pathname);
+          const canAccessScopedTab =
+            access.canManageSideEvents && (tab === "side-events" || tab === "draw");
+          setAccessGranted(access.isAdmin || canAccessScopedTab);
           setChecking(false);
           return;
         }
