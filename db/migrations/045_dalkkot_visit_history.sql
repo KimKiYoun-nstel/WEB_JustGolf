@@ -1,6 +1,6 @@
 -- 달콧 별장 시스템 Phase 5: 예약 방문 체크 + 정산 + 히스토리 로그
 -- 실행 환경: Supabase SQL Editor
--- 의존성: 039_dalkkot_reservations.sql 실행 후 진행
+-- 의존성: 043_dalkkot_reservations.sql 실행 후 진행
 
 -- ─────────────────────────────────────────────────
 -- 1. dalkkot_reservations 에 컬럼 추가

@@ -1,6 +1,6 @@
 -- 달콧 별장 시스템 Phase 3: 예약 테이블
 -- 실행 환경: Supabase SQL Editor
--- 의존성: 038_dalkkot_villas.sql 실행 후 진행
+-- 의존성: 042_dalkkot_villas.sql 실행 후 진행
 
 -- 1. btree_gist 확장 (날짜 범위 EXCLUDE 제약에 필요)
 CREATE EXTENSION IF NOT EXISTS btree_gist;

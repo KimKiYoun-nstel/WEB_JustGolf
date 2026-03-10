@@ -1,6 +1,6 @@
 -- 달콧 별장 시스템 Phase 2: 별장 정보 및 CMS 콘텐츠 테이블
 -- 실행 환경: Supabase SQL Editor
--- 의존성: 037_dalkkot_profiles.sql 실행 후 진행
+-- 의존성: 041_dalkkot_profiles.sql 실행 후 진행
 
 -- 1. 별장 정보 테이블
 CREATE TABLE IF NOT EXISTS public.dalkkot_villas (

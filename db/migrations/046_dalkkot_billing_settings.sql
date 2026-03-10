@@ -1,6 +1,6 @@
 -- 달콧 별장 시스템: 공과금 단가 및 정산 계좌 설정 테이블
 -- 실행 환경: Supabase SQL Editor
--- 의존성: 038_dalkkot_villas.sql 실행 후 진행
+-- 의존성: 042_dalkkot_villas.sql 실행 후 진행
 
 CREATE TABLE IF NOT EXISTS public.dalkkot_billing_settings (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),

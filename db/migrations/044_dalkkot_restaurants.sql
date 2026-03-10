@@ -1,6 +1,6 @@
 -- 달콧 별장 시스템 Phase 4: 맛집 + 소셜 기능 (좋아요/댓글)
 -- 실행 환경: Supabase SQL Editor
--- 의존성: 039_dalkkot_reservations.sql 실행 후 진행
+-- 의존성: 043_dalkkot_reservations.sql 실행 후 진행
 
 -- 1. 맛집 카테고리 타입
 DO $$

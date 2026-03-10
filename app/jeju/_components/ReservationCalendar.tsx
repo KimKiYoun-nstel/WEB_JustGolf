@@ -143,13 +143,15 @@ export default function ReservationCalendar({
                   onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && dayReservations.length === 0) onDateClick?.(dateStr); }}
                 >
                   <span className="dal-cal-date">{day}</span>
-                  {dayReservations.slice(0, 2).map((r) => (
-                    <span key={r.id} className="dal-cal-event-wrapper">
+                  {dayReservations.slice(0, 2).map((r) => {
+                    const hoverKey = `${r.id}-${dateStr}`;
+                    return (
+                    <span key={hoverKey} className="dal-cal-event-wrapper">
                       <span
                         className={cn("dal-cal-event", r.status === "pending" && "pending")}
                         style={{ backgroundColor: r.color }}
                         onClick={(e) => { e.stopPropagation(); onReservationClick?.(r); }}
-                        onMouseEnter={() => setHovered(r.id)}
+                        onMouseEnter={() => setHovered(hoverKey)}
                         onMouseLeave={() => setHovered(null)}
                         role="button"
                         tabIndex={0}
@@ -157,14 +159,14 @@ export default function ReservationCalendar({
                       >
                         {r.nickname}
                       </span>
-                      {hovered === r.id && (
+                      {hovered === hoverKey && (
                         <div className="dal-cal-tooltip">
                           <strong>{r.nickname}</strong>
                           <span>{r.check_in} → {r.check_out}</span>
                         </div>
                       )}
                     </span>
-                  ))}
+                  )})}
                   {dayReservations.length > 2 && (
                     <span style={{ fontSize: 10, color: "#6B7280", paddingLeft: 2 }}>+{dayReservations.length - 2}</span>
                   )}

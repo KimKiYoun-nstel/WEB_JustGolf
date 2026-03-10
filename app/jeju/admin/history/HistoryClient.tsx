@@ -6,14 +6,31 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 type Tab = "stats" | "reservations" | "events";
 
 interface UserStat {
-  user_id: string;
-  nickname: string;
+  user_id: string | null;
+  nickname: string | null;
   total: number;
   confirmed: number;
   cancelled: number;
   no_show: number;
   settled: number;
   meter_missing: number;
+}
+
+interface UserStatRaw {
+  user_id: string | null;
+  nickname: string | null;
+  total?: number | null;
+  confirmed?: number | null;
+  cancelled?: number | null;
+  no_show?: number | null;
+  settled?: number | null;
+  meter_missing?: number | null;
+  total_count?: number | null;
+  confirmed_count?: number | null;
+  cancelled_count?: number | null;
+  no_show_count?: number | null;
+  settled_count?: number | null;
+  meter_missing_count?: number | null;
 }
 
 interface HistoryReservation {
@@ -95,6 +112,19 @@ function fmt(dateStr: string | null) {
   });
 }
 
+function normalizeUserStat(raw: UserStatRaw): UserStat {
+  return {
+    user_id: raw.user_id ?? null,
+    nickname: raw.nickname ?? null,
+    total: raw.total ?? raw.total_count ?? 0,
+    confirmed: raw.confirmed ?? raw.confirmed_count ?? 0,
+    cancelled: raw.cancelled ?? raw.cancelled_count ?? 0,
+    no_show: raw.no_show ?? raw.no_show_count ?? 0,
+    settled: raw.settled ?? raw.settled_count ?? 0,
+    meter_missing: raw.meter_missing ?? raw.meter_missing_count ?? 0,
+  };
+}
+
 function ReservationRow({ r }: { r: HistoryReservation }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -170,7 +200,13 @@ export default function HistoryClient() {
     if (tab === "stats") {
       fetch("/api/jeju/admin/history?type=user_stats")
         .then((r) => r.json())
-        .then((data) => setStats(Array.isArray(data) ? data : []))
+        .then((data) =>
+          setStats(
+            Array.isArray(data)
+              ? (data as UserStatRaw[]).map(normalizeUserStat)
+              : []
+          )
+        )
         .finally(() => setLoading(false));
     } else if (tab === "reservations") {
       fetch("/api/jeju/admin/history?type=reservations")
@@ -220,9 +256,9 @@ export default function HistoryClient() {
               {stats.length === 0 && (
                 <tr><td colSpan={7} className="py-8 text-center text-xs text-dalkkot-wood-mid">데이터 없음</td></tr>
               )}
-              {stats.map((s) => (
-                <tr key={s.user_id} className="border-b border-dalkkot-cream-dark last:border-0 hover:bg-dalkkot-cream/30">
-                  <td className="px-4 py-2.5 font-medium text-dalkkot-wood-dark">{s.nickname}</td>
+              {stats.map((s, idx) => (
+                <tr key={`${s.user_id ?? "null"}-${s.nickname ?? "unknown"}-${idx}`} className="border-b border-dalkkot-cream-dark last:border-0 hover:bg-dalkkot-cream/30">
+                  <td className="px-4 py-2.5 font-medium text-dalkkot-wood-dark">{s.nickname ?? "-"}</td>
                   <td className="px-4 py-2.5 text-center">{s.total}</td>
                   <td className="px-4 py-2.5 text-center text-emerald-700">{s.confirmed}</td>
                   <td className="px-4 py-2.5 text-center text-gray-500">{s.cancelled}</td>

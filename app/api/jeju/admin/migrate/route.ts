@@ -123,7 +123,13 @@ export async function POST(request: NextRequest) {
 
   // 일괄 저장
   const adminSupabase = createServiceRoleSupabaseClient();
+  const today = new Date().toISOString().slice(0, 10);
   const insertRows = valid.map((r) => ({
+    // 과거에 종료된 확정 예약만 checked_out으로 마킹, 그 외는 not_checked 유지
+    visit_status:
+      (r.status ?? "confirmed") === "confirmed" && r.check_out < today
+        ? "checked_out"
+        : "not_checked",
     villa_id,
     user_id: null,
     nickname: r.nickname.trim(),
@@ -133,7 +139,6 @@ export async function POST(request: NextRequest) {
     notes: r.notes ?? null,
     color: r.color,
     is_migrated: true,
-    visit_status: "checked_out", // 과거 이력은 모두 체크아웃 상태
     settlement_completed: false,
     ...(r.gas_meter_out   != null ? { gas_meter_out:   r.gas_meter_out   } : {}),
     ...(r.water_meter_out != null ? { water_meter_out: r.water_meter_out } : {}),

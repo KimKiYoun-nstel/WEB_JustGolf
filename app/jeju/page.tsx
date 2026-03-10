@@ -16,7 +16,7 @@ export default async function JejuPage() {
 
   const { data: thisMonthReservations } = await supabase
     .from("dalkkot_reservations")
-    .select("id, status, adults, children")
+    .select("id, status, guests")
     .gte("check_in", firstDay)
     .lte("check_in", lastDay)
     .not("status", "in", '("rejected","cancelled")');
@@ -28,7 +28,7 @@ export default async function JejuPage() {
   const total = thisMonthReservations?.length ?? 0;
   const confirmed = thisMonthReservations?.filter((r) => r.status === "confirmed").length ?? 0;
   const pending = thisMonthReservations?.filter((r) => ["pending", "waiting_deposit"].includes(r.status)).length ?? 0;
-  const guests = thisMonthReservations?.reduce((s, r) => s + (r.adults ?? 0) + (r.children ?? 0), 0) ?? 0;
+  const guests = thisMonthReservations?.reduce((s, r) => s + (r.guests ?? 0), 0) ?? 0;
 
   return (
     <DashboardClient
