@@ -261,7 +261,7 @@ export default function TournamentsPage() {
 
   return (
     <main className="min-h-screen bg-[#F9FAFB]">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <header className="hidden sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/start" className="text-xl font-bold text-slate-900">
             Just Golf

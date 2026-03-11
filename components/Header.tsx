@@ -12,10 +12,6 @@ import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "./ui/s
 
 const HIDE_HEADER_PATTERNS = [
   /^\/login$/,
-  /^\/start$/,
-  /^\/tournaments$/,
-  /^\/t\/[^/]+$/,
-  /^\/t\/[^/]+\/participants$/,
 ];
 
 export default function Header() {

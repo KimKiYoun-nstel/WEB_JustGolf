@@ -388,7 +388,7 @@ export default function TournamentParticipantsPage() {
       </section>
 
       {showContents ? (
-        <nav className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
+        <nav className="sticky top-16 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-6 py-2">
             {tocItems.map((item) => {
               const active = activeSection === item.id;

@@ -82,3 +82,16 @@
 
 ## 출력 형식(권장)
 - “변경 요약 / 변경 파일 목록 / 테스트 커맨드 / 수동 QA / 위험요소”를 마지막에 고정 섹션으로 출력한다.
+
+## 스킬 선택 정책 (Allowlist)
+- 특정 스킬을 사용해야 한다고 판단되는 상황에서, 유사/중복 스킬이 여러 개 존재하면 아래 `allowlist`에 포함된 스킬만 사용한다.
+- 자동 선택(문맥 기반 트리거) 시에도 동일 규칙을 적용한다.
+- 전역 스킬과 프로젝트 스킬이 동시에 매칭되더라도, `allowlist`에 없는 스킬은 자동 선택 대상에서 제외한다.
+- 사용자가 스킬 이름을 명시적으로 지정한 경우에만 예외를 허용한다.
+
+### allowlist
+- `feature-delivery-prep`
+- `git-delivery-gate`
+- `playwright-e2e-regression`
+- `supabase-rls-security-check`
+- `ui-ux-implementation-loop`

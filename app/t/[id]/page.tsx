@@ -1298,7 +1298,20 @@ export default function TournamentDetailPage() {
 
   const formatStatus = (status: Registration["status"]) =>
     formatRegistrationStatus(status);
-  const applicantCount = regs.filter((r) => r.status === "applied").length;
+  const registrationSummary = useMemo(
+    () =>
+      regs.reduce(
+        (acc, registration) => {
+          if (registration.status === "applied") acc.applied += 1;
+          if (registration.status === "approved") acc.approved += 1;
+          if (registration.status === "waitlisted") acc.waitlisted += 1;
+          if (registration.status === "canceled") acc.canceled += 1;
+          return acc;
+        },
+        { applied: 0, approved: 0, waitlisted: 0, canceled: 0 }
+      ),
+    [regs]
+  );
 
   // TableOfContents 아이템 정의
   const tocItems: TOCItem[] = [
@@ -1361,7 +1374,7 @@ export default function TournamentDetailPage() {
       </section>
 
       {t ? (
-        <nav className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
+        <nav className="sticky top-16 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-6 py-2">
             {tocItems.map((item) => {
               const active = activeSection === item.id;
@@ -1419,7 +1432,10 @@ export default function TournamentDetailPage() {
                   <div>코스: {t.course_name ?? "-"}</div>
                   <div>지역: {t.location ?? "-"}</div>
                   <div>첫 티오프: {t.tee_time ?? "-"}</div>
-                  <div>신청자 수: {applicantCount}명</div>
+                  <div>
+                    신청/확정/대기/취소: {registrationSummary.applied}/{registrationSummary.approved}/
+                    {registrationSummary.waitlisted}/{registrationSummary.canceled}명
+                  </div>
                   <div>메모: {t.notes ?? "-"}</div>
                 </div>
               </CardContent>
