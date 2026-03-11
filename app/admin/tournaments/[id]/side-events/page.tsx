@@ -54,6 +54,12 @@ type SideEventRegistration = {
   lodging_selected: boolean | null;
 };
 
+type TournamentRegistrationRoundPreference = {
+  status: string;
+  pre_round_preferred: boolean | null;
+  post_round_preferred: boolean | null;
+};
+
 type RoundType = "pre" | "post";
 type Status = "draft" | "open" | "closed" | "done";
 
@@ -92,6 +98,9 @@ export default function AdminSideEventsPage() {
   const [sideEventRegs, setSideEventRegs] = useState<
     Map<number, SideEventRegistration[]>
   >(new Map());
+  const [tournamentRegistrations, setTournamentRegistrations] = useState<
+    TournamentRegistrationRoundPreference[]
+  >([]);
   const [updatingRegistrationId, setUpdatingRegistrationId] = useState<number | null>(null);
 
   // Available meal options
@@ -157,6 +166,19 @@ export default function AdminSideEventsPage() {
         }
       }
       setSideEventRegs(seRegMap);
+
+      const registrationSummaryRes = await supabase
+        .from("registrations")
+        .select("status,pre_round_preferred,post_round_preferred")
+        .eq("tournament_id", tournamentId);
+
+      if (!registrationSummaryRes.error) {
+        setTournamentRegistrations(
+          (registrationSummaryRes.data ?? []) as TournamentRegistrationRoundPreference[]
+        );
+      } else {
+        setTournamentRegistrations([]);
+      }
 
       // Load meal options for this tournament
       const moRes = await supabase
@@ -365,6 +387,9 @@ export default function AdminSideEventsPage() {
     let preActiveRegistrations = 0;
     let postActiveRegistrations = 0;
     let totalRegistrationHistoryCount = 0;
+    let totalPreferredRegistrations = 0;
+    let prePreferredRegistrations = 0;
+    let postPreferredRegistrations = 0;
 
     const totalStatusSummary = createEmptySideEventStatusSummary();
     const preStatusSummary = createEmptySideEventStatusSummary();
@@ -397,6 +422,17 @@ export default function AdminSideEventsPage() {
       .sort((a, b) => b.registrationCount - a.registrationCount)
       .slice(0, 3);
 
+    tournamentRegistrations.forEach((registration) => {
+      if (registration.status === "canceled") return;
+
+      const prePreferred = Boolean(registration.pre_round_preferred);
+      const postPreferred = Boolean(registration.post_round_preferred);
+
+      if (prePreferred) prePreferredRegistrations += 1;
+      if (postPreferred) postPreferredRegistrations += 1;
+      if (prePreferred || postPreferred) totalPreferredRegistrations += 1;
+    });
+
     return {
       totalRounds: sideEvents.length,
       preRounds: groupedByRoundType.pre.length,
@@ -408,9 +444,18 @@ export default function AdminSideEventsPage() {
       totalStatusSummary,
       preStatusSummary,
       postStatusSummary,
+      totalPreferredRegistrations,
+      prePreferredRegistrations,
+      postPreferredRegistrations,
       topRounds,
     };
-  }, [groupedByRoundType.post.length, groupedByRoundType.pre.length, sideEventRegs, sideEvents]);
+  }, [
+    groupedByRoundType.post.length,
+    groupedByRoundType.pre.length,
+    sideEventRegs,
+    sideEvents,
+    tournamentRegistrations,
+  ]);
 
   const mealOptionMap = useMemo(
     () => new Map(mealOptions.map((option) => [option.id, option.name])),
@@ -706,6 +751,9 @@ export default function AdminSideEventsPage() {
                   <p className="mt-1 text-xs text-amber-700">
                     활성 {sideEventSummary.preActiveRegistrations}/{sideEventSummary.postActiveRegistrations}명
                   </p>
+                  <p className="mt-1 text-xs text-amber-700">
+                    희망 {sideEventSummary.prePreferredRegistrations}/{sideEventSummary.postPreferredRegistrations}명
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
                   <p className="text-xs font-medium text-indigo-700">활성 신청자</p>
@@ -738,6 +786,9 @@ export default function AdminSideEventsPage() {
                     {sideEventSummary.totalStatusSummary.waitlisted} / 취소{" "}
                     {sideEventSummary.totalStatusSummary.canceled}
                   </p>
+                  <p className="mt-2 text-xs font-semibold text-slate-700">
+                    라운드 희망 총 {sideEventSummary.totalPreferredRegistrations}명
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
                   <p className="text-xs font-semibold text-amber-800">사전 상태</p>
@@ -747,6 +798,9 @@ export default function AdminSideEventsPage() {
                     {sideEventSummary.preStatusSummary.waitlisted} / 취소{" "}
                     {sideEventSummary.preStatusSummary.canceled}
                   </p>
+                  <p className="mt-2 text-xs font-semibold text-amber-700">
+                    라운드 희망 {sideEventSummary.prePreferredRegistrations}명
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
                   <p className="text-xs font-semibold text-indigo-700">사후 상태</p>
@@ -755,6 +809,9 @@ export default function AdminSideEventsPage() {
                     {sideEventSummary.postStatusSummary.confirmed} / 대기{" "}
                     {sideEventSummary.postStatusSummary.waitlisted} / 취소{" "}
                     {sideEventSummary.postStatusSummary.canceled}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-indigo-700">
+                    라운드 희망 {sideEventSummary.postPreferredRegistrations}명
                   </p>
                 </div>
               </div>

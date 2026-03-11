@@ -29,10 +29,23 @@ type RegistrationSummary = {
   canceled: number;
 };
 
+type RoundPreferenceSummary = {
+  prePreferred: number;
+  postPreferred: number;
+  anyPreferred: number;
+};
+
 type RegistrationStatusRow = {
   tournament_id: number;
   status: string;
   relation: string | null;
+};
+
+type RegistrationRoundPreferenceRow = {
+  tournament_id: number;
+  status: string;
+  pre_round_preferred: boolean | null;
+  post_round_preferred: boolean | null;
 };
 
 type SideEventRow = {
@@ -67,6 +80,12 @@ const createEmptyRegistrationSummary = (): RegistrationSummary => ({
   canceled: 0,
 });
 
+const createEmptyRoundPreferenceSummary = (): RoundPreferenceSummary => ({
+  prePreferred: 0,
+  postPreferred: 0,
+  anyPreferred: 0,
+});
+
 const formatRoundType = (roundType: "pre" | "post") => (roundType === "pre" ? "사전" : "사후");
 
 export default function TournamentsPage() {
@@ -76,6 +95,9 @@ export default function TournamentsPage() {
   const [error, setError] = useState("");
   const [myStatuses, setMyStatuses] = useState<Record<number, string>>({});
   const [registrationSummaries, setRegistrationSummaries] = useState<Record<number, RegistrationSummary>>({});
+  const [roundPreferenceSummaries, setRoundPreferenceSummaries] = useState<Record<number, RoundPreferenceSummary>>(
+    {}
+  );
   const [sideEventSummaries, setSideEventSummaries] = useState<Record<number, SideEventSummary[]>>({});
   const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
   const [managedTournamentIds, setManagedTournamentIds] = useState<number[]>([]);
@@ -111,6 +133,7 @@ export default function TournamentsPage() {
 
       if (tournamentIds.length === 0) {
         setRegistrationSummaries({});
+        setRoundPreferenceSummaries({});
         setSideEventSummaries({});
         setMyStatuses({});
         setIsGlobalAdmin(false);
@@ -139,6 +162,34 @@ export default function TournamentsPage() {
         setRegistrationSummaries(nextSummaries);
       } else {
         setRegistrationSummaries({});
+      }
+
+      const { data: roundPreferenceData, error: roundPreferenceError } = await supabase
+        .from("registrations")
+        .select("tournament_id,status,pre_round_preferred,post_round_preferred")
+        .in("tournament_id", tournamentIds);
+
+      if (!active) return;
+
+      if (!roundPreferenceError && roundPreferenceData) {
+        const nextRoundPreferenceSummaries: Record<number, RoundPreferenceSummary> = {};
+        (roundPreferenceData as RegistrationRoundPreferenceRow[]).forEach((row) => {
+          if (row.status === "canceled") return;
+          const current =
+            nextRoundPreferenceSummaries[row.tournament_id] ?? createEmptyRoundPreferenceSummary();
+
+          const prePreferred = Boolean(row.pre_round_preferred);
+          const postPreferred = Boolean(row.post_round_preferred);
+
+          if (prePreferred) current.prePreferred += 1;
+          if (postPreferred) current.postPreferred += 1;
+          if (prePreferred || postPreferred) current.anyPreferred += 1;
+
+          nextRoundPreferenceSummaries[row.tournament_id] = current;
+        });
+        setRoundPreferenceSummaries(nextRoundPreferenceSummaries);
+      } else {
+        setRoundPreferenceSummaries({});
       }
 
       const { data: sideEventData, error: sideEventError } = await supabase
@@ -307,6 +358,8 @@ export default function TournamentsPage() {
               const badgeClass = STATUS_BADGE_STYLE[t.status] ?? "bg-slate-100 text-slate-600";
               const myStatus = myStatuses[t.id];
               const registrationSummary = registrationSummaries[t.id] ?? createEmptyRegistrationSummary();
+              const roundPreferenceSummary =
+                roundPreferenceSummaries[t.id] ?? createEmptyRoundPreferenceSummary();
               const sideEventSummary = sideEventSummaries[t.id] ?? [];
               const canManageSideEvents = isGlobalAdmin || managedTournamentIdSet.has(t.id);
 
@@ -335,6 +388,10 @@ export default function TournamentsPage() {
                         <p>
                           신청/확정/대기/취소: {registrationSummary.applied}/{registrationSummary.approved}/
                           {registrationSummary.waitlisted}/{registrationSummary.canceled}명
+                        </p>
+                        <p>
+                          라운드 희망(사전/사후): {roundPreferenceSummary.prePreferred}/
+                          {roundPreferenceSummary.postPreferred}명
                         </p>
                         <p>메모: {t.notes ?? "-"}</p>
                       </div>

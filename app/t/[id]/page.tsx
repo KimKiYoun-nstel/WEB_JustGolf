@@ -1306,9 +1306,26 @@ export default function TournamentDetailPage() {
           if (registration.status === "approved") acc.approved += 1;
           if (registration.status === "waitlisted") acc.waitlisted += 1;
           if (registration.status === "canceled") acc.canceled += 1;
+
+          if (registration.status !== "canceled") {
+            const prePreferred = Boolean(registration.pre_round_preferred);
+            const postPreferred = Boolean(registration.post_round_preferred);
+
+            if (prePreferred) acc.prePreferred += 1;
+            if (postPreferred) acc.postPreferred += 1;
+            if (prePreferred || postPreferred) acc.anyPreferred += 1;
+          }
           return acc;
         },
-        { applied: 0, approved: 0, waitlisted: 0, canceled: 0 }
+        {
+          applied: 0,
+          approved: 0,
+          waitlisted: 0,
+          canceled: 0,
+          prePreferred: 0,
+          postPreferred: 0,
+          anyPreferred: 0,
+        }
       ),
     [regs]
   );
@@ -1435,6 +1452,10 @@ export default function TournamentDetailPage() {
                   <div>
                     신청/확정/대기/취소: {registrationSummary.applied}/{registrationSummary.approved}/
                     {registrationSummary.waitlisted}/{registrationSummary.canceled}명
+                  </div>
+                  <div>
+                    라운드 희망(사전/사후): {registrationSummary.prePreferred}/
+                    {registrationSummary.postPreferred}명
                   </div>
                   <div>메모: {t.notes ?? "-"}</div>
                 </div>
