@@ -54,10 +54,14 @@ type SideEventRegistration = {
   lodging_selected: boolean | null;
 };
 
-type TournamentRegistrationRoundPreference = {
-  status: string;
-  pre_round_preferred: boolean | null;
-  post_round_preferred: boolean | null;
+type RoundPreferenceSummary = {
+  prePreferred: number;
+  postPreferred: number;
+  anyPreferred: number;
+};
+
+type SideEventRegistrationRow = SideEventRegistration & {
+  side_event_id: number;
 };
 
 type RoundType = "pre" | "post";
@@ -79,6 +83,12 @@ const createEmptySideEventStatusSummary = (): SideEventStatusSummary => ({
   canceled: 0,
 });
 
+const createEmptyRoundPreferenceSummary = (): RoundPreferenceSummary => ({
+  prePreferred: 0,
+  postPreferred: 0,
+  anyPreferred: 0,
+});
+
 const toInputDateTime = (value: string | null) => {
   if (!value) return "";
   return value.slice(0, 16);
@@ -98,9 +108,9 @@ export default function AdminSideEventsPage() {
   const [sideEventRegs, setSideEventRegs] = useState<
     Map<number, SideEventRegistration[]>
   >(new Map());
-  const [tournamentRegistrations, setTournamentRegistrations] = useState<
-    TournamentRegistrationRoundPreference[]
-  >([]);
+  const [roundPreferenceSummary, setRoundPreferenceSummary] = useState<RoundPreferenceSummary>(
+    createEmptyRoundPreferenceSummary()
+  );
   const [updatingRegistrationId, setUpdatingRegistrationId] = useState<number | null>(null);
 
   // Available meal options
@@ -150,46 +160,72 @@ export default function AdminSideEventsPage() {
         return;
       }
 
-      setSideEvents((seRes.data ?? []) as SideEvent[]);
+      const sideEvents = (seRes.data ?? []) as SideEvent[];
+      setSideEvents(sideEvents);
 
-      // Load registrations for each side event
+      const sideEventIds = sideEvents.map((sideEvent) => sideEvent.id);
+      const sideEventRegistrationsPromise =
+        sideEventIds.length > 0
+          ? supabase
+              .from("side_event_registrations")
+              .select("id,side_event_id,user_id,nickname,status,memo,meal_selected,lodging_selected")
+              .in("side_event_id", sideEventIds)
+              .order("side_event_id", { ascending: true })
+              .order("id", { ascending: true })
+          : Promise.resolve({
+              data: [] as SideEventRegistrationRow[],
+              error: null,
+            });
+
+      const [serRes, roundPreferenceRes, moRes] = await Promise.all([
+        sideEventRegistrationsPromise,
+        supabase.rpc("get_round_preference_counts_by_tournaments", {
+          tournament_ids: [tournamentId],
+        }),
+        supabase
+          .from("meal_options")
+          .select("id,name")
+          .eq("tournament_id", tournamentId)
+          .order("name", { ascending: true }),
+      ]);
+
       const seRegMap = new Map<number, SideEventRegistration[]>();
-      for (const se of (seRes.data ?? []) as SideEvent[]) {
-        const serRes = await supabase
-          .from("side_event_registrations")
-          .select("id,user_id,nickname,status,memo,meal_selected,lodging_selected")
-          .eq("side_event_id", se.id)
-          .order("id", { ascending: true });
-
-        if (!serRes.error) {
-          seRegMap.set(se.id, (serRes.data ?? []) as SideEventRegistration[]);
-        }
+      if (!serRes.error) {
+        const registrationRows = (serRes.data ?? []) as SideEventRegistrationRow[];
+        registrationRows.forEach((row) => {
+          const bucket = seRegMap.get(row.side_event_id) ?? [];
+          bucket.push({
+            id: row.id,
+            user_id: row.user_id,
+            nickname: row.nickname,
+            status: row.status,
+            memo: row.memo,
+            meal_selected: row.meal_selected,
+            lodging_selected: row.lodging_selected,
+          });
+          seRegMap.set(row.side_event_id, bucket);
+        });
       }
       setSideEventRegs(seRegMap);
 
-      const registrationSummaryRes = await supabase
-        .from("registrations")
-        .select("status,pre_round_preferred,post_round_preferred")
-        .eq("tournament_id", tournamentId);
-
-      if (!registrationSummaryRes.error) {
-        setTournamentRegistrations(
-          (registrationSummaryRes.data ?? []) as TournamentRegistrationRoundPreference[]
-        );
+      if (!roundPreferenceRes.error && roundPreferenceRes.data && roundPreferenceRes.data.length > 0) {
+        const summaryRow = roundPreferenceRes.data[0] as {
+          pre_preferred_count?: number | string | null;
+          post_preferred_count?: number | string | null;
+          any_preferred_count?: number | string | null;
+        };
+        setRoundPreferenceSummary({
+          prePreferred: Number(summaryRow.pre_preferred_count ?? 0),
+          postPreferred: Number(summaryRow.post_preferred_count ?? 0),
+          anyPreferred: Number(summaryRow.any_preferred_count ?? 0),
+        });
       } else {
-        setTournamentRegistrations([]);
+        setRoundPreferenceSummary(createEmptyRoundPreferenceSummary());
       }
 
-      // Load meal options for this tournament
-      const moRes = await supabase
-        .from("meal_options")
-        .select("id,name")
-        .eq("tournament_id", tournamentId)
-        .order("name", { ascending: true });
-
-      if (!moRes.error) {
-        setMealOptions((moRes.data ?? []) as Array<{ id: number; name: string }>);
-      }
+      setMealOptions(
+        !moRes.error ? ((moRes.data ?? []) as Array<{ id: number; name: string }>) : []
+      );
     } finally {
       setLoading(false);
     }
@@ -387,9 +423,9 @@ export default function AdminSideEventsPage() {
     let preActiveRegistrations = 0;
     let postActiveRegistrations = 0;
     let totalRegistrationHistoryCount = 0;
-    let totalPreferredRegistrations = 0;
-    let prePreferredRegistrations = 0;
-    let postPreferredRegistrations = 0;
+    const totalPreferredRegistrations = roundPreferenceSummary.anyPreferred;
+    const prePreferredRegistrations = roundPreferenceSummary.prePreferred;
+    const postPreferredRegistrations = roundPreferenceSummary.postPreferred;
 
     const totalStatusSummary = createEmptySideEventStatusSummary();
     const preStatusSummary = createEmptySideEventStatusSummary();
@@ -422,17 +458,6 @@ export default function AdminSideEventsPage() {
       .sort((a, b) => b.registrationCount - a.registrationCount)
       .slice(0, 3);
 
-    tournamentRegistrations.forEach((registration) => {
-      if (registration.status === "canceled") return;
-
-      const prePreferred = Boolean(registration.pre_round_preferred);
-      const postPreferred = Boolean(registration.post_round_preferred);
-
-      if (prePreferred) prePreferredRegistrations += 1;
-      if (postPreferred) postPreferredRegistrations += 1;
-      if (prePreferred || postPreferred) totalPreferredRegistrations += 1;
-    });
-
     return {
       totalRounds: sideEvents.length,
       preRounds: groupedByRoundType.pre.length,
@@ -454,7 +479,7 @@ export default function AdminSideEventsPage() {
     groupedByRoundType.pre.length,
     sideEventRegs,
     sideEvents,
-    tournamentRegistrations,
+    roundPreferenceSummary,
   ]);
 
   const mealOptionMap = useMemo(

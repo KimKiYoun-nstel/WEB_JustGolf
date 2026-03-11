@@ -63,12 +63,51 @@ type ProfileRow = {
   nickname: string | null;
 };
 
+type RegistrationCountRow = {
+  tournament_id: number;
+  status: string;
+  count: number | string | null;
+};
+
+type RegistrationSummary = {
+  total: number;
+  applied: number;
+  approved: number;
+  waitlisted: number;
+  canceled: number;
+};
+
 const statuses: Registration["status"][] = [
   "applied",
   "approved",
   "waitlisted",
   "canceled",
 ];
+
+const REGISTRATION_PAGE_SIZE = 120;
+
+const REGISTRATION_SELECT_FIELDS = `
+  id,
+  user_id,
+  registering_user_id,
+  nickname,
+  status,
+  memo,
+  meal_option_id,
+  pre_round_preferred,
+  post_round_preferred,
+  tournament_meal_options(menu_name),
+  registration_activity_selections(selected,tournament_extras(activity_name)),
+  created_at
+`;
+
+const createEmptyRegistrationSummary = (): RegistrationSummary => ({
+  total: 0,
+  applied: 0,
+  approved: 0,
+  waitlisted: 0,
+  canceled: 0,
+});
 
 const statusTransitionTargets = statuses.reduce((acc, current) => {
   acc[current] = statuses.filter((status) => status !== current);
@@ -87,6 +126,13 @@ export default function AdminRegistrationsPage() {
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
 
   const [rows, setRows] = useState<Registration[]>([]);
+  const [registrationSummary, setRegistrationSummary] = useState<RegistrationSummary>(
+    createEmptyRegistrationSummary()
+  );
+  const [totalRegistrationCount, setTotalRegistrationCount] = useState(0);
+  const [registrationOffset, setRegistrationOffset] = useState(0);
+  const [hasMoreRegistrations, setHasMoreRegistrations] = useState(false);
+  const [loadingMoreRegistrations, setLoadingMoreRegistrations] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [msg, setMsg] = useState("");
@@ -97,77 +143,147 @@ export default function AdminRegistrationsPage() {
   const [sortOrder, setSortOrder] = useState<"createdAsc" | "createdDesc" | "nicknameAsc">("createdAsc");
   const { toast } = useToast();
 
-  const load = useCallback(async () => {
-    const supabase = createClient();
-    setMsg("");
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("registrations")
-      .select(`
-        id,
-        user_id,
-        registering_user_id,
-        nickname,
-        status,
-        memo,
-        meal_option_id,
-        pre_round_preferred,
-        post_round_preferred,
-        tournament_meal_options(menu_name),
-        registration_activity_selections(selected,tournament_extras(activity_name)),
-        created_at
-      `)
-      .eq("tournament_id", tournamentId)
-      .order("created_at", { ascending: true });
+  const buildRegistrationSummary = useCallback(
+    (countRows: RegistrationCountRow[] | null | undefined): RegistrationSummary => {
+      const summary = createEmptyRegistrationSummary();
+      (countRows ?? []).forEach((row) => {
+        const count = Number(row.count ?? 0);
+        if (row.status === "applied") summary.applied = count;
+        if (row.status === "approved") summary.approved = count;
+        if (row.status === "waitlisted") summary.waitlisted = count;
+        if (row.status === "canceled") summary.canceled = count;
+      });
+      summary.total =
+        summary.applied + summary.approved + summary.waitlisted + summary.canceled;
+      return summary;
+    },
+    []
+  );
 
-    if (error) {
-      setMsg(`조회 실패: ${error.message}`);
-      setLoading(false);
-      return;
-    }
+  const transformRegistrationRows = useCallback(
+    (dataRows: RegistrationRow[], profileMap: Map<string, string | null>) => {
+      return dataRows.map((row) => {
+        const activities = (row.registration_activity_selections ?? [])
+          .filter((sel) => sel?.selected)
+          .map((sel) => sel?.tournament_extras?.activity_name)
+          .filter((name): name is string => Boolean(name));
 
-    // 등록자 닉네임 조회 (profiles)
-    const dataRows = (data ?? []) as RegistrationRow[];
-    const registeringUserIds = [
-      ...new Set(dataRows.map((row) => row.registering_user_id).filter(Boolean)),
-    ];
-    
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, nickname")
-      .in("id", registeringUserIds);
-    
-    const profileMap = new Map(
-      ((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p.nickname])
-    );
+        return {
+          id: row.id,
+          user_id: row.user_id,
+          registering_user_id: row.registering_user_id,
+          registering_user_nickname: profileMap.get(row.registering_user_id) ?? null,
+          nickname: row.nickname,
+          status: row.status,
+          memo: row.memo,
+          meal_option_id: row.meal_option_id,
+          meal_name: row.tournament_meal_options?.menu_name ?? null,
+          pre_round_preferred: row.pre_round_preferred ?? false,
+          post_round_preferred: row.post_round_preferred ?? false,
+          activities: activities as string[],
+          created_at: row.created_at,
+        } as Registration;
+      });
+    },
+    []
+  );
 
-    // Transform data to include meal_name, activities, and registering_user_nickname
-    const transformed = dataRows.map((row) => {
-      const activities = (row.registration_activity_selections ?? [])
-        .filter((sel) => sel?.selected)
-        .map((sel) => sel?.tournament_extras?.activity_name)
-        .filter((name): name is string => Boolean(name));
+  const fetchRegistrationPage = useCallback(
+    async (offset: number) => {
+      const supabase = createClient();
+      const { data, error, count } = await supabase
+        .from("registrations")
+        .select(REGISTRATION_SELECT_FIELDS, { count: "exact" })
+        .eq("tournament_id", tournamentId)
+        .order("created_at", { ascending: true })
+        .range(offset, offset + REGISTRATION_PAGE_SIZE - 1);
+
+      if (error) throw new Error(error.message);
+
+      const dataRows = (data ?? []) as RegistrationRow[];
+      const registeringUserIds = Array.from(
+        new Set(dataRows.map((row) => row.registering_user_id).filter(Boolean))
+      ) as string[];
+
+      let profileMap = new Map<string, string | null>();
+      if (registeringUserIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, nickname")
+          .in("id", registeringUserIds);
+
+        if (profileError) throw new Error(profileError.message);
+        profileMap = new Map(((profiles ?? []) as ProfileRow[]).map((p) => [p.id, p.nickname]));
+      }
 
       return {
-        id: row.id,
-        user_id: row.user_id,
-        registering_user_id: row.registering_user_id,
-        registering_user_nickname: profileMap.get(row.registering_user_id) ?? null,
-        nickname: row.nickname,
-        status: row.status,
-        memo: row.memo,
-        meal_option_id: row.meal_option_id,
-        meal_name: row.tournament_meal_options?.menu_name ?? null,
-        pre_round_preferred: row.pre_round_preferred ?? false,
-        post_round_preferred: row.post_round_preferred ?? false,
-        activities: activities as string[],
-        created_at: row.created_at,
+        transformedRows: transformRegistrationRows(dataRows, profileMap),
+        totalCount: Number(count ?? 0),
       };
-    });
+    },
+    [tournamentId, transformRegistrationRows]
+  );
 
-    setRows(transformed as Registration[]);
-    setLoading(false);
-  }, [tournamentId]);
+  const load = useCallback(async () => {
+    setMsg("");
+    setLoading(true);
+    setLoadingMoreRegistrations(false);
+    setRows([]);
+    setRegistrationOffset(0);
+    setHasMoreRegistrations(false);
+    setTotalRegistrationCount(0);
+    setRegistrationSummary(createEmptyRegistrationSummary());
+
+    try {
+      const supabase = createClient();
+      const [summaryResult, firstPage] = await Promise.all([
+        supabase.rpc("get_registration_counts_by_tournaments", {
+          tournament_ids: [tournamentId],
+        }),
+        fetchRegistrationPage(0),
+      ]);
+
+      if (summaryResult.error) {
+        throw new Error(`요약 조회 실패: ${summaryResult.error.message}`);
+      }
+
+      const summary = buildRegistrationSummary(
+        (summaryResult.data ?? []) as RegistrationCountRow[]
+      );
+      setRegistrationSummary(summary);
+
+      setRows(firstPage.transformedRows);
+      setTotalRegistrationCount(firstPage.totalCount);
+      setRegistrationOffset(firstPage.transformedRows.length);
+      setHasMoreRegistrations(firstPage.transformedRows.length < firstPage.totalCount);
+    } catch (error) {
+      setMsg(`조회 실패: ${error instanceof Error ? error.message : "알 수 없는 오류"}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildRegistrationSummary, fetchRegistrationPage, tournamentId]);
+
+  const loadMoreRegistrations = useCallback(async () => {
+    if (loadingMoreRegistrations || !hasMoreRegistrations) return;
+
+    setLoadingMoreRegistrations(true);
+    setMsg("");
+
+    try {
+      const currentOffset = registrationOffset;
+      const nextPage = await fetchRegistrationPage(currentOffset);
+
+      setRows((prev) => [...prev, ...nextPage.transformedRows]);
+      const nextOffset = currentOffset + nextPage.transformedRows.length;
+      setRegistrationOffset(nextOffset);
+      setTotalRegistrationCount(nextPage.totalCount);
+      setHasMoreRegistrations(nextOffset < nextPage.totalCount);
+    } catch (error) {
+      setMsg(`추가 조회 실패: ${error instanceof Error ? error.message : "알 수 없는 오류"}`);
+    } finally {
+      setLoadingMoreRegistrations(false);
+    }
+  }, [fetchRegistrationPage, hasMoreRegistrations, loadingMoreRegistrations, registrationOffset]);
 
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
@@ -379,15 +495,8 @@ export default function AdminRegistrationsPage() {
     });
   }, [rows]);
 
-  // 통계 계산
+  // 식사 메뉴 통계 (현재 로드/필터 기준)
   const stats = useMemo(() => {
-    const statusCount = {
-      applied: filteredRows.filter((r) => r.status === "applied").length,
-      approved: filteredRows.filter((r) => r.status === "approved").length,
-      waitlisted: filteredRows.filter((r) => r.status === "waitlisted").length,
-      canceled: filteredRows.filter((r) => r.status === "canceled").length,
-    };
-
     const mealCount = new Map<string, number>();
     filteredRows.forEach((r) => {
       if (r.meal_name) {
@@ -395,7 +504,7 @@ export default function AdminRegistrationsPage() {
       }
     });
 
-    return { statusCount, mealCount };
+    return { mealCount };
   }, [filteredRows]);
 
   // 상태별 그룹화
@@ -567,7 +676,7 @@ export default function AdminRegistrationsPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => downloadExcel("approved")}
-                    disabled={exportingScope !== null || groupedByStatus.approved.length === 0}
+                    disabled={exportingScope !== null || registrationSummary.approved === 0}
                     data-testid="export-approved-xlsx"
                   >
                     {exportingScope === "approved" ? "확정자 엑셀 생성 중..." : "확정자 엑셀 다운로드"}
@@ -620,25 +729,28 @@ export default function AdminRegistrationsPage() {
                   </Button>
                 </div>
                 <p className="mb-4 text-xs font-medium text-slate-500">
-                  필터 결과 {filteredRows.length}명 / 전체 {rows.length}명
+                  필터 결과 {filteredRows.length}명 / 로드 {rows.length}명 / 전체 {totalRegistrationCount}명
+                </p>
+                <p className="-mt-2 mb-4 text-xs text-slate-400">
+                  상태 통계는 전체 신청자 기준이며, 식사 메뉴 통계는 현재 로드된 결과 기준입니다.
                 </p>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="p-3 bg-blue-50 rounded-md border border-blue-200">
                     <p className="text-xs text-blue-700 font-medium">신청</p>
-                    <p className="text-2xl font-bold text-blue-900">{stats.statusCount.applied}</p>
+                    <p className="text-2xl font-bold text-blue-900">{registrationSummary.applied}</p>
                   </div>
                   <div className="p-3 bg-green-50 rounded-md border border-green-200">
                     <p className="text-xs text-green-700 font-medium">확정</p>
-                    <p className="text-2xl font-bold text-green-900">{stats.statusCount.approved}</p>
+                    <p className="text-2xl font-bold text-green-900">{registrationSummary.approved}</p>
                   </div>
                   <div className="p-3 bg-yellow-50 rounded-md border border-yellow-200">
                     <p className="text-xs text-yellow-700 font-medium">대기</p>
-                    <p className="text-2xl font-bold text-yellow-900">{stats.statusCount.waitlisted}</p>
+                    <p className="text-2xl font-bold text-yellow-900">{registrationSummary.waitlisted}</p>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-md border border-slate-200">
                     <p className="text-xs text-slate-700 font-medium">취소</p>
-                    <p className="text-2xl font-bold text-slate-900">{stats.statusCount.canceled}</p>
+                    <p className="text-2xl font-bold text-slate-900">{registrationSummary.canceled}</p>
                   </div>
                 </div>
 
@@ -664,9 +776,9 @@ export default function AdminRegistrationsPage() {
                         className="h-4 w-4"
                         checked={allRowsSelected}
                         onChange={toggleSelectAll}
-                        aria-label="전체 인원 선택"
+                        aria-label="현재 로드 인원 선택"
                       />
-                      전체 인원 선택
+                      현재 로드 인원 선택
                     </label>
                     <span className="text-sm text-slate-500">
                       선택 {selectedVisibleCount}명(필터) / 전체 {selectedIds.size}명
@@ -735,7 +847,7 @@ export default function AdminRegistrationsPage() {
                               className="h-4 w-4"
                               checked={allRowsSelected}
                               onChange={toggleSelectAll}
-                              aria-label="전체 인원 선택"
+                              aria-label="현재 로드 인원 선택"
                             />
                           </TableHead>
                           <TableHead>닉네임</TableHead>
@@ -827,7 +939,7 @@ export default function AdminRegistrationsPage() {
                               className="h-4 w-4"
                               checked={allRowsSelected}
                               onChange={toggleSelectAll}
-                              aria-label="전체 인원 선택"
+                              aria-label="현재 로드 인원 선택"
                             />
                           </TableHead>
                           <TableHead>닉네임</TableHead>
@@ -919,7 +1031,7 @@ export default function AdminRegistrationsPage() {
                               className="h-4 w-4"
                               checked={allRowsSelected}
                               onChange={toggleSelectAll}
-                              aria-label="전체 인원 선택"
+                              aria-label="현재 로드 인원 선택"
                             />
                           </TableHead>
                           <TableHead>닉네임</TableHead>
@@ -1011,7 +1123,7 @@ export default function AdminRegistrationsPage() {
                               className="h-4 w-4"
                               checked={allRowsSelected}
                               onChange={toggleSelectAll}
-                              aria-label="전체 인원 선택"
+                              aria-label="현재 로드 인원 선택"
                             />
                           </TableHead>
                           <TableHead>닉네임</TableHead>
@@ -1082,6 +1194,21 @@ export default function AdminRegistrationsPage() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {hasMoreRegistrations && (
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void loadMoreRegistrations()}
+                  disabled={loadingMoreRegistrations}
+                >
+                  {loadingMoreRegistrations
+                    ? "추가 로딩 중..."
+                    : `${REGISTRATION_PAGE_SIZE}명 더 보기 (${rows.length}/${totalRegistrationCount})`}
+                </Button>
+              </div>
             )}
           </>
         )}

@@ -36,6 +36,30 @@ type Registration = {
   activities: string[];
 };
 
+type RegistrationRow = {
+  id: number;
+  user_id: string | null;
+  registering_user_id: string;
+  nickname: string;
+  status: string;
+  memo: string | null;
+  created_at: string;
+  pre_round_preferred?: boolean | null;
+  post_round_preferred?: boolean | null;
+  tournament_meal_options?: { menu_name?: string | null } | null;
+  registration_extras?: {
+    carpool_available?: boolean | null;
+    carpool_seats?: number | null;
+    transportation?: string | null;
+    departure_location?: string | null;
+    notes?: string | null;
+  } | null;
+  registration_activity_selections?: Array<{
+    selected?: boolean | null;
+    tournament_extras?: { activity_name?: string | null } | null;
+  }> | null;
+};
+
 type SideEvent = {
   id: number;
   round_type: "pre" | "post";
@@ -60,6 +84,36 @@ type PrizeSupport = {
   note: string | null;
   created_at: string;
 };
+
+type RegistrationCountRow = {
+  tournament_id: number;
+  status: string;
+  count: number | string | null;
+};
+
+type RegistrationSummary = {
+  total: number;
+  approved: number;
+  applied: number;
+  waitlisted: number;
+  canceled: number;
+};
+
+const REGISTRATION_PAGE_SIZE = 60;
+
+const createEmptyRegistrationSummary = (): RegistrationSummary => ({
+  total: 0,
+  approved: 0,
+  applied: 0,
+  waitlisted: 0,
+  canceled: 0,
+});
+
+const REGISTRATION_SELECT_FIELDS =
+  "id,user_id,registering_user_id,nickname,status,memo,created_at,pre_round_preferred,post_round_preferred," +
+  "tournament_meal_options(menu_name)," +
+  "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes)," +
+  "registration_activity_selections(selected,tournament_extras(activity_name))";
 
 function formatDate(date: string) {
   if (!date) return "-";
@@ -115,31 +169,24 @@ function getRegistrationStatusTone(status: string) {
 export default function TournamentParticipantsPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [rows, setRows] = useState<Registration[]>([]);
+  const [registrationSummary, setRegistrationSummary] = useState<RegistrationSummary>(
+    createEmptyRegistrationSummary()
+  );
+  const [registrationOffset, setRegistrationOffset] = useState(0);
+  const [hasMoreRegistrations, setHasMoreRegistrations] = useState(false);
+  const [loadingMoreRegistrations, setLoadingMoreRegistrations] = useState(false);
   const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
   const [sideEventRegs, setSideEventRegs] = useState<Map<number, SideEventRegistration[]>>(new Map());
   const [prizes, setPrizes] = useState<PrizeSupport[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeletedTournament, setIsDeletedTournament] = useState(false);
   const [msg, setMsg] = useState("");
-
-  const hasMyActiveRegistration = rows.some(
-    (row) => row.user_id === user?.id && row.status !== "canceled"
-  );
-
-  const registrationSummary = useMemo(() => {
-    return {
-      total: rows.length,
-      approved: rows.filter((row) => row.status === "approved").length,
-      applied: rows.filter((row) => row.status === "applied").length,
-      waitlisted: rows.filter((row) => row.status === "waitlisted").length,
-    };
-  }, [rows]);
+  const [hasMyActiveRegistration, setHasMyActiveRegistration] = useState(false);
 
   const sortedRows = useMemo(() => {
     const statusPriority: Record<string, number> = {
@@ -161,80 +208,8 @@ export default function TournamentParticipantsPage() {
     });
   }, [rows]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setMsg("");
-    setIsDeletedTournament(false);
-
-    const tRes = await supabase
-      .from("tournaments")
-      .select("id,title,event_date,status")
-      .eq("id", tournamentId)
-      .single();
-
-    if (tRes.error) {
-      setMsg(`대회 조회 실패: ${tRes.error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    const tournamentData = tRes.data as Tournament;
-    if (tournamentData.status === "deleted") {
-      setIsDeletedTournament(true);
-      setTournament(null);
-      setRows([]);
-      setSideEvents([]);
-      setSideEventRegs(new Map());
-      setPrizes([]);
-      setLoading(false);
-      return;
-    }
-
-    setTournament(tournamentData);
-
-    const rRes = await supabase
-      .from("registrations")
-      .select(
-        "id,user_id,registering_user_id,nickname,status,memo,created_at,pre_round_preferred,post_round_preferred," +
-          "tournament_meal_options(menu_name)," +
-          "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes)," +
-          "registration_activity_selections(selected,tournament_extras(activity_name))"
-      )
-      .eq("tournament_id", tournamentId)
-      .order("created_at", { ascending: true });
-
-    if (rRes.error) {
-      setMsg(`참가자 조회 실패: ${rRes.error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    type RegistrationRow = {
-      id: number;
-      user_id: string | null;
-      registering_user_id: string;
-      nickname: string;
-      status: string;
-      memo: string | null;
-      created_at: string;
-      pre_round_preferred?: boolean | null;
-      post_round_preferred?: boolean | null;
-      tournament_meal_options?: { menu_name?: string | null } | null;
-      registration_extras?: {
-        carpool_available?: boolean | null;
-        carpool_seats?: number | null;
-        transportation?: string | null;
-        departure_location?: string | null;
-        notes?: string | null;
-      } | null;
-      registration_activity_selections?: Array<{
-        selected?: boolean | null;
-        tournament_extras?: { activity_name?: string | null } | null;
-      }> | null;
-    };
-
-    const registrationRows = (rRes.data ?? []) as unknown as RegistrationRow[];
-    const transformedRows = registrationRows.map((row) => {
+  const transformRegistrationRows = useCallback((registrationRows: RegistrationRow[]) => {
+    return registrationRows.map((row) => {
       const activities = (row.registration_activity_selections ?? [])
         .filter((selection) => selection?.selected)
         .map((selection) => selection?.tournament_extras?.activity_name)
@@ -257,10 +232,100 @@ export default function TournamentParticipantsPage() {
         notes: row.registration_extras?.notes ?? null,
         created_at: row.created_at,
         activities: activities as string[],
-      };
+      } as Registration;
     });
+  }, []);
 
-    setRows(transformedRows as Registration[]);
+  const buildRegistrationSummary = useCallback((countRows: RegistrationCountRow[] | null | undefined) => {
+    const summary = createEmptyRegistrationSummary();
+    (countRows ?? []).forEach((row) => {
+      const countValue = Number(row.count ?? 0);
+      if (row.status === "approved") summary.approved = countValue;
+      if (row.status === "applied") summary.applied = countValue;
+      if (row.status === "waitlisted") summary.waitlisted = countValue;
+      if (row.status === "canceled") summary.canceled = countValue;
+    });
+    summary.total = summary.approved + summary.applied + summary.waitlisted + summary.canceled;
+    return summary;
+  }, []);
+
+  const fetchData = async () => {
+    const supabase = createClient();
+    const uid = user?.id ?? null;
+    setLoading(true);
+    setMsg("");
+    setIsDeletedTournament(false);
+    setLoadingMoreRegistrations(false);
+    setRegistrationOffset(0);
+    setHasMoreRegistrations(false);
+    setRegistrationSummary(createEmptyRegistrationSummary());
+    setHasMyActiveRegistration(false);
+
+    const tRes = await supabase
+      .from("tournaments")
+      .select("id,title,event_date,status")
+      .eq("id", tournamentId)
+      .single();
+
+    if (tRes.error) {
+      setMsg(`대회 조회 실패: ${tRes.error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    const tournamentData = tRes.data as Tournament;
+    if (tournamentData.status === "deleted") {
+      setIsDeletedTournament(true);
+      setTournament(null);
+      setRows([]);
+      setRegistrationSummary(createEmptyRegistrationSummary());
+      setSideEvents([]);
+      setSideEventRegs(new Map());
+      setPrizes([]);
+      setLoading(false);
+      return;
+    }
+
+    setTournament(tournamentData);
+
+    const [countRes, firstPageRes, myRegRes] = await Promise.all([
+      supabase.rpc("get_registration_counts_by_tournaments", {
+        tournament_ids: [tournamentId],
+      }),
+      supabase
+        .from("registrations")
+        .select(REGISTRATION_SELECT_FIELDS)
+        .eq("tournament_id", tournamentId)
+        .order("created_at", { ascending: true })
+        .range(0, REGISTRATION_PAGE_SIZE - 1),
+      uid
+        ? supabase
+            .from("registrations")
+            .select("id")
+            .eq("tournament_id", tournamentId)
+            .eq("user_id", uid)
+            .neq("status", "canceled")
+            .limit(1)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const summary = !countRes.error
+      ? buildRegistrationSummary((countRes.data ?? []) as RegistrationCountRow[])
+      : createEmptyRegistrationSummary();
+    setRegistrationSummary(summary);
+    setHasMyActiveRegistration(((myRegRes.data ?? []) as Array<{ id: number }>).length > 0);
+
+    if (firstPageRes.error) {
+      setMsg(`참가자 조회 실패: ${firstPageRes.error.message}`);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    const firstRows = transformRegistrationRows((firstPageRes.data ?? []) as unknown as RegistrationRow[]);
+    setRows(firstRows);
+    setRegistrationOffset(firstRows.length);
+    setHasMoreRegistrations(firstRows.length < summary.total);
 
     const seRes = await supabase
       .from("side_events")
@@ -324,6 +389,40 @@ export default function TournamentParticipantsPage() {
     setLoading(false);
   };
 
+  const loadMoreRegistrations = useCallback(async () => {
+    if (loadingMoreRegistrations || !hasMoreRegistrations) return;
+
+    const supabase = createClient();
+    setLoadingMoreRegistrations(true);
+    setMsg("");
+
+    const { data, error } = await supabase
+      .from("registrations")
+      .select(REGISTRATION_SELECT_FIELDS)
+      .eq("tournament_id", tournamentId)
+      .order("created_at", { ascending: true })
+      .range(registrationOffset, registrationOffset + REGISTRATION_PAGE_SIZE - 1);
+
+    if (error) {
+      setMsg(`참가자 추가 조회 실패: ${error.message}`);
+      setLoadingMoreRegistrations(false);
+      return;
+    }
+
+    const nextRows = transformRegistrationRows((data ?? []) as unknown as RegistrationRow[]);
+    setRows((prev) => [...prev, ...nextRows]);
+    const nextOffset = registrationOffset + nextRows.length;
+    setRegistrationOffset(nextOffset);
+    setHasMoreRegistrations(nextOffset < registrationSummary.total);
+    setLoadingMoreRegistrations(false);
+  }, [
+    hasMoreRegistrations,
+    loadingMoreRegistrations,
+    registrationOffset,
+    registrationSummary.total,
+    tournamentId,
+    transformRegistrationRows,
+  ]);
   useEffect(() => {
     if (!Number.isFinite(tournamentId)) return;
     if (authLoading) return;
@@ -611,6 +710,21 @@ export default function TournamentParticipantsPage() {
                     </table>
                   </div>
                 )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-6 py-4 md:px-7">
+                <p className="text-xs font-medium text-slate-500">
+                  표시 {rows.length}명 / 전체 {registrationSummary.total}명
+                </p>
+                {hasMoreRegistrations ? (
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreRegistrations()}
+                    disabled={loadingMoreRegistrations}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {loadingMoreRegistrations ? "불러오는 중..." : `${REGISTRATION_PAGE_SIZE}명 더 보기`}
+                  </button>
+                ) : null}
               </div>
             </section>
 

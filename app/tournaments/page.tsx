@@ -41,22 +41,19 @@ type RegistrationStatusRow = {
   relation: string | null;
 };
 
-type RegistrationRoundPreferenceRow = {
+type RoundPreferenceSummaryRow = {
   tournament_id: number;
-  status: string;
-  pre_round_preferred: boolean | null;
-  post_round_preferred: boolean | null;
+  pre_preferred_count: number | string | null;
+  post_preferred_count: number | string | null;
+  any_preferred_count: number | string | null;
 };
 
-type SideEventRow = {
-  id: number;
+type SideEventSummaryRow = {
+  side_event_id: number;
   tournament_id: number;
   round_type: "pre" | "post";
   title: string;
-};
-
-type SideEventRegistrationRow = {
-  side_event_id: number;
+  registration_count: number | string | null;
 };
 
 type SideEventSummary = {
@@ -142,10 +139,21 @@ export default function TournamentsPage() {
         return;
       }
 
-      const { data: countData, error: countError } = await supabase.rpc(
-        "get_registration_counts_by_tournaments",
-        { tournament_ids: tournamentIds }
-      );
+      const [
+        { data: countData, error: countError },
+        { data: roundPreferenceData, error: roundPreferenceError },
+        { data: sideEventData, error: sideEventError },
+      ] = await Promise.all([
+        supabase.rpc("get_registration_counts_by_tournaments", {
+          tournament_ids: tournamentIds,
+        }),
+        supabase.rpc("get_round_preference_counts_by_tournaments", {
+          tournament_ids: tournamentIds,
+        }),
+        supabase.rpc("get_side_event_summaries_by_tournaments", {
+          tournament_ids: tournamentIds,
+        }),
+      ]);
 
       if (!active) return;
 
@@ -164,75 +172,28 @@ export default function TournamentsPage() {
         setRegistrationSummaries({});
       }
 
-      const { data: roundPreferenceData, error: roundPreferenceError } = await supabase
-        .from("registrations")
-        .select("tournament_id,status,pre_round_preferred,post_round_preferred")
-        .in("tournament_id", tournamentIds);
-
-      if (!active) return;
-
       if (!roundPreferenceError && roundPreferenceData) {
         const nextRoundPreferenceSummaries: Record<number, RoundPreferenceSummary> = {};
-        (roundPreferenceData as RegistrationRoundPreferenceRow[]).forEach((row) => {
-          if (row.status === "canceled") return;
-          const current =
-            nextRoundPreferenceSummaries[row.tournament_id] ?? createEmptyRoundPreferenceSummary();
-
-          const prePreferred = Boolean(row.pre_round_preferred);
-          const postPreferred = Boolean(row.post_round_preferred);
-
-          if (prePreferred) current.prePreferred += 1;
-          if (postPreferred) current.postPreferred += 1;
-          if (prePreferred || postPreferred) current.anyPreferred += 1;
-
-          nextRoundPreferenceSummaries[row.tournament_id] = current;
+        (roundPreferenceData as RoundPreferenceSummaryRow[]).forEach((row) => {
+          nextRoundPreferenceSummaries[row.tournament_id] = {
+            prePreferred: Number(row.pre_preferred_count ?? 0),
+            postPreferred: Number(row.post_preferred_count ?? 0),
+            anyPreferred: Number(row.any_preferred_count ?? 0),
+          };
         });
         setRoundPreferenceSummaries(nextRoundPreferenceSummaries);
       } else {
         setRoundPreferenceSummaries({});
       }
 
-      const { data: sideEventData, error: sideEventError } = await supabase
-        .from("side_events")
-        .select("id,tournament_id,round_type,title")
-        .in("tournament_id", tournamentIds)
-        .order("tournament_id", { ascending: true })
-        .order("round_type", { ascending: true })
-        .order("id", { ascending: true });
-
-      if (!active) return;
-
       if (!sideEventError && sideEventData) {
-        const sideEventRows = (sideEventData ?? []) as SideEventRow[];
-        const sideEventIds = sideEventRows.map((row) => row.id);
-        const registrationCountMap = new Map<number, number>();
-
-        if (sideEventIds.length > 0) {
-          const { data: sideEventRegistrationData, error: sideEventRegistrationError } = await supabase
-            .from("side_event_registrations")
-            .select("side_event_id")
-            .in("side_event_id", sideEventIds)
-            .neq("status", "canceled");
-
-          if (!active) return;
-
-          if (!sideEventRegistrationError && sideEventRegistrationData) {
-            (sideEventRegistrationData as SideEventRegistrationRow[]).forEach((row) => {
-              registrationCountMap.set(
-                row.side_event_id,
-                (registrationCountMap.get(row.side_event_id) ?? 0) + 1
-              );
-            });
-          }
-        }
-
         const nextSideEventSummaries: Record<number, SideEventSummary[]> = {};
-        sideEventRows.forEach((row) => {
+        (sideEventData as SideEventSummaryRow[]).forEach((row) => {
           const summaryRow: SideEventSummary = {
-            id: row.id,
+            id: row.side_event_id,
             round_type: row.round_type,
             title: row.title,
-            registration_count: registrationCountMap.get(row.id) ?? 0,
+            registration_count: Number(row.registration_count ?? 0),
           };
 
           const bucket = nextSideEventSummaries[row.tournament_id] ?? [];
@@ -253,7 +214,15 @@ export default function TournamentsPage() {
         return;
       }
 
-      const access = await getTournamentAdminAccess(supabase, user.id);
+      const [access, regRes] = await Promise.all([
+        getTournamentAdminAccess(supabase, user.id),
+        supabase
+          .from("registrations")
+          .select("tournament_id,status,relation")
+          .in("tournament_id", tournamentIds)
+          .eq("user_id", user.id)
+          .eq("relation", "본인"),
+      ]);
       if (!active) return;
 
       setIsGlobalAdmin(access.isAdmin);
@@ -266,14 +235,7 @@ export default function TournamentsPage() {
         setManagedTournamentIds(scopedIds);
       }
 
-      const { data: regData, error: regError } = await supabase
-        .from("registrations")
-        .select("tournament_id,status,relation")
-        .in("tournament_id", tournamentIds)
-        .eq("user_id", user.id)
-        .eq("relation", "본인");
-
-      if (!active) return;
+      const { data: regData, error: regError } = regRes;
 
       if (regError) {
         setMyStatuses({});
