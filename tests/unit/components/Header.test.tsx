@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import Header from '../../components/Header';
+import Header from '@/components/Header';
 
 const mockUseAuth = vi.fn();
 
@@ -13,12 +13,12 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Mock useAuth hook
-vi.mock('../../lib/auth', () => ({
+vi.mock('@/lib/auth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
 // Mock supabaseClient
-vi.mock('../../lib/supabaseClient', () => ({
+vi.mock('@/lib/supabaseClient', () => ({
   createClient: () => ({
     from: vi.fn(),
     auth: {

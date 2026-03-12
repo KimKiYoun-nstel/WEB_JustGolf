@@ -1,197 +1,26 @@
-# 테스트 파일 분류 및 관리
+# Test Files Classification
 
-## 📋 분류 결과
+This file defines what is included in the automated test suite.
 
-### ✅ Git에 포함 (재사용 가능한 테스트)
+## Git-Tracked Automated Tests
+- `tests/unit/**/*.test.ts(x)`
+- `tests/integration/**/*.test.ts(x)`
+- `tests/e2e/**/*.spec.ts`
+- `tests/helpers/**/*.ts` (shared test utility code)
 
-#### 1. Vitest 단위/통합 테스트
-```
-__tests__/
-├── lib/
-│   ├── utils.test.ts          ✓ 유틸리티 함수 테스트
-│   └── supabaseClient.test.ts  ✓ Supabase 클라이언트 테스트
-└── integration/
-    ├── features.test.ts        ✓ 핵심 기능 테스트
-    └── admin-api.test.ts       ✓ 관리자 API 통합 테스트
-```
-- **상태**: ✅ 모두 Git에 포함
-- **목적**: CI/CD에서 매번 실행
-- **결과**: 24+ 테스트 PASS
+## Git-Ignored Local Manual Scripts
+- `tests/manual/**`
+- Purpose: one-off inspection, troubleshooting, ad-hoc data checks
+- Not required for CI reproducibility
 
-#### 2. Playwright E2E 테스트
-```
-e2e/
-├── admin.spec.ts              ✓ 관리자 기능 테스트
-├── auth.spec.ts               ✓ 인증 플로우 테스트
-├── basic-auth-flow.spec.ts     ✓ 기본 인증 테스트
-├── complete-auth-flow.spec.ts  ✓ 전체 인증 플로우
-├── signup-approval-flow.spec.ts ✓ 가입/승인 플로우
-├── tournaments.spec.ts         ✓ 토너먼트 기능 테스트
-├── workflow-simple.spec.ts     ✓ 간단한 워크플로우
-├── ui.spec.ts                 ✓ UI 컴포넌트 테스트
-├── data-integrity.spec.ts      ✓ 데이터 무결성 테스트
-└── complete-flow.spec.ts       ✓ 전체 플로우 테스트
-```
-- **상태**: ✅ 모두 Git에 포함
-- **목적**: 완전한 사용자 워크플로우 검증
-- **결과**: 1-10 테스트 PASS (타이밍 이슈)
+## Git-Ignored Generated Outputs
+- `coverage/`
+- `test-results/`
+- `playwright-report/`
+- `.nyc_output/`
 
-#### 3. 테스트 설정 파일
-```
-playwright.config.ts           ✓ Playwright 설정
-vitest.config.ts              ✓ Vitest 설정
-```
-- **상태**: ✅ Git에 포함
-- **목적**: 테스트 실행 환경 설정
-
----
-
-### ❌ Git에서 제외 (산출물 및 일회성 스크립트)
-
-#### 1. 테스트 실행 산출물
-```
-coverage/                      ❌ Vitest 커버리지 결과
-test-results/                  ❌ Playwright 테스트 결과
-playwright-report/             ❌ Playwright HTML 레포트
-.nyc_output/                   ❌ 코드 커버리지 중간 파일
-```
-- **제외 이유**: 매번 생성되는 임시 파일
-- **.gitignore**: 추가 ✓
-
-#### 2. 개발용 검증 스크립트
-```
-Test/
-├── batch-approve-users.mjs     ❌ 일회성 사용자 승인 스크립트
-├── check-auth-status.mjs       ❌ 인증 상태 확인 스크립트
-├── check-supabase-schema.mjs    ❌ 스키마 확인 스크립트
-├── create-test-accounts.mjs     ❌ 테스트 계정 생성 스크립트
-├── fix-profile-nickname.mjs     ❌ 데이터 수정 스크립트
-├── inspect-db-schema.mjs        ❌ 스키마 검사 스크립트
-├── test-login-direct.mjs        ❌ 직접 로그인 테스트 스크립트
-├── test-real-supabase.mjs       ❌ 실제 Supabase 테스트
-├── test-signup-rls.mjs          ❌ RLS 검증 스크립트
-└── tournament-stats.mjs         ❌ 토너먼트 통계 스크립트
-```
-- **제외 이유**: 
-  - CI/CD에서 자동 실행 안 함
-  - 개발 과정에서만 필요 (일회성)
-  - 재사용 가능성 낮음
-- **.gitignore**: `Test/*.mjs` 추가 ✓
-- **대체 방안**: 필요할 때 로컬에서 수동 실행
-
-#### 3. 생성된 문서
-```
-Docs/
-├── DB_SCHEMA_CURRENT.json           ❌ 생성된 스키마 (자동 생성)
-├── CURRENT_IMPLEMENTATION_STATUS.md  ❌ 일회성 상태 문서
-└── SCHEMA_VALIDATION.md              ❌ 검증 결과 문서
-```
-- **제외 이유**: 자동 생성 또는 일회성 문서
-- **.gitignore**: 추가 ✓
-
-#### 4. 기타 생성 파일
-```
-db/supabase_schema.sql         ❌ 백업 스키마 파일
-app/__tests__/                 ❌ 별도의 앱별 테스트 폴더
-app/login/login.test.tsx       ❌ 중복된 테스트 파일
-```
-- **제외 이유**: 정리되지 않음 또는 중복
-
----
-
-## 📝 변경사항 (Applied)
-
-### .gitignore 업데이트 항목
-```diff
-+ /coverage                 # Vitest 커버리지
-+ /test-results            # Playwright 테스트 결과
-+ /playwright-report       # Playwright 리포트
-+ .nyc_output              # 코드 커버리지 중간 파일
-+ Test/*.mjs               # 테스트 유틸리티 스크립트
-+ Test/*.js                # 테스트 유틸리티 스크립트
-+ Docs/DB_SCHEMA_CURRENT.json
-+ Docs/CURRENT_IMPLEMENTATION_STATUS.md
-+ Docs/SCHEMA_VALIDATION.md
-+ *.tmp                    # 임시 파일
-```
-
-### Git에서 제거된 항목
-```
-D  Test/create-test-accounts.mjs
-D  Test/test-phase3-full.mjs
-D  Test/test-side-events.mjs  
-D  Test/verify-actions.mjs
-```
-
----
-
-## 🎯 실제 사용 패턴
-
-### CI/CD에서 자동 실행될 테스트
-```bash
-npm test                          # Vitest 모든 테스트
-npx playwright test              # E2E 모든 테스트
-npm run build                    # 빌드 검증
-```
-
-### 개발 중 필요한 검증 (수동)
-```bash
-# 특정 E2E 테스트 실행
-npx playwright test e2e/auth.spec.ts
-
-# 특정 유닛 테스트 실행  
-npm test -- __tests__/integration/admin-api.test.ts
-
-# 커버리지 보기 (임시 생성만 함)
-npm test -- --coverage
-```
-
-### 일회성 개발용 스크립트 (필요할 때만)
-```bash
-# 로컬에서만 실행 (Git에서 무시됨)
-node Test/create-test-accounts.mjs
-node Test/check-auth-status.mjs
-```
-
----
-
-## ✨ 이점
-
-1. **깔끔한 저장소**
-   - 불필요한 산출물 제외
-   - 실제 코드 기반만 관리
-
-2. **더 빠른 클론/푸시**
-   - 테스트 레포트 미포함
-
-3. **명확한 의도**
-   - 재사용 가능한 테스트만 포함
-   - 개발 과정 로그는 제외
-
-4. **팀 협업 향상**
-   - 새 팀원도 필요한 자산만 다운로드
-   - 테스트 결과 충돌 없음
-
----
-
-## 📌 앞으로의 케이스
-
-### 새로운 테스트 파일 추가 시
-**자동 실행되어야 하나?**
-- YES → `__tests__/` 또는 `e2e/` 폴더에 추가 (Git 포함)
-- NO → `Test/` 폴더에 추가 (Git 제외)
-
-### 새로운 산출물 생성 시
-→ `.gitignore`에 패턴 추가
-
----
-
-## 🔍 검증
-
-```bash
-# 현재 설정으로 무시되는 파일 확인
-git status --ignored
-
-# Git에 포함될 파일만 확인
-git ls-files
-```
+## Standard Commands
+- Unit/Integration: `npm run test`
+- Coverage: `npm run test:coverage`
+- E2E: `npm run test:e2e`
+- Build gate: `npm run build`

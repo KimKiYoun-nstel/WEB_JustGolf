@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { friendlyError, friendlyErrorApproval, friendlyErrorTournament } from './errorHelpers';
+import { friendlyError, friendlyErrorApproval, friendlyErrorTournament } from '@/lib/errorHelpers';
 
 describe('friendlyError() - Supabase error to Korean message', () => {
   it('should return message for unique constraint violation (23505)', () => {

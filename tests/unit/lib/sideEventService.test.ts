@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient, mockData } from './testHelpers';
+import { createMockSupabaseClient, mockData } from '@/tests/helpers/testHelpers';
 import {
   applySideEvent,
   cancelSideEventRegistration,
   upsertActivitySelection,
   getSideEventRegistrations,
   getUserActivitySelections,
-} from './sideEventService';
+} from '@/lib/sideEventService';
 
 describe('Side Event Service - Integration Tests', () => {
   let mockSupabase: any;
