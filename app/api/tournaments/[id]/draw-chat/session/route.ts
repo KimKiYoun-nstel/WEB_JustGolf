@@ -4,14 +4,9 @@ import {
   requireApiUser,
 } from "../../../../../../lib/apiGuard";
 
-type DrawSessionRow = {
-  id: number;
-  status: "pending" | "live" | "finished" | "canceled";
-};
-
 type DrawChatSessionRow = {
   id: number;
-  draw_session_id: number;
+  linked_draw_session_id: number | null;
   status: "live" | "closed";
 };
 
@@ -50,34 +45,9 @@ export async function GET(
     const nickname = (profile?.nickname ?? "").trim();
     const supabaseAdmin = createServiceRoleSupabaseClient();
 
-    const drawSessionRes = await supabaseAdmin
-      .from("draw_sessions")
-      .select("id,status")
-      .eq("tournament_id", tournamentId)
-      .eq("status", "live")
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (drawSessionRes.error) {
-      return NextResponse.json({ error: drawSessionRes.error.message }, { status: 500 });
-    }
-
-    if (!drawSessionRes.data) {
-      return NextResponse.json({
-        nickname,
-        canJoin: false,
-        chatSession: null,
-        reason: "live_draw_session_not_found",
-      });
-    }
-
-    const drawSession = drawSessionRes.data as DrawSessionRow;
-
     const chatSessionRes = await supabaseAdmin
       .from("draw_chat_sessions")
-      .select("id,draw_session_id,status")
-      .eq("draw_session_id", drawSession.id)
+      .select("id,linked_draw_session_id,status")
       .eq("tournament_id", tournamentId)
       .order("id", { ascending: false })
       .limit(1)
@@ -89,6 +59,7 @@ export async function GET(
 
     if (!chatSessionRes.data) {
       return NextResponse.json({
+        userId: guard.user.id,
         nickname,
         canJoin: false,
         chatSession: null,
@@ -105,7 +76,7 @@ export async function GET(
       canJoin,
       chatSession: {
         id: chatSession.id,
-        drawSessionId: chatSession.draw_session_id,
+        linkedDrawSessionId: chatSession.linked_draw_session_id,
         status: chatSession.status,
       },
       reason: canJoin ? null : nickname.length === 0 ? "nickname_required" : "chat_not_live",

@@ -185,7 +185,7 @@ describe("draw reducer", () => {
     expect(state.groups[1]).toEqual([301]);
     expect(state.remainingPlayerIds).toEqual([]);
     expect(state.phase).toBe("finished");
-    expect(state.status).toBe("finished");
+    expect(state.status).toBe("live");
   });
 
   it("ignores invalid group numbers and falls back to configured target group", () => {
