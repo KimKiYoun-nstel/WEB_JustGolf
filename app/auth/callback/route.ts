@@ -7,6 +7,7 @@ import {
 } from "../../../lib/kakaoOidcState";
 import { createServiceRoleSupabaseClient } from "../../../lib/apiGuard";
 import { writeErrorLog } from "../../../lib/server/errorLogger";
+import { consumeKakaoOidcState } from "../../../lib/server/kakaoOidcStateStore";
 
 type PendingCookie = {
   name: string;
@@ -96,13 +97,23 @@ export async function GET(request: NextRequest) {
   const forwardedFor = request.headers.get("x-forwarded-for");
   const ip = forwardedFor?.split(",")[0]?.trim() ?? null;
   const userAgent = request.headers.get("user-agent");
-  const isLinkIntent = Boolean(state && state.startsWith(LINK_STATE_PREFIX));
-
-  const stateResult = state
-    ? consumeState(rawStateCookie, state)
+  const canConsumeState = Boolean(code && state);
+  const cookieStateResult = canConsumeState
+    ? consumeState(rawStateCookie, state!)
     : { matched: false, remainingStates: knownStates };
+  const dbStateResult = canConsumeState
+    ? await consumeKakaoOidcState({ state: state!, ip, userAgent })
+    : ({ matched: false, reason: state ? "missing_code" : "missing_state" } as const);
+  const isLinkIntent = dbStateResult.matched
+    ? dbStateResult.intent === "link"
+    : Boolean(state && state.startsWith(LINK_STATE_PREFIX));
+  const stateMatched = cookieStateResult.matched || dbStateResult.matched;
+  const dbStateErrorMessage =
+    !dbStateResult.matched && "errorMessage" in dbStateResult
+      ? dbStateResult.errorMessage ?? null
+      : null;
 
-  if (!code || !state || !stateResult.matched) {
+  if (!code || !state || !stateMatched) {
     await writeErrorLog({
       category: "auth",
       action: "kakao_callback",
@@ -114,7 +125,11 @@ export async function GET(request: NextRequest) {
       details: {
         hasCode: Boolean(code),
         hasState: Boolean(state),
-        stateMatched: stateResult.matched,
+        stateMatched,
+        cookieStateMatched: cookieStateResult.matched,
+        dbStateMatched: dbStateResult.matched,
+        dbStateReason: dbStateResult.matched ? null : dbStateResult.reason,
+        dbStateErrorMessage,
         knownStateCount: knownStates.length,
       },
     });
@@ -122,7 +137,7 @@ export async function GET(request: NextRequest) {
     return buildLoginRedirect(
       request,
       KAKAO_STATE_ERROR_MESSAGE,
-      stateResult.remainingStates
+      cookieStateResult.remainingStates
     );
   }
 
@@ -143,14 +158,14 @@ export async function GET(request: NextRequest) {
       return buildProfileRedirect(
         request,
         "카카오 로그인 설정이 필요합니다.",
-        stateResult.remainingStates
+        cookieStateResult.remainingStates
       );
     }
 
     return buildLoginRedirect(
       request,
       KAKAO_ERROR_MESSAGE,
-      stateResult.remainingStates
+      cookieStateResult.remainingStates
     );
   }
 
@@ -190,6 +205,11 @@ export async function GET(request: NextRequest) {
       userAgent,
       details: {
         isLinkIntent,
+        stateValidation: {
+          cookieStateMatched: cookieStateResult.matched,
+          dbStateMatched: dbStateResult.matched,
+          dbStateReason: dbStateResult.matched ? null : dbStateResult.reason,
+        },
         httpStatus: tokenResponse.status,
         kakaoError: tokenData.error ?? null,
         kakaoErrorDescription: tokenData.error_description ?? null,
@@ -200,14 +220,14 @@ export async function GET(request: NextRequest) {
       return buildProfileRedirect(
         request,
         KAKAO_TOKEN_ERROR_MESSAGE,
-        stateResult.remainingStates
+        cookieStateResult.remainingStates
       );
     }
 
     return buildLoginRedirect(
       request,
       KAKAO_TOKEN_ERROR_MESSAGE,
-      stateResult.remainingStates
+      cookieStateResult.remainingStates
     );
   }
 
@@ -234,7 +254,7 @@ export async function GET(request: NextRequest) {
     pendingCookies.forEach(({ name, value, options }) => {
       response.cookies.set(name, value, options);
     });
-    setStateCookie(response, stateResult.remainingStates);
+    setStateCookie(response, cookieStateResult.remainingStates);
     return response;
   };
 
@@ -248,7 +268,37 @@ export async function GET(request: NextRequest) {
         buildLoginRedirect(
           request,
           "카카오 연동은 로그인 후 진행해주세요.",
-          stateResult.remainingStates
+          cookieStateResult.remainingStates
+        )
+      );
+    }
+
+    if (
+      dbStateResult.matched &&
+      dbStateResult.intent === "link" &&
+      dbStateResult.expectedUserId &&
+      currentUser.id !== dbStateResult.expectedUserId
+    ) {
+      await writeErrorLog({
+        category: "auth",
+        action: "kakao_callback",
+        message: "Kakao link rejected: state user mismatch",
+        errorCode: "state_user_mismatch",
+        authUserId: currentUser.id,
+        path: request.nextUrl.pathname,
+        ip,
+        userAgent,
+        details: {
+          expectedUserId: dbStateResult.expectedUserId,
+          actualUserId: currentUser.id,
+        },
+      });
+
+      return applyPendingCookies(
+        buildProfileRedirect(
+          request,
+          "Kakao account link request is invalid. Please try again.",
+          cookieStateResult.remainingStates
         )
       );
     }
@@ -282,7 +332,7 @@ export async function GET(request: NextRequest) {
         buildProfileRedirect(
           request,
           linkFailMessage,
-          stateResult.remainingStates
+          cookieStateResult.remainingStates
         )
       );
     }
@@ -291,7 +341,7 @@ export async function GET(request: NextRequest) {
       buildProfileRedirect(
         request,
         "카카오 계정 연동이 완료되었습니다.",
-        stateResult.remainingStates
+        cookieStateResult.remainingStates
       )
     );
   }
@@ -315,7 +365,7 @@ export async function GET(request: NextRequest) {
     });
 
     return applyPendingCookies(
-      buildLoginRedirect(request, KAKAO_ERROR_MESSAGE, stateResult.remainingStates)
+      buildLoginRedirect(request, KAKAO_ERROR_MESSAGE, cookieStateResult.remainingStates)
     );
   }
 
