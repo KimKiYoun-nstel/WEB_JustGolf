@@ -387,6 +387,14 @@ export default function TournamentsPage() {
                       >
                         상세 보기
                       </Link>
+                      {user ? (
+                        <Link
+                          href={`/t/${t.id}?open=apply#main-registration`}
+                          className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                        >
+                          {myStatus ? "참가정보 수정" : "참가 신청"}
+                        </Link>
+                      ) : null}
                       {canManageSideEvents ? (
                         <Link
                           href={`/admin/tournaments/${t.id}/side-events`}
