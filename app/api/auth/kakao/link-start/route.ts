@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { appendState, serializeStateCookie } from "../../../../../lib/kakaoOidcState";
 import { writeErrorLog } from "../../../../../lib/server/errorLogger";
 import { createRequestSupabaseClient } from "../../../../../lib/apiGuard";
+import { issueKakaoOidcState } from "../../../../../lib/server/kakaoOidcStateStore";
 
 const STATE_COOKIE = "kakao_oidc_state";
 const COOKIE_MAX_AGE = 60 * 10; // 10 minutes
@@ -65,6 +66,30 @@ export async function GET(request: NextRequest) {
   }
 
   const state = generateToken("lk");
+  const stateStoreResult = await issueKakaoOidcState({
+    state,
+    intent: "link",
+    expectedUserId: user.id,
+    ip,
+    userAgent,
+  });
+  if (!stateStoreResult.stored) {
+    await writeErrorLog({
+      category: "auth",
+      action: "kakao_login_submit",
+      message: "카카오 연동 state 서버 저장 실패, 쿠키 fallback 사용",
+      errorCode: "state_store_failed",
+      authUserId: user.id,
+      path: request.nextUrl.pathname,
+      ip,
+      userAgent,
+      details: {
+        reason: stateStoreResult.reason,
+        errorMessage: stateStoreResult.errorMessage ?? null,
+      },
+    });
+  }
+
   const existingCookieValue = request.cookies.get(STATE_COOKIE)?.value;
   const states = appendState(existingCookieValue, state);
   const serializedStates = serializeStateCookie(states);
