@@ -9,12 +9,12 @@ describe('lib/supabaseClient', () => {
 
   it('should export createClient function', async () => {
     // Dynamic import to allow environment variables to be set first
-    const { createClient } = await import('../../lib/supabaseClient');
+    const { createClient } = await import('@/lib/supabaseClient');
     expect(typeof createClient).toBe('function');
   });
 
   it('should create a Supabase client with correct configuration', async () => {
-    const { createClient } = await import('../../lib/supabaseClient');
+    const { createClient } = await import('@/lib/supabaseClient');
     const client = createClient();
     
     // Check that client has expected Supabase methods

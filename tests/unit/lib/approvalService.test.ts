@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient, mockData } from './testHelpers';
+import { createMockSupabaseClient, mockData } from '@/tests/helpers/testHelpers';
 import {
   approveRegistration,
   rejectRegistration,
   getPendingApprovalsCount,
   getApprovalStatusSummary,
-} from './approvalService';
+} from '@/lib/approvalService';
 
 describe('Approval Service - Integration Tests', () => {
   let mockSupabase: any;

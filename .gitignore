@@ -35,6 +35,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -43,9 +44,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# test utilities and verification scripts
-Test/*.mjs
-Test/*.js
+# manual/local verification scripts (not part of CI test suite)
+/tests/manual/
+/Test/
 
 # generated documentation (keep only deployment guides)
 Docs/DB_SCHEMA_CURRENT.json

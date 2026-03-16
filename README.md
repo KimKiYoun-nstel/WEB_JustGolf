@@ -62,8 +62,9 @@ npm run test:coverage
 ```
 
 ### 테스트 파일 위치
-- `lib/*.test.ts` - 비즈니스 로직 및 유틸리티 테스트
-- `components/**/*.test.tsx` - UI 컴포넌트 테스트
+- `tests/unit/**/*.test.ts(x)` - Unit/UI 테스트
+- `tests/integration/**/*.test.ts(x)` - Integration/회귀 테스트
+- `tests/e2e/**/*.spec.ts` - Playwright E2E 테스트
 
 ## 빌드 및 배포
 ```bash
@@ -76,3 +77,7 @@ npm run start
 ```
 
 모든 코드를 TypeScript로 작성하며, 빌드는 Vercel의 Next.js 최적화 설정을 따릅니다.
+
+## Repository Notes
+- Repository layout and tracking policy: `REPO_STRUCTURE.md`
+- Test classification and commands: `TEST_FILES_CLASSIFICATION.md`

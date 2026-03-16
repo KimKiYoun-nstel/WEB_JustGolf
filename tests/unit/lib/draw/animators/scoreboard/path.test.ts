@@ -6,7 +6,7 @@ import {
   normalizeScoreboardTempo,
   resolveScoreboardCursorIndex,
   resolveScoreboardScanIndexAtElapsed,
-} from "./path";
+} from "@/lib/draw/animators/scoreboard/path";
 
 describe("scoreboard path", () => {
   it("normalizes tempo bounds", () => {

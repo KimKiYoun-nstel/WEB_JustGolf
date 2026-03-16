@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyDrawEvent, createInitialDrawState, replayDrawEvents } from "./reducer";
-import type { DrawEventRecord, DrawSessionSeed } from "./types";
+import { applyDrawEvent, createInitialDrawState, replayDrawEvents } from "@/lib/draw/reducer";
+import type { DrawEventRecord, DrawSessionSeed } from "@/lib/draw/types";
 
 const baseSeed: DrawSessionSeed = {
   sessionId: 1,

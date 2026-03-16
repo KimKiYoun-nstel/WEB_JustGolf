@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import LoginPage from "./page";
+import LoginPage from "@/app/login/page";
 
 type MockArgs = unknown[];
 
@@ -16,7 +16,7 @@ const mockUpdate = vi.fn();
 const mockToast = vi.fn();
 const mockPush = vi.fn();
 
-vi.mock("../../lib/supabaseClient", () => {
+vi.mock("@/lib/supabaseClient", () => {
   const client = {
     auth: {
       signInWithPassword: (...args: MockArgs) => mockSignInWithPassword(...args),
@@ -57,14 +57,14 @@ vi.mock("../../lib/supabaseClient", () => {
   };
 });
 
-vi.mock("../../lib/auth", () => ({
+vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     user: null,
     loading: false,
   }),
 }));
 
-vi.mock("../../components/ui/toast", () => ({
+vi.mock("@/components/ui/toast", () => ({
   useToast: () => ({
     toasts: [],
     toast: mockToast,
