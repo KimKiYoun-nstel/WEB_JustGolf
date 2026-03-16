@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "../../../lib/supabaseClient";
 import { useAuth } from "../../../lib/auth";
@@ -125,6 +125,8 @@ type PrizeSupport = {
 
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const openPanel = searchParams.get("open");
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
   const supabase = createClient();
 
@@ -183,6 +185,11 @@ export default function TournamentDetailPage() {
   const [isAddParticipantSheetOpen, setIsAddParticipantSheetOpen] =
     useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (openPanel !== "apply") return;
+    setIsApplySheetOpen(true);
+  }, [openPanel]);
 
   const friendlyError = (error: { code?: string; message: string }) => {
     if (error.code === "23505") return "이미 신청했습니다.";

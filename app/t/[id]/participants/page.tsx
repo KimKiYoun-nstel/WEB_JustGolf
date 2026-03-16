@@ -198,6 +198,10 @@ export default function TournamentParticipantsPage() {
     };
 
     return [...rows].sort((left, right) => {
+      const leftIsMine = Boolean(user?.id && left.user_id === user.id);
+      const rightIsMine = Boolean(user?.id && right.user_id === user.id);
+      if (leftIsMine !== rightIsMine) return leftIsMine ? -1 : 1;
+
       const statusGap = (statusPriority[left.status] ?? 99) - (statusPriority[right.status] ?? 99);
       if (statusGap !== 0) return statusGap;
 
@@ -206,7 +210,7 @@ export default function TournamentParticipantsPage() {
       if (Number.isNaN(leftAt) || Number.isNaN(rightAt)) return 0;
       return leftAt - rightAt;
     });
-  }, [rows]);
+  }, [rows, user?.id]);
 
   const transformRegistrationRows = useCallback((registrationRows: RegistrationRow[]) => {
     return registrationRows.map((row) => {
