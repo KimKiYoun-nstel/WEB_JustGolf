@@ -55,7 +55,7 @@ type DrawApiResponse = {
   events: DrawEventRow[];
   chatSession?: {
     id: number;
-    draw_session_id: number;
+    linked_draw_session_id: number | null;
     status: "live" | "closed";
   } | null;
   error?: string;
@@ -65,6 +65,7 @@ type DrawAction =
   | "start_session"
   | "chat_open"
   | "chat_close"
+  | "end_session"
   | "shuffle_deck"
   | "start_step"
   | "pick_result"
@@ -634,6 +635,17 @@ export default function AdminTournamentDrawPage() {
     await postAction("reset_draw");
   };
 
+  const handleEndSession = async () => {
+    if (!session) return;
+
+    const confirmed = window.confirm(
+      "미배정 인원이 없을 때만 세션을 종료할 수 있습니다. 현재 세션을 종료할까요?"
+    );
+    if (!confirmed) return;
+
+    await postAction("end_session", { sessionId: session.id });
+  };
+
   const handleToggleChatSession = async () => {
     if (!session) return;
     const action: DrawAction = chatSession?.status === "live" ? "chat_close" : "chat_open";
@@ -688,9 +700,11 @@ export default function AdminTournamentDrawPage() {
         state.phase === "spinning" ||
         state.phase === "picked")
   );
+  const isSessionLive = session?.status === "live";
 
   const canStartStep = Boolean(
     state &&
+      isSessionLive &&
       state.remainingPlayerIds.length > 0 &&
       state.phase !== "finished" &&
       (isRepickPhase ||
@@ -700,18 +714,24 @@ export default function AdminTournamentDrawPage() {
   const startStepButtonLabel = isRepickPhase ? "재추첨" : "다음 추첨 시작";
   const canShuffleDeck = Boolean(
     state &&
+      isSessionLive &&
       state.remainingPlayerIds.length > 1 &&
       state.phase !== "configured" &&
       state.phase !== "picked"
   );
   const canAssign = Boolean(
     state &&
+      isSessionLive &&
       state.phase === "picked" &&
       state.currentPickPlayerId &&
       !selectedAssignGroupFull
   );
-  const canUndo = Boolean(events.length > 0 && events[events.length - 1]?.event_type === "ASSIGN_CONFIRMED");
-  const canMove = Boolean(state && assignedMembers.length > 0);
+  const canUndo = Boolean(
+    isSessionLive &&
+      events.length > 0 &&
+      events[events.length - 1]?.event_type === "ASSIGN_CONFIRMED"
+  );
+  const canMove = Boolean(state && isSessionLive && assignedMembers.length > 0);
   const isChatLive = chatSession?.status === "live";
   const canOpenChatWindow = isChatLive && Boolean(session);
   const stateBadgeBaseClass = "h-6 border-slate-200 bg-slate-50 text-slate-700";
@@ -856,12 +876,12 @@ export default function AdminTournamentDrawPage() {
                             <Badge
                               variant="outline"
                               className={
-                                state.status === "live"
+                                session.status === "live"
                                   ? "h-6 border-emerald-200 bg-emerald-50 px-2 capitalize text-emerald-700"
                                   : `${stateBadgeBaseClass} px-2 capitalize`
                               }
                             >
-                              Session: {state.status}
+                              Session: {session.status}
                             </Badge>
                             <span className="text-slate-600">
                               진행: {state.totalPlayers - state.remainingPlayerIds.length}/
@@ -972,6 +992,15 @@ export default function AdminTournamentDrawPage() {
                           className="h-8 px-3 text-xs"
                         >
                           리셋
+                        </Button>
+                        <Button
+                          onClick={handleEndSession}
+                          disabled={saving || !isSessionLive}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                        >
+                          세션 종료
                         </Button>
                         <div className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-white px-2">
                           <label className="text-xs font-medium text-slate-600">확정조</label>

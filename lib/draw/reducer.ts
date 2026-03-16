@@ -273,7 +273,7 @@ export function applyDrawEvent(state: DrawState, event: DrawEventRecord): DrawSt
         stepDeckPlayerIds: null,
         groups: nextGroups,
         phase: finished ? "finished" : "confirmed",
-        status: finished ? "finished" : "live",
+        status: "live",
       };
     }
 

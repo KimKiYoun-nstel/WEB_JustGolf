@@ -13,6 +13,11 @@ import { Button } from "../../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { useToast } from "../../../../components/ui/toast";
 import { Input } from "../../../../components/ui/input";
+import {
+  buildDrawChatBroadcastTopic,
+  DRAW_CHAT_BROADCAST_EVENT,
+  type DrawChatRealtimeMessage,
+} from "../../../../lib/draw/chatRealtime";
 
 type DrawSessionRow = {
   id: number;
@@ -40,18 +45,11 @@ type RegistrationRow = {
 
 type ChatSessionInfo = {
   id: number;
-  drawSessionId: number;
+  linkedDrawSessionId: number | null;
   status: "live" | "closed";
 };
 
-type ChatMessage = {
-  id: number;
-  chat_session_id: number;
-  user_id: string;
-  nickname: string;
-  message: string;
-  created_at: string;
-};
+type ChatMessage = DrawChatRealtimeMessage;
 
 type SyncStatus = "connecting" | "realtime" | "polling";
 
@@ -147,6 +145,13 @@ export default function TournamentDrawViewerPage() {
   const chatPopupRef = useRef<Window | null>(null);
   const chatPopupWatchRef = useRef<number | null>(null);
   const mobileChatHistoryPushedRef = useRef(false);
+
+  const appendChatMessage = (nextMessage: ChatMessage) => {
+    setChatMessages((prev) => {
+      if (prev.some((item) => item.id === nextMessage.id)) return prev;
+      return [...prev, nextMessage];
+    });
+  };
 
   const persistLowSpec = (next: boolean) => {
     setLowSpecMode(next);
@@ -252,7 +257,7 @@ export default function TournamentDrawViewerPage() {
 
     const pollId = window.setInterval(() => {
       void fetchSnapshot(true);
-    }, 1000);
+    }, 3000);
 
     return () => {
       mounted = false;
@@ -289,27 +294,30 @@ export default function TournamentDrawViewerPage() {
         const data = await response.json().catch(() => ({}));
         if (!mounted) return;
 
-        if (response.ok && data.canJoin) {
-          setChatCanJoin(true);
-          setChatUserId(typeof data.userId === "string" ? data.userId : "");
-          setChatNickname(data.nickname);
-          setChatSession(data.chatSession);
-
-          if (data.chatSession?.id) {
-            const supabase = createClient();
-            const { data: msgData, error: msgError } = await supabase
-              .from("draw_chat_messages")
-              .select("id,chat_session_id,user_id,nickname,message,created_at")
-              .eq("chat_session_id", data.chatSession.id)
-              .order("created_at", { ascending: true })
-              .order("id", { ascending: true });
-
-            if (!msgError && msgData) {
-              setChatMessages(msgData as ChatMessage[]);
-            }
-          }
-        } else {
+        if (!response.ok || !data.chatSession) {
           resetChatState();
+          return;
+        }
+
+        const nextSession = data.chatSession as ChatSessionInfo;
+        const nextCanJoin = Boolean(data.canJoin);
+        const nextUserId = typeof data.userId === "string" ? data.userId : "";
+        const nextNickname = typeof data.nickname === "string" ? data.nickname : "";
+
+        setChatSession((prev) => {
+          if (!prev || prev.id !== nextSession.id) {
+            setChatMessages([]);
+            setChatUnreadCount(0);
+          }
+          return nextSession;
+        });
+        setChatCanJoin(nextCanJoin);
+        setChatUserId(nextUserId);
+        setChatNickname(nextNickname);
+
+        if (!nextCanJoin) {
+          setChatExpanded(false);
+          setChatOpen(false);
         }
       } catch (error) {
         if (!mounted) return;
@@ -318,15 +326,28 @@ export default function TournamentDrawViewerPage() {
       }
     };
 
-    void fetchChatSession();
+    const supabase = createClient();
+    const sessionChannel = supabase
+      .channel(`draw-chat-session-viewer-${tournamentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "draw_chat_sessions",
+          filter: `tournament_id=eq.${tournamentId}`,
+        },
+        () => {
+          void fetchChatSession();
+        }
+      )
+      .subscribe();
 
-    const chatSessionPollId = window.setInterval(() => {
-      void fetchChatSession();
-    }, 5000);
+    void fetchChatSession();
 
     return () => {
       mounted = false;
-      window.clearInterval(chatSessionPollId);
+      sessionChannel.unsubscribe();
     };
   }, [tournamentId]);
 
@@ -408,41 +429,32 @@ export default function TournamentDrawViewerPage() {
   // Chat realtime subscription
   useEffect(() => {
     if (!chatSession?.id) return;
+    if (!Number.isFinite(tournamentId)) return;
 
     const supabase = createClient();
+    const topic = buildDrawChatBroadcastTopic(tournamentId);
     const channel = supabase
-      .channel(`draw-chat-viewer-${chatSession.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "draw_chat_messages",
-          filter: `chat_session_id=eq.${chatSession.id}`,
-        },
-        (payload) => {
-          const newMsg = payload.new as ChatMessage;
-          const shouldStickToBottom = chatShouldAutoScrollRef.current;
-          setChatMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-          setTimeout(() => {
-            if (shouldStickToBottom) {
-              chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-              setChatUnreadCount(0);
-            } else {
-              setChatUnreadCount((prev) => prev + 1);
-            }
-          }, 50);
-        }
-      )
+      .channel(topic)
+      .on("broadcast", { event: DRAW_CHAT_BROADCAST_EVENT }, ({ payload }) => {
+        const newMsg = payload as ChatMessage;
+        if (!newMsg || newMsg.chatSessionId !== chatSession.id) return;
+        const shouldStickToBottom = chatShouldAutoScrollRef.current;
+        appendChatMessage(newMsg);
+        setTimeout(() => {
+          if (shouldStickToBottom) {
+            chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            setChatUnreadCount(0);
+          } else {
+            setChatUnreadCount((prev) => prev + 1);
+          }
+        }, 40);
+      })
       .subscribe();
 
     return () => {
       channel.unsubscribe();
     };
-  }, [chatSession?.id]);
+  }, [chatSession?.id, tournamentId]);
 
   const seed = useMemo<DrawSessionSeed | null>(() => {
     if (!session) return null;
@@ -554,19 +566,28 @@ export default function TournamentDrawViewerPage() {
           message: chatInputMessage.trim(),
         }),
       });
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         toast({
           variant: "error",
           title: "메시지 전송 실패",
-          description: "잠시 후 다시 시도해주세요.",
+          description:
+            typeof data.error === "string" ? data.error : "잠시 후 다시 시도해주세요.",
         });
         return;
       }
 
+      if (data.message) {
+        appendChatMessage(data.message as ChatMessage);
+      }
+
       setChatInputMessage("");
       chatShouldAutoScrollRef.current = true;
-      setTimeout(() => chatInputRef.current?.focus(), 0);
+      setTimeout(() => {
+        chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        chatInputRef.current?.focus();
+      }, 0);
     } finally {
       setChatSending(false);
     }
@@ -745,12 +766,12 @@ export default function TournamentDrawViewerPage() {
                   <Badge
                     variant="outline"
                     className={
-                      state.status === "live"
+                      session?.status === "live"
                         ? "h-6 border-emerald-200 bg-emerald-50 px-2 capitalize text-emerald-700"
                         : `${stateBadgeBaseClass} px-2 capitalize`
                     }
                   >
-                    session: {state.status}
+                    session: {session?.status ?? state.status}
                   </Badge>
                   <span className="text-slate-600">
                     진행: {state.totalPlayers - state.remainingPlayerIds.length}/{state.totalPlayers}
@@ -958,7 +979,7 @@ export default function TournamentDrawViewerPage() {
             ) : (
               <ul className="space-y-1 text-[13px] leading-5">
                 {(chatExpanded ? chatMessages : chatMessages.slice(-4)).map((m) => {
-                  const isMine = chatUserId !== "" && m.user_id === chatUserId;
+                  const isMine = chatUserId !== "" && m.userId === chatUserId;
                   return (
                     <li key={m.id} className={isMine ? "rounded bg-emerald-50/70 px-1" : "px-1"}>
                       <span className={isMine ? "font-semibold text-emerald-700" : "font-semibold text-slate-700"}>
