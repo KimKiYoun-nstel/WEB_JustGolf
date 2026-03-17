@@ -27,10 +27,6 @@ type Registration = {
   meal_name: string | null;
   pre_round_preferred: boolean;
   post_round_preferred: boolean;
-  carpool_available: boolean;
-  carpool_seats: number | null;
-  transportation: string | null;
-  departure_location: string | null;
   notes: string | null;
   created_at: string;
   activities: string[];
@@ -48,10 +44,6 @@ type RegistrationRow = {
   post_round_preferred?: boolean | null;
   tournament_meal_options?: { menu_name?: string | null } | null;
   registration_extras?: {
-    carpool_available?: boolean | null;
-    carpool_seats?: number | null;
-    transportation?: string | null;
-    departure_location?: string | null;
     notes?: string | null;
   } | null;
   registration_activity_selections?: Array<{
@@ -112,7 +104,7 @@ const createEmptyRegistrationSummary = (): RegistrationSummary => ({
 const REGISTRATION_SELECT_FIELDS =
   "id,user_id,registering_user_id,nickname,status,memo,created_at,pre_round_preferred,post_round_preferred," +
   "tournament_meal_options(menu_name)," +
-  "registration_extras(carpool_available,carpool_seats,transportation,departure_location,notes)," +
+  "registration_extras(notes)," +
   "registration_activity_selections(selected,tournament_extras(activity_name))";
 
 function formatDate(date: string) {
@@ -229,10 +221,6 @@ export default function TournamentParticipantsPage() {
         meal_name: row.tournament_meal_options?.menu_name ?? null,
         pre_round_preferred: row.pre_round_preferred ?? false,
         post_round_preferred: row.post_round_preferred ?? false,
-        carpool_available: row.registration_extras?.carpool_available ?? false,
-        carpool_seats: row.registration_extras?.carpool_seats ?? null,
-        transportation: row.registration_extras?.transportation ?? null,
-        departure_location: row.registration_extras?.departure_location ?? null,
         notes: row.registration_extras?.notes ?? null,
         created_at: row.created_at,
         activities: activities as string[],
@@ -620,8 +608,6 @@ export default function TournamentParticipantsPage() {
                           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-slate-600">
                             <p>식사: {row.meal_name ?? "-"}</p>
                             <p>라운드: {roundFlags || "-"}</p>
-                            <p>이동: {row.transportation ?? "-"}</p>
-                            <p>출발지: {row.departure_location ?? "-"}</p>
                             <p className="col-span-2">
                               액티비티: {row.activities.length > 0 ? row.activities.join(", ") : "-"}
                             </p>
@@ -648,8 +634,6 @@ export default function TournamentParticipantsPage() {
                           <th className="whitespace-nowrap px-4 py-3">식사</th>
                           <th className="whitespace-nowrap px-4 py-3">액티비티</th>
                           <th className="whitespace-nowrap px-4 py-3">라운드</th>
-                          <th className="whitespace-nowrap px-4 py-3">카풀</th>
-                          <th className="whitespace-nowrap px-4 py-3">이동/출발지</th>
                           <th className="whitespace-nowrap px-4 py-3">비고</th>
                           <th className="whitespace-nowrap px-4 py-3">메모</th>
                           <th className="whitespace-nowrap px-4 py-3">신청일시</th>
@@ -693,14 +677,6 @@ export default function TournamentParticipantsPage() {
                                 ) : null}
                                 {!row.pre_round_preferred && !row.post_round_preferred ? "-" : null}
                               </div>
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">
-                              {row.carpool_available ? `${row.carpool_seats ?? 0}석` : "-"}
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">
-                              {row.transportation || row.departure_location
-                                ? `${row.transportation ?? "-"} / ${row.departure_location ?? "-"}`
-                                : "-"}
                             </td>
                             <td className="px-4 py-3 text-slate-600">{row.notes ?? "-"}</td>
                             <td className="px-4 py-3 text-slate-600">{row.memo ?? "-"}</td>
