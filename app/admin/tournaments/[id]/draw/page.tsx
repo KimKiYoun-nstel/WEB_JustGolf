@@ -18,6 +18,7 @@ import {
   deriveDrawSeed,
   resolveScoreboardCursorIndex,
 } from "../../../../../lib/draw/animators/scoreboard/path";
+import type { DrawAnimatorKind } from "../../../../../lib/draw/animators/Animator";
 import DrawAnimator from "../../../../../components/draw/DrawAnimator";
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
@@ -480,6 +481,8 @@ export default function AdminTournamentDrawPage() {
 
   const displayName = (registrationId: number) =>
     nicknameByRegistrationId[registrationId] ?? `#${registrationId}`;
+  const animatorKind: DrawAnimatorKind =
+    process.env.NEXT_PUBLIC_DRAW_STAGE3D_ENABLED === "1" ? "stage3d" : "scoreboard";
 
   const postAction = async (
     action: DrawAction,
@@ -1097,7 +1100,8 @@ export default function AdminTournamentDrawPage() {
 
                 {state && (
                   <DrawAnimator
-                    kind="scoreboard"
+                    kind={animatorKind}
+                    presentationMode="admin"
                     phase={state.phase}
                     mode={state.currentMode}
                     targetGroupNo={state.targetGroupNo}

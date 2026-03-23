@@ -1,6 +1,7 @@
 import type { DrawMode, DrawPhase } from "../types";
 
-export type DrawAnimatorKind = "lotto" | "scoreboard";
+export type DrawAnimatorKind = "lotto" | "scoreboard" | "stage3d";
+export type AnimatorPresentationMode = "viewer" | "admin";
 
 export interface AnimatorCandidate {
   id: string;
@@ -17,6 +18,7 @@ export interface AnimatorStepTempo {
 export interface AnimatorProps {
   phase: DrawPhase;
   kind?: DrawAnimatorKind;
+  presentationMode?: AnimatorPresentationMode;
   mode?: DrawMode | null;
   targetGroupNo?: number | null;
   assignGroupNo?: number | null;

@@ -7,6 +7,7 @@ import { createClient } from "../../../../lib/supabaseClient";
 import { replayDrawEvents } from "../../../../lib/draw/reducer";
 import type { DrawEventRecord, DrawSessionSeed } from "../../../../lib/draw/types";
 import { isDrawEventType } from "../../../../lib/draw/types";
+import type { DrawAnimatorKind } from "../../../../lib/draw/animators/Animator";
 import DrawAnimator from "../../../../components/draw/DrawAnimator";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
@@ -498,6 +499,8 @@ export default function TournamentDrawViewerPage() {
   }, [state, toast]);
 
   const effectiveSyncStatus: SyncStatus = session?.id ? syncStatus : "polling";
+  const animatorKind: DrawAnimatorKind =
+    process.env.NEXT_PUBLIC_DRAW_STAGE3D_ENABLED === "1" ? "stage3d" : "scoreboard";
 
   const displayName = (registrationId: number) =>
     nicknameByRegistrationId[registrationId] ?? `#${registrationId}`;
@@ -791,7 +794,8 @@ export default function TournamentDrawViewerPage() {
             </Card>
 
             <DrawAnimator
-              kind="scoreboard"
+              kind={animatorKind}
+              presentationMode="viewer"
               phase={state.phase}
               mode={state.currentMode}
               targetGroupNo={state.targetGroupNo}
