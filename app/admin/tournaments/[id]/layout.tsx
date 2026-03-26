@@ -164,6 +164,9 @@ export default function AdminTournamentLayout({
                 <Link href={`/t/${tournamentId}/draw`}>추첨 시청</Link>
               </Button>
             ) : null}
+            <Button asChild variant="outline" size="sm" className="hidden md:inline-flex">
+              <Link href={`/t/${tournamentId}/results`}>결과 보기</Link>
+            </Button>
 
             <button
               onClick={() => setTabMenuOpen(true)}
@@ -203,6 +206,14 @@ export default function AdminTournamentLayout({
                   <Link href={`/t/${tournamentId}/draw`}>추첨 시청</Link>
                 </Button>
               ) : null}
+              <Button
+                asChild
+                className="w-full justify-start"
+                variant="ghost"
+                onClick={() => setTabMenuOpen(false)}
+              >
+                <Link href={`/t/${tournamentId}/results`}>결과 보기</Link>
+              </Button>
             </nav>
           </SheetContent>
         </Sheet>

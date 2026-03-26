@@ -18,13 +18,35 @@ import { useToast } from "../../../components/ui/toast";
 
 const APPROVAL_WAITING_MESSAGE = "관리자 승인 대기 중입니다.";
 
+function isPlaceholderNickname(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized.startsWith("user-") || normalized.startsWith("pending-");
+}
+
+function isPhoneColumnUnavailable(message: string | undefined) {
+  const normalized = (message ?? "").toLowerCase();
+
+  if (/column .*phone|phone.*does not exist/i.test(normalized)) {
+    return true;
+  }
+
+  return (
+    normalized.includes("could not find") &&
+    normalized.includes("phone") &&
+    normalized.includes("schema cache")
+  );
+}
+
 type ProfileShape = {
   id: string;
   nickname: string | null;
   full_name: string | null;
+  phone?: string | null;
   email: string | null;
   is_approved: boolean | null;
 };
+
+type ProfileWithoutPhoneShape = Omit<ProfileShape, "phone">;
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -61,13 +83,30 @@ export default function OnboardingPage() {
       }
 
       setCanEditEmail(!user.email);
-      setPhone((user.user_metadata?.phone as string | undefined) ?? "");
+      const metadataPhone = (user.user_metadata?.phone as string | undefined) ?? "";
+      setPhone(metadataPhone);
 
-      const { data: profile } = await supabase
+      const profileWithPhoneQuery = await supabase
         .from("profiles")
-        .select("id, nickname, full_name, email, is_approved")
+        .select("id, nickname, full_name, phone, email, is_approved")
         .eq("id", user.id)
         .maybeSingle<ProfileShape>();
+      let profile = profileWithPhoneQuery.data;
+
+      if (
+        profileWithPhoneQuery.error &&
+        isPhoneColumnUnavailable(profileWithPhoneQuery.error.message)
+      ) {
+        const fallbackProfileQuery = await supabase
+          .from("profiles")
+          .select("id, nickname, full_name, email, is_approved")
+          .eq("id", user.id)
+          .maybeSingle<ProfileWithoutPhoneShape>();
+
+        profile = fallbackProfileQuery.data
+          ? { ...fallbackProfileQuery.data, phone: null }
+          : null;
+      }
 
       const profileEmail = profile?.email ?? "";
       const authEmail = user.email ?? "";
@@ -79,15 +118,17 @@ export default function OnboardingPage() {
         "";
 
       if (profile) {
-        if (profile.nickname && !profile.nickname.startsWith("user-")) {
+        if (profile.nickname && !isPlaceholderNickname(profile.nickname)) {
           setNickname(profile.nickname);
         } else {
           setNickname(metadataNickname);
         }
         setFullName(profile.full_name ?? "");
+        setPhone((profile.phone ?? metadataPhone).trim());
       } else {
         setNickname(metadataNickname);
         setFullName((user.user_metadata?.full_name as string | undefined) ?? "");
+        setPhone(metadataPhone);
       }
 
       setLoading(false);
@@ -123,8 +164,8 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (nextNickname.toLowerCase().startsWith("user-")) {
-      setMsg("닉네임은 user- 로 시작할 수 없습니다.");
+    if (isPlaceholderNickname(nextNickname)) {
+      setMsg("닉네임은 user-/pending- 로 시작할 수 없습니다.");
       return;
     }
 
@@ -133,8 +174,24 @@ export default function OnboardingPage() {
       return;
     }
 
+    if (!nextFullName) {
+      setMsg("이름은 필수입니다.");
+      return;
+    }
+
+    if (!nextPhone) {
+      setMsg("전화번호는 필수입니다.");
+      return;
+    }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
       setMsg("이메일 형식을 확인해주세요.");
+      return;
+    }
+
+    const confirmed = confirm("입력한 프로필 정보(닉네임/이름/전화번호)를 저장하시겠습니까?");
+    if (!confirmed) {
+      setMsg("저장을 취소했습니다. 정보를 확인한 후 다시 저장해주세요.");
       return;
     }
 
@@ -213,17 +270,38 @@ export default function OnboardingPage() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
+      const profileUpdatePayload = {
+        nickname: nextNickname,
+        full_name: nextFullName,
+        phone: nextPhone,
+        email: normalizedEmail,
+        updated_at: new Date().toISOString(),
+      };
+
+      const profileUpdateQuery = supabase
         .from("profiles")
-        .update({
-          nickname: nextNickname,
-          full_name: nextFullName || null,
-          email: normalizedEmail,
-          updated_at: new Date().toISOString(),
-        })
+        .update(profileUpdatePayload)
         .eq("id", user.id)
         .select("id, is_approved")
         .maybeSingle<{ id: string; is_approved: boolean | null }>();
+
+      let { data: profile, error: profileError } = await profileUpdateQuery;
+
+      if (profileError && isPhoneColumnUnavailable(profileError.message)) {
+        const retry = await supabase
+          .from("profiles")
+          .update({
+            nickname: nextNickname,
+            full_name: nextFullName,
+            email: normalizedEmail,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", user.id)
+          .select("id, is_approved")
+          .maybeSingle<{ id: string; is_approved: boolean | null }>();
+        profile = retry.data;
+        profileError = retry.error;
+      }
 
       if (profileError) {
         setMsg(`프로필 업데이트 실패: ${profileError.message}`);
@@ -237,7 +315,8 @@ export default function OnboardingPage() {
           ...currentMetadata,
           nickname: nextNickname,
           display_name: nextNickname,
-          phone: nextPhone || null,
+          full_name: nextFullName,
+          phone: nextPhone,
           contact_email: normalizedEmail,
           onboarding_completed: true,
         },
@@ -309,8 +388,8 @@ export default function OnboardingPage() {
         <CardHeader>
           <CardTitle>온보딩</CardTitle>
           <CardDescription>
-            최초 로그인 설정입니다. 닉네임/이메일은 필수이며 이름/전화번호는
-            선택입니다.
+            최초 로그인 설정입니다. 카카오톡방 닉네임과 동일한 닉네임으로 수정해주세요.
+            닉네임/이름/전화번호/이메일은 모두 필수입니다.
           </CardDescription>
         </CardHeader>
 
@@ -345,7 +424,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">이름 (선택)</label>
+            <label className="text-sm font-medium">이름 *</label>
             <Input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -355,7 +434,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">전화번호 (선택)</label>
+            <label className="text-sm font-medium">전화번호 *</label>
             <Input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}

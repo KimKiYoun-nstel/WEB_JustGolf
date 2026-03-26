@@ -102,6 +102,7 @@ export default function AdminSideEventsPage() {
 
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [isDoneTournament, setIsDoneTournament] = useState(false);
   const [msg, setMsg] = useState("");
   const { toast } = useToast();
   const [sideEvents, setSideEvents] = useState<SideEvent[]>([]);
@@ -147,6 +148,16 @@ export default function AdminSideEventsPage() {
     setMsg("");
     setLoading(true);
     try {
+      const tournamentRes = await supabase
+        .from("tournaments")
+        .select("status")
+        .eq("id", tournamentId)
+        .maybeSingle<{ status: string }>();
+
+      if (!tournamentRes.error) {
+        setIsDoneTournament(tournamentRes.data?.status === "done");
+      }
+
       const seRes = await supabase
         .from("side_events")
         .select(
@@ -289,6 +300,11 @@ export default function AdminSideEventsPage() {
   }, []);
 
   const saveSideEvent = useCallback(async () => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 라운드 정보를 수정할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
 
@@ -343,9 +359,14 @@ export default function AdminSideEventsPage() {
         await loadSideEvents();
       }
     }
-  }, [tournamentId, roundType, title, teeTime, location, notes, maxParticipants, status, openAt, closeAt, mealOptionId, lodgingAvailable, lodgingRequired, user?.id, resetForm]);
+  }, [tournamentId, roundType, title, teeTime, location, notes, maxParticipants, status, openAt, closeAt, mealOptionId, lodgingAvailable, lodgingRequired, user?.id, resetForm, isDoneTournament]);
 
   const deleteSideEvent = useCallback(async (id: number) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 라운드 정보를 삭제할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
     if (!confirm("정말 삭제할까? 신청 내역도 함께 삭제됩니다.")) return;
@@ -361,13 +382,18 @@ export default function AdminSideEventsPage() {
       setMsg("라운드 삭제 완료!");
       await loadSideEvents();
     }
-  }, []);
+  }, [isDoneTournament]);
 
   const updateSideEventRegistrationStatus = async (
     registrationId: number,
     currentStatus: SideEventRegistration["status"],
     nextStatus: SideEventRegistration["status"]
   ) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 라운드 신청 상태를 변경할 수 없습니다.");
+      return;
+    }
+
     if (currentStatus === nextStatus) return;
 
     const supabase = createClient();
@@ -547,10 +573,22 @@ export default function AdminSideEventsPage() {
                 </div>
               </div>
               <div className="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
-                <Button onClick={() => editSideEvent(se)} size="sm" variant="outline" className="flex-1 md:flex-none">
+                <Button
+                  onClick={() => editSideEvent(se)}
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 md:flex-none"
+                  disabled={isDoneTournament}
+                >
                   수정
                 </Button>
-                <Button onClick={() => deleteSideEvent(se.id)} size="sm" variant="destructive" className="flex-1 md:flex-none">
+                <Button
+                  onClick={() => deleteSideEvent(se.id)}
+                  size="sm"
+                  variant="destructive"
+                  className="flex-1 md:flex-none"
+                  disabled={isDoneTournament}
+                >
                   삭제
                 </Button>
               </div>
@@ -611,7 +649,7 @@ export default function AdminSideEventsPage() {
                                 event.target.value as SideEventRegistration["status"]
                               )
                             }
-                            disabled={updatingRegistrationId === r.id}
+                            disabled={isDoneTournament || updatingRegistrationId === r.id}
                             className="h-9 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs"
                           >
                             {SIDE_EVENT_REGISTRATION_STATUSES.map((optionStatus) => (
@@ -654,7 +692,7 @@ export default function AdminSideEventsPage() {
                                     event.target.value as SideEventRegistration["status"]
                                   )
                                 }
-                                disabled={updatingRegistrationId === r.id}
+                                disabled={isDoneTournament || updatingRegistrationId === r.id}
                                 className="h-9 w-full min-w-[120px] rounded-xl border border-slate-200 bg-white px-2 text-sm"
                               >
                                 {SIDE_EVENT_REGISTRATION_STATUSES.map((optionStatus) => (
@@ -693,6 +731,7 @@ export default function AdminSideEventsPage() {
       mealOptionMap,
       renderTriState,
       sideEventRegs,
+      isDoneTournament,
       updateSideEventRegistrationStatus,
       updatingRegistrationId,
     ]
@@ -748,6 +787,11 @@ export default function AdminSideEventsPage() {
               사전/사후 라운드 관리
             </h1>
             <p className="mt-2 text-sm text-slate-500">라운드 생성, 수정, 신청 현황을 통합 관리합니다.</p>
+            {isDoneTournament ? (
+              <p className="mt-2 text-sm font-medium text-rose-600">
+                종료된 대회입니다. 라운드 정보는 읽기 전용으로 표시됩니다.
+              </p>
+            ) : null}
           </div>
           <Button onClick={() => router.back()} variant="secondary" className="w-full md:w-auto">
             뒤로
@@ -901,6 +945,7 @@ export default function AdminSideEventsPage() {
                   value={roundType}
                   onChange={(e) => setRoundType(e.target.value as RoundType)}
                   className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
+                  disabled={isDoneTournament}
                 >
                   <option value="pre">📍 사전</option>
                   <option value="post">📍 사후</option>
@@ -913,6 +958,7 @@ export default function AdminSideEventsPage() {
                   value={status}
                   onChange={(e) => setStatus(e.target.value as Status)}
                   className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
+                  disabled={isDoneTournament}
                 >
                   <option value="draft">{formatTournamentStatus("draft")}</option>
                   <option value="open">{formatTournamentStatus("open")}</option>
@@ -929,6 +975,7 @@ export default function AdminSideEventsPage() {
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="예: 화이트 코스 친선전"
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={isDoneTournament}
               />
             </div>
 
@@ -940,6 +987,7 @@ export default function AdminSideEventsPage() {
                   onChange={(e) => setTeeTime(e.target.value)}
                   placeholder="예: 08:00"
                   className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                  disabled={isDoneTournament}
                 />
               </div>
 
@@ -950,6 +998,7 @@ export default function AdminSideEventsPage() {
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="예: 클럽 흑 금강"
                   className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                  disabled={isDoneTournament}
                 />
               </div>
             </div>
@@ -963,6 +1012,7 @@ export default function AdminSideEventsPage() {
                   onChange={(e) => setMaxParticipants(e.target.value)}
                   placeholder="예: 20"
                   className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                  disabled={isDoneTournament}
                 />
               </div>
 
@@ -973,6 +1023,7 @@ export default function AdminSideEventsPage() {
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="특별 안내사항"
                   className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                  disabled={isDoneTournament}
                 />
               </div>
             </div>
@@ -985,6 +1036,7 @@ export default function AdminSideEventsPage() {
                   value={openAt}
                   onChange={(e) => setOpenAt(e.target.value)}
                   className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                  disabled={isDoneTournament}
                 />
               </div>
 
@@ -995,6 +1047,7 @@ export default function AdminSideEventsPage() {
                   value={closeAt}
                   onChange={(e) => setCloseAt(e.target.value)}
                   className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                  disabled={isDoneTournament}
                 />
               </div>
             </div>
@@ -1006,6 +1059,7 @@ export default function AdminSideEventsPage() {
                   value={mealOptionId}
                   onChange={(e) => setMealOptionId(e.target.value)}
                   className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
+                  disabled={isDoneTournament}
                 >
                   <option value="">없음</option>
                   {mealOptions.map((mo) => (
@@ -1028,6 +1082,7 @@ export default function AdminSideEventsPage() {
                       checked={lodgingAvailable}
                       onChange={(e) => setLodgingAvailable(e.target.checked)}
                       className="h-4 w-4"
+                      disabled={isDoneTournament}
                     />
                     숙박 가능
                   </label>
@@ -1037,6 +1092,7 @@ export default function AdminSideEventsPage() {
                       checked={lodgingRequired}
                       onChange={(e) => setLodgingRequired(e.target.checked)}
                       className="h-4 w-4"
+                      disabled={isDoneTournament}
                     />
                     숙박 필수
                   </label>
@@ -1048,7 +1104,7 @@ export default function AdminSideEventsPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button onClick={saveSideEvent} className="rounded-2xl">
+              <Button onClick={saveSideEvent} className="rounded-2xl" disabled={isDoneTournament}>
                 {editingId ? "수정" : "생성"}
               </Button>
               {editingId && (

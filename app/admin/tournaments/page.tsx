@@ -250,9 +250,15 @@ export default function AdminTournamentsPage() {
                       </Button>
                     </>
                   ) : null}
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/admin/tournaments/${row.id}/side-events`}>라운드 관리</Link>
-                  </Button>
+                  {row.status === "done" ? (
+                    <Button size="sm" variant="outline" disabled>
+                      라운드 관리 종료
+                    </Button>
+                  ) : (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/admin/tournaments/${row.id}/side-events`}>라운드 관리</Link>
+                    </Button>
+                  )}
                   {isAdmin ? (
                     <>
                       <Button asChild size="sm" variant="outline">
@@ -267,18 +273,35 @@ export default function AdminTournamentsPage() {
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/admin/tournaments/${row.id}/groups`}>조편성표</Link>
                       </Button>
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/admin/tournaments/${row.id}/draw`}>라이브 조편성</Link>
-                      </Button>
+                      {row.status === "done" ? (
+                        <Button size="sm" variant="outline" disabled>
+                          라이브 조편성 종료
+                        </Button>
+                      ) : (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/admin/tournaments/${row.id}/draw`}>라이브 조편성</Link>
+                        </Button>
+                      )}
                     </>
                   ) : (
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/t/${row.id}/draw`}>라이브 조편성 시청</Link>
-                    </Button>
+                    row.status === "done" ? (
+                      <Button size="sm" variant="outline" disabled>
+                        라이브 조편성 종료
+                      </Button>
+                    ) : (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/t/${row.id}/draw`}>라이브 조편성 시청</Link>
+                      </Button>
+                    )
                   )}
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${row.id}/participants`}>참가자 현황</Link>
                   </Button>
+                  {row.status === "done" ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/t/${row.id}/results`}>결과 보기</Link>
+                    </Button>
+                  ) : null}
                   {isAdmin && row.status !== "deleted" ? (
                     <Button
                       size="sm"

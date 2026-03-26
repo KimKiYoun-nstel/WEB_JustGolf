@@ -61,6 +61,13 @@ type DrawApiResponse = {
   error?: string;
 };
 
+type ReferenceTournamentOption = {
+  id: number;
+  title: string;
+  event_date: string;
+  status: string;
+};
+
 type DrawAction =
   | "start_session"
   | "chat_open"
@@ -167,6 +174,9 @@ export default function AdminTournamentDrawPage() {
 
   const [groupCount, setGroupCount] = useState("10");
   const [groupSize, setGroupSize] = useState("4");
+  const [referenceTournamentId, setReferenceTournamentId] = useState("");
+  const [referenceTournaments, setReferenceTournaments] = useState<ReferenceTournamentOption[]>([]);
+  const [isDoneTournament, setIsDoneTournament] = useState(false);
 
   const [mode, setMode] = useState<DrawMode>("ROUND_ROBIN");
   const [targetGroupNo, setTargetGroupNo] = useState("1");
@@ -285,6 +295,43 @@ export default function AdminTournamentDrawPage() {
     loadSnapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId, accessReady]);
+
+  useEffect(() => {
+    if (!Number.isFinite(tournamentId) || !accessReady) return;
+
+    let active = true;
+    const loadTournamentContext = async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("tournaments")
+        .select("id,title,event_date,status")
+        .neq("status", "deleted")
+        .order("event_date", { ascending: false });
+
+      if (!active || error) return;
+
+      const rows = (data ?? []) as ReferenceTournamentOption[];
+      const currentTournament = rows.find((row) => row.id === tournamentId);
+      setIsDoneTournament(currentTournament?.status === "done");
+
+      const doneOptions = rows.filter(
+        (row) => row.status === "done" && row.id !== tournamentId
+      );
+      setReferenceTournaments(doneOptions);
+
+      setReferenceTournamentId((prev) => {
+        if (!prev) return prev;
+        const exists = doneOptions.some((row) => String(row.id) === prev);
+        return exists ? prev : "";
+      });
+    };
+
+    void loadTournamentContext();
+
+    return () => {
+      active = false;
+    };
+  }, [accessReady, tournamentId]);
 
   useEffect(() => {
     if (!session?.id) return;
@@ -485,6 +532,11 @@ export default function AdminTournamentDrawPage() {
     action: DrawAction,
     payload: Record<string, unknown> = {}
   ) => {
+    if (isTournamentLocked) {
+      setMsg("종료된 대회는 더 이상 수정할 수 없습니다.");
+      return false;
+    }
+
     setSaving(true);
     setMsg("");
 
@@ -507,8 +559,16 @@ export default function AdminTournamentDrawPage() {
   };
 
   const handleStartSession = async () => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 라이브 조편성을 시작하거나 수정할 수 없습니다.");
+      return;
+    }
+
     const parsedGroupCount = Number(groupCount);
     const parsedGroupSize = Number(groupSize);
+    const parsedReferenceTournamentId = referenceTournamentId
+      ? Number(referenceTournamentId)
+      : null;
 
     if (!Number.isInteger(parsedGroupCount) || parsedGroupCount <= 0) {
       setMsg("groupCount는 1 이상의 정수여야 합니다.");
@@ -523,6 +583,9 @@ export default function AdminTournamentDrawPage() {
     await postAction("start_session", {
       groupCount: parsedGroupCount,
       groupSize: parsedGroupSize,
+      referenceTournamentId: Number.isInteger(parsedReferenceTournamentId)
+        ? parsedReferenceTournamentId
+        : null,
     });
   };
 
@@ -734,6 +797,7 @@ export default function AdminTournamentDrawPage() {
   const canMove = Boolean(state && isSessionLive && assignedMembers.length > 0);
   const isChatLive = chatSession?.status === "live";
   const canOpenChatWindow = isChatLive && Boolean(session);
+  const isTournamentLocked = isDoneTournament;
   const stateBadgeBaseClass = "h-6 border-slate-200 bg-slate-50 text-slate-700";
 
   return (
@@ -777,7 +841,7 @@ export default function AdminTournamentDrawPage() {
               <>
                 <Button
                   onClick={handleToggleChatSession}
-                  disabled={saving}
+                  disabled={saving || isTournamentLocked}
                   variant="outline"
                   size="sm"
                   className="h-8"
@@ -817,6 +881,14 @@ export default function AdminTournamentDrawPage() {
           </Card>
         )}
 
+        {isTournamentLocked ? (
+          <Card className="rounded-[28px] border border-amber-200 bg-amber-50 shadow-sm">
+            <CardContent className="py-2 text-sm text-amber-800">
+              종료된 대회입니다. 라이브 추첨/조편성 데이터는 더 이상 수정할 수 없습니다.
+            </CardContent>
+          </Card>
+        ) : null}
+
         {loading ? (
           <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-4 text-sm text-slate-500">로딩 중...</CardContent>
@@ -836,6 +908,7 @@ export default function AdminTournamentDrawPage() {
                         value={groupCount}
                         onChange={(e) => setGroupCount(e.target.value)}
                         placeholder="예: 10"
+                        disabled={isTournamentLocked}
                       />
                     </div>
                     <div className="space-y-1">
@@ -844,12 +917,38 @@ export default function AdminTournamentDrawPage() {
                         value={groupSize}
                         onChange={(e) => setGroupSize(e.target.value)}
                         placeholder="예: 4"
+                        disabled={isTournamentLocked}
                       />
                     </div>
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">중복조 회피 참조 대회(선택)</label>
+                    <select
+                      value={referenceTournamentId}
+                      onChange={(e) => setReferenceTournamentId(e.target.value)}
+                      disabled={isTournamentLocked || referenceTournaments.length === 0}
+                      className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="">선택 안 함(기본 추첨)</option>
+                      {referenceTournaments.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.event_date} · {row.title}
+                        </option>
+                      ))}
+                    </select>
+                    {referenceTournaments.length === 0 ? (
+                      <p className="text-xs text-slate-500">
+                        참조 가능한 종료 대회가 없습니다.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        선택한 종료 대회의 조편성을 참고해 같은 조 반복 배정을 최소화합니다.
+                      </p>
+                    )}
+                  </div>
                   <Button
                     onClick={handleStartSession}
-                    disabled={saving}
+                    disabled={saving || isTournamentLocked}
                     variant="outline"
                     size="sm"
                     className="h-8"
@@ -902,6 +1001,7 @@ export default function AdminTournamentDrawPage() {
                           <select
                             value={mode}
                             onChange={(e) => setMode(e.target.value as DrawMode)}
+                            disabled={isTournamentLocked}
                             className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
                           >
                             <option value="ROUND_ROBIN">ROUND_ROBIN</option>
@@ -913,8 +1013,8 @@ export default function AdminTournamentDrawPage() {
                           <select
                             value={targetGroupNo}
                             onChange={(e) => setTargetGroupNo(e.target.value)}
-                            disabled={mode !== "TARGET_GROUP"}
-                            aria-disabled={mode !== "TARGET_GROUP"}
+                            disabled={mode !== "TARGET_GROUP" || isTournamentLocked}
+                            aria-disabled={mode !== "TARGET_GROUP" || isTournamentLocked}
                             className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-sm disabled:pointer-events-none disabled:bg-slate-100 disabled:text-slate-400"
                           >
                             {Array.from(
@@ -941,6 +1041,7 @@ export default function AdminTournamentDrawPage() {
                             onChange={(e) => setDurationMs(e.target.value)}
                             placeholder="예: 7"
                             className="h-8"
+                            disabled={isTournamentLocked}
                           />
                         </div>
                         <div className="flex items-end">
@@ -949,6 +1050,7 @@ export default function AdminTournamentDrawPage() {
                               type="checkbox"
                               checked={lowSpecMode}
                               onChange={(e) => persistLowSpec(e.target.checked)}
+                              disabled={isTournamentLocked}
                               className="h-4 w-4"
                             />
                             저사양 모드
@@ -959,7 +1061,7 @@ export default function AdminTournamentDrawPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           onClick={handleShuffleDeck}
-                          disabled={saving || !canShuffleDeck}
+                          disabled={saving || !canShuffleDeck || isTournamentLocked}
                           variant="outline"
                           size="sm"
                           className="h-8 px-3 text-xs"
@@ -968,7 +1070,7 @@ export default function AdminTournamentDrawPage() {
                         </Button>
                         <Button
                           onClick={handleStartStep}
-                          disabled={saving || !canStartStep}
+                          disabled={saving || !canStartStep || isTournamentLocked}
                           variant="outline"
                           size="sm"
                           className="h-8 px-3 text-xs"
@@ -977,7 +1079,7 @@ export default function AdminTournamentDrawPage() {
                         </Button>
                         <Button
                           onClick={handleUndoLast}
-                          disabled={saving || !canUndo}
+                          disabled={saving || !canUndo || isTournamentLocked}
                           variant="outline"
                           size="sm"
                           className="h-8 px-3 text-xs"
@@ -986,7 +1088,7 @@ export default function AdminTournamentDrawPage() {
                         </Button>
                         <Button
                           onClick={handleResetDraw}
-                          disabled={saving}
+                          disabled={saving || isTournamentLocked}
                           variant="destructive"
                           size="sm"
                           className="h-8 px-3 text-xs"
@@ -995,7 +1097,7 @@ export default function AdminTournamentDrawPage() {
                         </Button>
                         <Button
                           onClick={handleEndSession}
-                          disabled={saving || !isSessionLive}
+                          disabled={saving || !isSessionLive || isTournamentLocked}
                           variant="outline"
                           size="sm"
                           className="h-8 px-3 text-xs"
@@ -1007,6 +1109,7 @@ export default function AdminTournamentDrawPage() {
                           <select
                             value={assignGroupNo}
                             onChange={(e) => setAssignGroupNo(e.target.value)}
+                            disabled={isTournamentLocked}
                             className="h-6 min-w-[74px] border-0 bg-transparent px-1 text-xs outline-none"
                           >
                             {Array.from(
@@ -1025,7 +1128,7 @@ export default function AdminTournamentDrawPage() {
                         </div>
                         <Button
                           onClick={handleAssignConfirm}
-                          disabled={saving || !canAssign}
+                          disabled={saving || !canAssign || isTournamentLocked}
                           variant="outline"
                           size="sm"
                           className="h-8 px-3 text-xs"
@@ -1050,6 +1153,7 @@ export default function AdminTournamentDrawPage() {
                         <select
                           value={movePlayerId}
                           onChange={(e) => setMovePlayerId(e.target.value)}
+                          disabled={isTournamentLocked}
                           className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
                         >
                           {assignedMembers.length === 0 ? (
@@ -1069,6 +1173,7 @@ export default function AdminTournamentDrawPage() {
                           <select
                           value={moveTargetGroupNo}
                           onChange={(e) => setMoveTargetGroupNo(e.target.value)}
+                          disabled={isTournamentLocked}
                           className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
                           >
                             {Array.from(
@@ -1083,7 +1188,7 @@ export default function AdminTournamentDrawPage() {
                         </div>
                         <Button
                           onClick={handleMoveMember}
-                          disabled={saving || !canMove}
+                          disabled={saving || !canMove || isTournamentLocked}
                           variant="outline"
                           size="sm"
                           className="h-8 self-end px-3 text-xs"

@@ -52,6 +52,7 @@ export default function AdminTournamentEditPage() {
   const [openAt, setOpenAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
   const [status, setStatus] = useState<Status>("draft");
+  const [originalStatus, setOriginalStatus] = useState<Status | null>(null);
 
   const load = async () => {
     const supabase = createClient();
@@ -82,6 +83,7 @@ export default function AdminTournamentEditPage() {
     setOpenAt(toInputDateTime(t.open_at));
     setCloseAt(toInputDateTime(t.close_at));
     setStatus(t.status ?? "draft");
+    setOriginalStatus(t.status ?? "draft");
     setLoading(false);
   };
 
@@ -129,9 +131,22 @@ export default function AdminTournamentEditPage() {
   const save = async () => {
     const supabase = createClient();
     setMsg("");
+
+    if (originalStatus === "done") {
+      setMsg("종료된 대회는 더 이상 수정할 수 없습니다.");
+      return;
+    }
+
     if (!title.trim() || !eventDate) {
       setMsg("대회명과 일정은 필수예요.");
       return;
+    }
+
+    if (status === "done") {
+      const confirmed = confirm(
+        "이 대회를 종료 상태로 변경하면 이후 데이터 수정(신청/라운드/조편성/추첨)이 차단됩니다. 계속할까요?"
+      );
+      if (!confirmed) return;
     }
 
     const { error } = await supabase.from("tournaments").update({
@@ -158,6 +173,10 @@ export default function AdminTournamentEditPage() {
   const duplicate = async () => {
     const supabase = createClient();
     setMsg("");
+    if (originalStatus === "done") {
+      setMsg("종료된 대회는 복제할 수 없습니다.");
+      return;
+    }
     if (!title.trim() || !eventDate) {
       setMsg("대회명과 일정은 필수예요.");
       return;
@@ -191,6 +210,11 @@ export default function AdminTournamentEditPage() {
   };
 
   const deleteTournament = async () => {
+    if (originalStatus === "done") {
+      setMsg("종료된 대회는 삭제할 수 없습니다.");
+      return;
+    }
+
     if (status === "deleted") {
       setMsg("이미 삭제된 대회입니다.");
       return;
@@ -274,12 +298,22 @@ export default function AdminTournamentEditPage() {
         <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
         <CardHeader>
           <CardTitle>대회 수정</CardTitle>
+          {originalStatus === "done" ? (
+            <p className="text-sm text-rose-600">
+              종료된 대회입니다. 운영 데이터 보호를 위해 수정이 잠겨 있습니다.
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">대회명 *</label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-11 rounded-2xl border-slate-200 bg-slate-50" />
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={originalStatus === "done"}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">대회일 *</label>
@@ -288,6 +322,7 @@ export default function AdminTournamentEditPage() {
                 value={eventDate}
                 onChange={(e) => setEventDate(e.target.value)}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={originalStatus === "done"}
               />
             </div>
             <div className="space-y-2">
@@ -296,6 +331,7 @@ export default function AdminTournamentEditPage() {
                 value={courseName}
                 onChange={(e) => setCourseName(e.target.value)}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={originalStatus === "done"}
               />
             </div>
             <div className="space-y-2">
@@ -304,11 +340,17 @@ export default function AdminTournamentEditPage() {
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={originalStatus === "done"}
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">티오프</label>
-              <Input value={teeTime} onChange={(e) => setTeeTime(e.target.value)} className="h-11 rounded-2xl border-slate-200 bg-slate-50" />
+              <Input
+                value={teeTime}
+                onChange={(e) => setTeeTime(e.target.value)}
+                className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={originalStatus === "done"}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">상태</label>
@@ -316,6 +358,7 @@ export default function AdminTournamentEditPage() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value as Status)}
                 className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm"
+                disabled={originalStatus === "done"}
               >
                 <option value="draft">{formatTournamentStatus("draft")}</option>
                 <option value="open">{formatTournamentStatus("open")}</option>
@@ -330,6 +373,7 @@ export default function AdminTournamentEditPage() {
                 value={openAt}
                 onChange={(e) => setOpenAt(e.target.value)}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={originalStatus === "done"}
               />
             </div>
             <div className="space-y-2">
@@ -339,6 +383,7 @@ export default function AdminTournamentEditPage() {
                 value={closeAt}
                 onChange={(e) => setCloseAt(e.target.value)}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50"
+                disabled={originalStatus === "done"}
               />
             </div>
           </div>
@@ -350,15 +395,23 @@ export default function AdminTournamentEditPage() {
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
               className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+              disabled={originalStatus === "done"}
             />
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button onClick={save} className="w-full sm:w-auto">저장</Button>
-            <Button onClick={duplicate} variant="outline" className="w-full sm:w-auto">
+            <Button onClick={save} className="w-full sm:w-auto" disabled={originalStatus === "done"}>
+              저장
+            </Button>
+            <Button
+              onClick={duplicate}
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={originalStatus === "done"}
+            >
               이 대회 복제
             </Button>
-            {status !== "deleted" && (
+            {status !== "deleted" && originalStatus !== "done" && (
               <Button onClick={deleteTournament} variant="destructive" className="w-full sm:w-auto">
                 삭제
               </Button>

@@ -324,6 +324,7 @@ export default function TournamentsPage() {
                 roundPreferenceSummaries[t.id] ?? createEmptyRoundPreferenceSummary();
               const sideEventSummary = sideEventSummaries[t.id] ?? [];
               const canManageSideEvents = isGlobalAdmin || managedTournamentIdSet.has(t.id);
+              const isDoneTournament = t.status === "done";
 
               return (
                 <article
@@ -387,21 +388,41 @@ export default function TournamentsPage() {
                       >
                         상세 보기
                       </Link>
-                      {user ? (
+                      {isDoneTournament ? (
                         <Link
-                          href={`/t/${t.id}?open=apply#main-registration`}
-                          className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                          href={`/t/${t.id}/results`}
+                          className="inline-flex items-center justify-center rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
                         >
-                          {myStatus ? "참가정보 수정" : "참가 신청"}
+                          결과 보기
                         </Link>
                       ) : null}
+                      {user ? (
+                        isDoneTournament ? (
+                          <span className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-slate-200 px-5 py-3 text-sm font-bold text-slate-500">
+                            참가 신청 종료
+                          </span>
+                        ) : (
+                          <Link
+                            href={`/t/${t.id}?open=apply#main-registration`}
+                            className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                          >
+                            {myStatus ? "참가정보 수정" : "참가 신청"}
+                          </Link>
+                        )
+                      ) : null}
                       {canManageSideEvents ? (
-                        <Link
-                          href={`/admin/tournaments/${t.id}/side-events`}
-                          className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-green-700"
-                        >
-                          라운드 관리
-                        </Link>
+                        isDoneTournament ? (
+                          <span className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-slate-200 px-5 py-3 text-sm font-bold text-slate-500">
+                            라운드 관리 종료
+                          </span>
+                        ) : (
+                          <Link
+                            href={`/admin/tournaments/${t.id}/side-events`}
+                            className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-green-700"
+                          >
+                            라운드 관리
+                          </Link>
+                        )
                       ) : null}
                     </div>
                   </div>
