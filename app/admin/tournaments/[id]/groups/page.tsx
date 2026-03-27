@@ -56,6 +56,7 @@ export default function AdminTournamentGroupsPage() {
   const [confirmedRegs, setConfirmedRegs] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [isDoneTournament, setIsDoneTournament] = useState(false);
   const [msg, setMsg] = useState("");
   const { toast } = useToast();
 
@@ -63,6 +64,15 @@ export default function AdminTournamentGroupsPage() {
     const supabase = createClient();
     setMsg("");
     setLoading(true);
+
+    const tournamentRes = await supabase
+      .from("tournaments")
+      .select("status")
+      .eq("id", tournamentId)
+      .maybeSingle<{ status: string }>();
+    if (!tournamentRes.error) {
+      setIsDoneTournament(tournamentRes.data?.status === "done");
+    }
 
     const groupRes = await supabase
       .from("tournament_groups")
@@ -162,6 +172,11 @@ export default function AdminTournamentGroupsPage() {
   }, [msg, toast]);
 
   const createGroup = async () => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 조를 수정할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
     const nextNo = groups.length > 0 ? Math.max(...groups.map((g) => g.group_no)) + 1 : 1;
@@ -181,6 +196,11 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const updateGroup = async (group: Group) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 조를 수정할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
 
@@ -198,6 +218,11 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const togglePublish = async (group: Group) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 공개 상태를 변경할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
 
@@ -215,6 +240,11 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const setAllPublish = async (nextState: boolean) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 공개 상태를 변경할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
 
@@ -232,6 +262,11 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const deleteGroup = async (group: Group) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 조를 삭제할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     const hasMembers = members.some((m) => m.group_id === group.id);
     const ok = hasMembers
@@ -253,6 +288,11 @@ export default function AdminTournamentGroupsPage() {
   };
 
   const updateMember = async (groupId: number, position: number, registrationId: number | null) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 조편성 멤버를 변경할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
 
@@ -343,13 +383,20 @@ export default function AdminTournamentGroupsPage() {
             <p className="text-sm text-slate-500">
               확정 참가자를 조에 배정하고 공개 여부를 설정합니다.
             </p>
+            {isDoneTournament ? (
+              <p className="text-sm font-medium text-rose-600">
+                종료된 대회입니다. 조편성 정보는 읽기 전용으로 표시됩니다.
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void createGroup()}>조 추가</Button>
-            <Button variant="outline" onClick={() => void setAllPublish(true)}>
+            <Button onClick={() => void createGroup()} disabled={isDoneTournament}>
+              조 추가
+            </Button>
+            <Button variant="outline" onClick={() => void setAllPublish(true)} disabled={isDoneTournament}>
               전체 공개
             </Button>
-            <Button variant="outline" onClick={() => void setAllPublish(false)}>
+            <Button variant="outline" onClick={() => void setAllPublish(false)} disabled={isDoneTournament}>
               전체 비공개
             </Button>
             <Button asChild variant="outline">
@@ -385,13 +432,28 @@ export default function AdminTournamentGroupsPage() {
 
                   <CardContent className="space-y-4 pt-0">
                     <div className="mb-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => void togglePublish(group)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void togglePublish(group)}
+                        disabled={isDoneTournament}
+                      >
                         {group.is_published ? "비공개" : "공개"}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => void updateGroup(group)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void updateGroup(group)}
+                        disabled={isDoneTournament}
+                      >
                         티오프 저장
                       </Button>
-                      <Button size="sm" variant="destructive" onClick={() => void deleteGroup(group)}>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => void deleteGroup(group)}
+                        disabled={isDoneTournament}
+                      >
                         삭제
                       </Button>
                     </div>
@@ -403,6 +465,7 @@ export default function AdminTournamentGroupsPage() {
                           value={group.tee_time ?? ""}
                           placeholder="예: 08:10"
                           onChange={(e) => updateGroupField(group.id, "tee_time", e.target.value)}
+                          disabled={isDoneTournament}
                         />
                       </div>
                     </div>
@@ -416,6 +479,7 @@ export default function AdminTournamentGroupsPage() {
                             <select
                               className="flex h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1 text-sm"
                               value={member?.registration_id ?? ""}
+                              disabled={isDoneTournament}
                               onChange={(e) =>
                                 void updateMember(
                                   group.id,

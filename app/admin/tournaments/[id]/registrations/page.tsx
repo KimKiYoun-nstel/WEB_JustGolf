@@ -135,6 +135,7 @@ export default function AdminRegistrationsPage() {
   const [loadingMoreRegistrations, setLoadingMoreRegistrations] = useState(false);
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [isDoneTournament, setIsDoneTournament] = useState(false);
   const [msg, setMsg] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [exportingScope, setExportingScope] = useState<"approved" | "grouped" | null>(null);
@@ -236,6 +237,16 @@ export default function AdminRegistrationsPage() {
 
     try {
       const supabase = createClient();
+      const tournamentRes = await supabase
+        .from("tournaments")
+        .select("status")
+        .eq("id", tournamentId)
+        .maybeSingle<{ status: string }>();
+
+      if (!tournamentRes.error) {
+        setIsDoneTournament(tournamentRes.data?.status === "done");
+      }
+
       const [summaryResult, firstPage] = await Promise.all([
         supabase.rpc("get_registration_counts_by_tournaments", {
           tournament_ids: [tournamentId],
@@ -331,6 +342,11 @@ export default function AdminRegistrationsPage() {
     id: number,
     status: Registration["status"]
   ) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 신청 상태를 변경할 수 없습니다.");
+      return;
+    }
+
     const supabase = createClient();
     setMsg("");
     const { error } = await supabase
@@ -343,9 +359,14 @@ export default function AdminRegistrationsPage() {
       setMsg("✅ 상태 변경 완료");
       await load();
     }
-  }, [load]);
+  }, [load, isDoneTournament]);
 
   const updateSelectedStatus = useCallback(async (status: Registration["status"]) => {
+    if (isDoneTournament) {
+      setMsg("종료된 대회는 신청 상태를 일괄 변경할 수 없습니다.");
+      return;
+    }
+
     if (selectedIds.size === 0) {
       setMsg("신청자를 선택해주세요.");
       return;
@@ -364,7 +385,7 @@ export default function AdminRegistrationsPage() {
       setSelectedIds(new Set());
       await load();
     }
-  }, [selectedIds, load]);
+  }, [selectedIds, load, isDoneTournament]);
 
   const downloadExcel = useCallback(async (scope: "approved" | "grouped") => {
     setExportingScope(scope);
@@ -524,13 +545,14 @@ export default function AdminRegistrationsPage() {
             onClick={() => updateStatus(row.id, nextStatus)}
             size="sm"
             variant="ghost"
+            disabled={isDoneTournament}
           >
             {formatRegistrationStatus(nextStatus)}
           </Button>
         ))}
       </div>
     ),
-    [updateStatus]
+    [updateStatus, isDoneTournament]
   );
 
   const renderRoundPreference = useCallback(
@@ -619,6 +641,11 @@ export default function AdminRegistrationsPage() {
           <p className="mt-2 text-sm text-slate-500">
             상태 분류, 일괄 처리, 엑셀 내보내기를 한 화면에서 관리합니다.
           </p>
+          {isDoneTournament ? (
+            <p className="mt-2 text-sm font-medium text-rose-600">
+              종료된 대회입니다. 신청 상태 변경은 잠금 처리되어 읽기 전용입니다.
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -795,7 +822,7 @@ export default function AdminRegistrationsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => updateSelectedStatus("approved")}
-                      disabled={selectedIds.size === 0}
+                      disabled={isDoneTournament || selectedIds.size === 0}
                     >
                       일괄 확정
                     </Button>
@@ -803,7 +830,7 @@ export default function AdminRegistrationsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => updateSelectedStatus("waitlisted")}
-                      disabled={selectedIds.size === 0}
+                      disabled={isDoneTournament || selectedIds.size === 0}
                     >
                       일괄 대기
                     </Button>
@@ -811,7 +838,7 @@ export default function AdminRegistrationsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => updateSelectedStatus("canceled")}
-                      disabled={selectedIds.size === 0}
+                      disabled={isDoneTournament || selectedIds.size === 0}
                     >
                       일괄 취소
                     </Button>

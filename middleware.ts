@@ -35,16 +35,23 @@ export async function middleware(request: NextRequest) {
   // (관리자 승인 해제 시 신규 가입 후 최초 로그인과 동일한 흐름 적용)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_approved,is_admin,nickname,email")
+    .select("is_approved,is_admin,nickname,email,full_name")
     .eq("id", user.id)
     .maybeSingle();
   const isAdmin = profile?.is_admin === true;
   const normalizedNickname = (profile?.nickname ?? "").trim();
   const normalizedEmail = (profile?.email ?? "").trim();
+  const normalizedFullName = (profile?.full_name ?? user.user_metadata?.full_name ?? "").trim();
+  const normalizedPhone = String(user.user_metadata?.phone ?? "").trim();
+  const isPlaceholderNickname =
+    normalizedNickname.toLowerCase().startsWith("user-") ||
+    normalizedNickname.toLowerCase().startsWith("pending-");
   const hasRequiredOnboardingFields =
     normalizedNickname.length > 0 &&
     normalizedEmail.length > 0 &&
-    !normalizedNickname.toLowerCase().startsWith("user-");
+    normalizedFullName.length > 0 &&
+    normalizedPhone.length > 0 &&
+    !isPlaceholderNickname;
 
   if (!isAdmin && profile?.is_approved === false) {
     const onboardingUrl = new URL("/auth/onboarding", request.url);

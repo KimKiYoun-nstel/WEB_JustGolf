@@ -64,12 +64,24 @@ type DrawActionBody = {
   playerIds?: number[];
   mode?: DrawMode;
   targetGroupNo?: number | null;
+  referenceTournamentId?: number | null;
   durationMs?: number;
   groupNo?: number;
   playerId?: number;
   toGroupNo?: number;
   cursorIndex?: number;
   pickedAtMs?: number;
+};
+
+type RegistrationIdentityRow = {
+  id: number;
+  user_id: string | null;
+  nickname: string | null;
+};
+
+type TournamentStatusRow = {
+  id: number;
+  status: string;
 };
 
 function parseTournamentId(raw: string): number | null {
@@ -452,6 +464,213 @@ function resolveStepCandidatePool(state: { remainingPlayerIds: number[]; stepDec
   return state.remainingPlayerIds;
 }
 
+function buildRegistrationIdentityKey(row: RegistrationIdentityRow) {
+  if (row.user_id) return `u:${row.user_id}`;
+  const normalizedNickname = String(row.nickname ?? "").trim().toLowerCase();
+  if (!normalizedNickname) return null;
+  return `n:${normalizedNickname}`;
+}
+
+type RepeatPairPenaltyMap = Record<number, Record<number, number>>;
+
+function addPenaltyPair(map: RepeatPairPenaltyMap, left: number, right: number) {
+  if (!map[left]) map[left] = {};
+  if (!map[right]) map[right] = {};
+  map[left][right] = (map[left][right] ?? 0) + 1;
+  map[right][left] = (map[right][left] ?? 0) + 1;
+}
+
+async function buildRepeatPairPenaltyMap(
+  supabaseAdmin: ReturnType<typeof createServiceRoleSupabaseClient>,
+  params: {
+    tournamentId: number;
+    playerIds: number[];
+    referenceTournamentId: number | null;
+  }
+): Promise<RepeatPairPenaltyMap> {
+  const map: RepeatPairPenaltyMap = {};
+  if (!params.referenceTournamentId) return map;
+  if (params.referenceTournamentId === params.tournamentId) return map;
+
+  const currentRegistrationRes = await supabaseAdmin
+    .from("registrations")
+    .select("id,user_id,nickname")
+    .in("id", params.playerIds)
+    .eq("tournament_id", params.tournamentId);
+  if (currentRegistrationRes.error) {
+    throw new Error(`현재 대회 참가자 식별 조회 실패: ${currentRegistrationRes.error.message}`);
+  }
+  const currentRows = (currentRegistrationRes.data ?? []) as RegistrationIdentityRow[];
+  const identityToCurrentPlayerIds = new Map<string, number[]>();
+  currentRows.forEach((row) => {
+    const key = buildRegistrationIdentityKey(row);
+    if (!key) return;
+    const bucket = identityToCurrentPlayerIds.get(key) ?? [];
+    bucket.push(row.id);
+    identityToCurrentPlayerIds.set(key, bucket);
+  });
+  if (identityToCurrentPlayerIds.size === 0) return map;
+
+  const referenceTournamentRes = await supabaseAdmin
+    .from("tournaments")
+    .select("id,status")
+    .eq("id", params.referenceTournamentId)
+    .eq("status", "done")
+    .maybeSingle<{ id: number; status: string }>();
+  if (referenceTournamentRes.error) {
+    throw new Error(`참조 대회 조회 실패: ${referenceTournamentRes.error.message}`);
+  }
+  if (!referenceTournamentRes.data) {
+    throw new Error("참조 대회는 종료(done) 상태여야 합니다.");
+  }
+
+  const groupRes = await supabaseAdmin
+    .from("tournament_groups")
+    .select("id")
+    .eq("tournament_id", params.referenceTournamentId);
+  if (groupRes.error) {
+    throw new Error(`참조 대회 조편성 조회 실패: ${groupRes.error.message}`);
+  }
+  const referenceGroupIds = ((groupRes.data ?? []) as Array<{ id: number }>).map((row) => row.id);
+  if (referenceGroupIds.length === 0) return map;
+
+  const memberRes = await supabaseAdmin
+    .from("tournament_group_members")
+    .select("group_id,registration_id")
+    .in("group_id", referenceGroupIds);
+  if (memberRes.error) {
+    throw new Error(`참조 대회 조편성 멤버 조회 실패: ${memberRes.error.message}`);
+  }
+  const memberRows = (memberRes.data ?? []) as Array<{
+    group_id: number;
+    registration_id: number;
+  }>;
+  if (memberRows.length === 0) return map;
+
+  const referenceRegistrationIds = Array.from(
+    new Set(memberRows.map((row) => row.registration_id))
+  );
+  const referenceRegRes = await supabaseAdmin
+    .from("registrations")
+    .select("id,user_id,nickname")
+    .in("id", referenceRegistrationIds);
+  if (referenceRegRes.error) {
+    throw new Error(`참조 대회 참가자 식별 조회 실패: ${referenceRegRes.error.message}`);
+  }
+  const referenceRegRows = (referenceRegRes.data ?? []) as RegistrationIdentityRow[];
+  const referenceIdToIdentity = new Map<number, string>();
+  referenceRegRows.forEach((row) => {
+    const key = buildRegistrationIdentityKey(row);
+    if (!key) return;
+    referenceIdToIdentity.set(row.id, key);
+  });
+
+  const currentPlayerIdSet = new Set(params.playerIds);
+  const playersByGroupId = new Map<number, number[]>();
+  memberRows.forEach((row) => {
+    const identityKey = referenceIdToIdentity.get(row.registration_id);
+    if (!identityKey) return;
+    const matchedCurrentPlayerIds = identityToCurrentPlayerIds.get(identityKey);
+    if (!matchedCurrentPlayerIds || matchedCurrentPlayerIds.length === 0) return;
+    const bucket = playersByGroupId.get(row.group_id) ?? [];
+    matchedCurrentPlayerIds.forEach((playerId) => {
+      if (currentPlayerIdSet.has(playerId)) bucket.push(playerId);
+    });
+    playersByGroupId.set(row.group_id, bucket);
+  });
+
+  for (const playerIdsInGroup of playersByGroupId.values()) {
+    const unique = Array.from(new Set(playerIdsInGroup));
+    if (unique.length <= 1) continue;
+    for (let leftIndex = 0; leftIndex < unique.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < unique.length; rightIndex += 1) {
+        addPenaltyPair(map, unique[leftIndex], unique[rightIndex]);
+      }
+    }
+  }
+
+  return map;
+}
+
+function parseRepeatPairPenaltyMap(
+  events: DrawEventRecord[]
+): RepeatPairPenaltyMap {
+  const sessionStartedEvent = events.find((event) => event.event_type === "SESSION_STARTED");
+  const raw = (sessionStartedEvent?.payload as { repeatPairPenalties?: unknown } | undefined)
+    ?.repeatPairPenalties;
+  if (!raw || typeof raw !== "object") return {};
+
+  const out: RepeatPairPenaltyMap = {};
+  Object.entries(raw as Record<string, unknown>).forEach(([leftKey, rightMap]) => {
+    const left = Number(leftKey);
+    if (!Number.isInteger(left) || left <= 0) return;
+    if (!rightMap || typeof rightMap !== "object") return;
+    Object.entries(rightMap as Record<string, unknown>).forEach(([rightKey, penaltyValue]) => {
+      const right = Number(rightKey);
+      const penalty = Number(penaltyValue);
+      if (!Number.isInteger(right) || right <= 0) return;
+      if (!Number.isFinite(penalty) || penalty <= 0) return;
+      if (!out[left]) out[left] = {};
+      out[left][right] = penalty;
+    });
+  });
+
+  return out;
+}
+
+function circularDistance(from: number, to: number, total: number) {
+  if (total <= 0) return 0;
+  const normalizedFrom = ((from - 1 + total) % total) + 1;
+  const normalizedTo = ((to - 1 + total) % total) + 1;
+  const forward = (normalizedTo - normalizedFrom + total) % total;
+  const backward = (normalizedFrom - normalizedTo + total) % total;
+  return Math.min(forward, backward);
+}
+
+function resolveRecommendedGroupNoForPlayer(params: {
+  playerId: number;
+  groups: Record<number, number[]>;
+  groupCount: number;
+  groupSize: number;
+  preferredGroupNo: number;
+  repeatPairPenaltyMap: RepeatPairPenaltyMap;
+}) {
+  const { playerId, groups, groupCount, groupSize, preferredGroupNo, repeatPairPenaltyMap } = params;
+  const playerPenaltyMap = repeatPairPenaltyMap[playerId] ?? {};
+  const candidates: Array<{
+    groupNo: number;
+    penalty: number;
+    memberCount: number;
+    distance: number;
+  }> = [];
+
+  for (let groupNo = 1; groupNo <= groupCount; groupNo += 1) {
+    const members = groups[groupNo] ?? [];
+    if (members.length >= groupSize) continue;
+    const penalty = members.reduce(
+      (sum, memberId) => sum + (playerPenaltyMap[memberId] ?? 0),
+      0
+    );
+    candidates.push({
+      groupNo,
+      penalty,
+      memberCount: members.length,
+      distance: circularDistance(preferredGroupNo, groupNo, groupCount),
+    });
+  }
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((left, right) => {
+    if (left.penalty !== right.penalty) return left.penalty - right.penalty;
+    if (left.memberCount !== right.memberCount) return left.memberCount - right.memberCount;
+    if (left.distance !== right.distance) return left.distance - right.distance;
+    return left.groupNo - right.groupNo;
+  });
+
+  return candidates[0].groupNo;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -555,6 +774,32 @@ export async function POST(
     };
 
     const supabaseAdmin = createServiceRoleSupabaseClient();
+    const tournamentStatusRes = await supabaseAdmin
+      .from("tournaments")
+      .select("id,status")
+      .eq("id", tournamentId)
+      .maybeSingle<TournamentStatusRow>();
+
+    if (tournamentStatusRes.error) {
+      return NextResponse.json(
+        { error: tournamentStatusRes.error.message },
+        { status: 500 }
+      );
+    }
+
+    if (!tournamentStatusRes.data || tournamentStatusRes.data.status === "deleted") {
+      return NextResponse.json(
+        { error: "대회를 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
+    if (tournamentStatusRes.data.status === "done") {
+      return NextResponse.json(
+        { error: "종료된 대회는 라이브 조편성 데이터를 수정할 수 없습니다." },
+        { status: 409 }
+      );
+    }
 
     if (body.action === "reset_draw") {
       const permissionError = requireGlobalAdminForSessionActivation();
@@ -794,6 +1039,32 @@ export async function POST(
         );
       }
 
+      const referenceTournamentId =
+        body.referenceTournamentId === null
+          ? null
+          : normalizePositiveInt(body.referenceTournamentId) ?? null;
+
+      let repeatPairPenalties: RepeatPairPenaltyMap = {};
+      if (referenceTournamentId) {
+        try {
+          repeatPairPenalties = await buildRepeatPairPenaltyMap(supabaseAdmin, {
+            tournamentId,
+            playerIds,
+            referenceTournamentId,
+          });
+        } catch (error) {
+          return NextResponse.json(
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "참조 대회 조편성 분석 중 오류가 발생했습니다.",
+            },
+            { status: 400 }
+          );
+        }
+      }
+
       const groupSize = normalizePositiveInt(body.groupSize) ?? 4;
       const groupCount =
         normalizePositiveInt(body.groupCount) ??
@@ -837,7 +1108,12 @@ export async function POST(
         session_id: session.id,
         step: 0,
         event_type: "SESSION_STARTED",
-        payload: { startedAt, playerIds },
+        payload: {
+          startedAt,
+          playerIds,
+          referenceTournamentId,
+          repeatPairPenalties,
+        },
         created_by: guard.user.id,
       });
 
@@ -996,6 +1272,7 @@ export async function POST(
           .from("draw_events")
           .update({
             payload: {
+              ...(sessionStartedEvent.payload as unknown as Record<string, unknown>),
               startedAt,
               playerIds: nextPlayerIds,
             },
@@ -1184,7 +1461,51 @@ export async function POST(
         );
       }
 
-      return NextResponse.json({ event: eventRes.data }, { status: 201 });
+      let assignEvent: DrawEventRow | null = null;
+      if (state.currentMode === "ROUND_ROBIN") {
+        const repeatPairPenaltyMap = parseRepeatPairPenaltyMap(events);
+        const preferredGroupNo =
+          state.pendingGroupNo ??
+          state.targetGroupNo ??
+          resolveTargetGroupNo({
+            step: state.currentStep,
+            mode: "ROUND_ROBIN",
+            groupCount: session.group_count,
+          });
+        const recommendedGroupNo = resolveRecommendedGroupNoForPlayer({
+          playerId,
+          groups: state.groups,
+          groupCount: session.group_count,
+          groupSize: session.group_size,
+          preferredGroupNo,
+          repeatPairPenaltyMap,
+        });
+
+        if (recommendedGroupNo) {
+          const assignInsertRes = await supabaseAdmin
+            .from("draw_events")
+            .insert({
+              session_id: session.id,
+              step: state.currentStep,
+              event_type: "ASSIGN_UPDATED",
+              payload: { playerId, groupNo: recommendedGroupNo },
+              created_by: guard.user.id,
+            })
+            .select("id,session_id,step,event_type,payload,created_at")
+            .single();
+
+          if (assignInsertRes.error) {
+            return NextResponse.json(
+              { error: assignInsertRes.error.message },
+              { status: 500 }
+            );
+          }
+
+          assignEvent = assignInsertRes.data as DrawEventRow;
+        }
+      }
+
+      return NextResponse.json({ event: eventRes.data, assignEvent }, { status: 201 });
     }
 
     if (body.action === "assign_update") {
