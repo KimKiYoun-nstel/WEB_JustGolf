@@ -16,7 +16,7 @@ import {
 import { Input } from "../../../components/ui/input";
 import { useToast } from "../../../components/ui/toast";
 
-const APPROVAL_WAITING_MESSAGE = "관리자 승인 대기 중입니다.";
+const APPROVAL_WAITING_MESSAGE = "관리자 확인 대기 중입니다.";
 
 function isPlaceholderNickname(value: string | null | undefined) {
   const normalized = (value ?? "").trim().toLowerCase();
@@ -48,6 +48,13 @@ type ProfileShape = {
 
 type ProfileWithoutPhoneShape = Omit<ProfileShape, "phone">;
 
+type ValidatedOnboardingInput = {
+  nickname: string;
+  fullName: string;
+  phone: string;
+  normalizedEmail: string;
+};
+
 export default function OnboardingPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -60,6 +67,7 @@ export default function OnboardingPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isNicknameGuideOpen, setIsNicknameGuideOpen] = useState(false);
   const { toast } = useToast();
 
   const navigateWithFallback = (target: string) => {
@@ -141,7 +149,7 @@ export default function OnboardingPage() {
     if (!msg) return;
 
     const isSuccess = /완료|성공/.test(msg);
-    const isError = /실패|오류|필요|없습니다|중복/.test(msg);
+    const isError = /실패|오류|필수|없습니다|중복/.test(msg);
 
     toast({
       variant: isSuccess ? "success" : isError ? "error" : "default",
@@ -150,7 +158,7 @@ export default function OnboardingPage() {
     setMsg("");
   }, [msg, toast]);
 
-  const completeOnboarding = async () => {
+  const getValidatedOnboardingInput = (): ValidatedOnboardingInput | null => {
     setMsg("");
 
     const nextNickname = nickname.trim();
@@ -161,40 +169,49 @@ export default function OnboardingPage() {
 
     if (!nextNickname) {
       setMsg("닉네임은 필수입니다.");
-      return;
+      return null;
     }
 
     if (isPlaceholderNickname(nextNickname)) {
       setMsg("닉네임은 user-/pending- 로 시작할 수 없습니다.");
-      return;
+      return null;
     }
 
     if (!nextEmail) {
       setMsg("이메일을 입력해주세요.");
-      return;
+      return null;
     }
 
     if (!nextFullName) {
       setMsg("이름은 필수입니다.");
-      return;
+      return null;
     }
 
     if (!nextPhone) {
       setMsg("전화번호는 필수입니다.");
-      return;
+      return null;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
       setMsg("이메일 형식을 확인해주세요.");
-      return;
+      return null;
     }
 
-    const confirmed = confirm("입력한 프로필 정보(닉네임/이름/전화번호)를 저장하시겠습니까?");
-    if (!confirmed) {
-      setMsg("저장을 취소했습니다. 정보를 확인한 후 다시 저장해주세요.");
-      return;
-    }
+    return {
+      nickname: nextNickname,
+      fullName: nextFullName,
+      phone: nextPhone,
+      normalizedEmail,
+    };
+  };
 
+  const submitOnboarding = async ({
+    nickname: nextNickname,
+    fullName: nextFullName,
+    phone: nextPhone,
+    normalizedEmail,
+  }: ValidatedOnboardingInput) => {
+    setMsg("");
     setSaving(true);
 
     try {
@@ -238,11 +255,11 @@ export default function OnboardingPage() {
 
         if (authEmailInUse) {
           setMsg(
-            "이미 이메일 로그인에 사용 중인 이메일입니다. 기존 계정으로 로그인 후 프로필에서 카카오 계정 연동을 진행해주세요."
+            "이미 이메일 로그인에 사용 중인 이메일입니다. 기존 계정으로 로그인한 뒤 프로필에서 카카오 계정 연결을 진행해주세요."
           );
         } else if (profileEmailInUse) {
           setMsg(
-            "이미 다른 계정의 온보딩 이메일로 등록된 주소입니다. 같은 사용자라면 기존 계정으로 로그인해주세요."
+            "이미 다른 계정의 프로필 이메일로 등록된 주소입니다. 같은 사용자라면 기존 계정으로 로그인해주세요."
           );
         } else {
           setMsg("이미 사용 중인 이메일입니다.");
@@ -264,7 +281,7 @@ export default function OnboardingPage() {
 
       if (!available) {
         setMsg(
-          "이미 사용 중인 닉네임입니다. 이메일이 달라도 닉네임은 중복 사용할 수 없습니다."
+          "이미 사용 중인 닉네임입니다. 이메일이 달라도 닉네임은 중복 사용이 불가능합니다."
         );
         setSaving(false);
         return;
@@ -370,6 +387,24 @@ export default function OnboardingPage() {
     }
   };
 
+  const completeOnboarding = () => {
+    const validated = getValidatedOnboardingInput();
+    if (!validated) return;
+
+    setIsNicknameGuideOpen(true);
+  };
+
+  const confirmNicknameGuide = async () => {
+    const validated = getValidatedOnboardingInput();
+    if (!validated) {
+      setIsNicknameGuideOpen(false);
+      return;
+    }
+
+    setIsNicknameGuideOpen(false);
+    await submitOnboarding(validated);
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50/70 px-6 py-12">
@@ -388,15 +423,15 @@ export default function OnboardingPage() {
         <CardHeader>
           <CardTitle>온보딩</CardTitle>
           <CardDescription>
-            최초 로그인 설정입니다. 카카오톡방 닉네임과 동일한 닉네임으로 수정해주세요.
-            닉네임/이름/전화번호/이메일은 모두 필수입니다.
+            최초 로그인 후 설정 단계입니다. 카톡방 닉네임과 동일한 닉네임으로
+            설정해주세요. 닉네임, 이름, 전화번호, 이메일은 모두 필수입니다.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              이메일 {canEditEmail ? "*" : ""}
+              이메일{canEditEmail ? " *" : ""}
             </label>
             <Input
               value={email}
@@ -404,13 +439,13 @@ export default function OnboardingPage() {
               placeholder="example@company.com"
               disabled={!canEditEmail || saving}
             />
-            {canEditEmail && (
+            {canEditEmail ? (
               <p className="text-xs text-slate-500">
                 카카오에서 이메일을 제공하지 않아 직접 입력이 필요합니다. 기존
                 계정과 연결하려면 기존 계정의 이메일을 입력하지 말고, 기존 계정으로
-                로그인 후 프로필의 카카오 연동을 이용하세요.
+                로그인한 뒤 프로필에서 카카오 연동을 진행해주세요.
               </p>
-            )}
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -418,7 +453,7 @@ export default function OnboardingPage() {
             <Input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="닉네임을 입력하세요"
+              placeholder="닉네임을 입력해주세요"
               disabled={saving}
             />
           </div>
@@ -428,7 +463,7 @@ export default function OnboardingPage() {
             <Input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="이름을 입력하세요"
+              placeholder="이름을 입력해주세요"
               disabled={saving}
             />
           </div>
@@ -443,11 +478,51 @@ export default function OnboardingPage() {
             />
           </div>
 
-          <Button onClick={completeOnboarding} disabled={saving} className="w-full">
+          <Button
+            onClick={completeOnboarding}
+            disabled={saving || isNicknameGuideOpen}
+            className="w-full"
+          >
             {saving ? "처리 중..." : "저장하고 시작하기"}
           </Button>
         </CardContent>
       </Card>
+
+      {isNicknameGuideOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="nickname-guide-title"
+        >
+          <Card className="w-full max-w-md border-slate-200 shadow-2xl">
+            <CardHeader className="space-y-3">
+              <CardTitle id="nickname-guide-title">닉네임 확인</CardTitle>
+              <CardDescription className="text-sm leading-6 text-slate-600">
+                닉네임은 필수며, 카톡방 닉네임과 동일한 닉네임을 사용해주세요.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                현재 입력한 닉네임으로 온보딩 결과가 저장됩니다. 카톡방에서 사용하는
+                닉네임과 다시 한 번 일치하는지 확인한 뒤 저장해주세요.
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsNicknameGuideOpen(false)}
+                >
+                  취소
+                </Button>
+                <Button type="button" onClick={confirmNicknameGuide}>
+                  확인 후 저장
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
     </main>
   );
 }
