@@ -16,7 +16,7 @@ import {
 import { Input } from "../../../components/ui/input";
 import { useToast } from "../../../components/ui/toast";
 
-const APPROVAL_WAITING_MESSAGE = "관리자 확인 대기 중입니다.";
+const APPROVAL_WAITING_MESSAGE = "관리자 승인 대기 중입니다.";
 
 function isPlaceholderNickname(value: string | null | undefined) {
   const normalized = (value ?? "").trim().toLowerCase();
