@@ -8,7 +8,7 @@
 
 DO $$
 DECLARE
-  v_tournament_id bigint := 0; -- TODO: 실제 대회 ID로 변경
+  v_tournament_id bigint := 1; -- TODO: 실제 대회 ID로 변경
 BEGIN
   IF v_tournament_id <= 0 THEN
     RAISE EXCEPTION 'v_tournament_id 값을 실제 대회 ID로 변경해주세요.';
@@ -37,7 +37,7 @@ BEGIN
   )
   VALUES
     (v_tournament_id, '단체 스코어', 1, '이동수', '합계', '74', '순위 1위 · OUT 38 / IN 36 · NET 74', '{"rank":1,"tee_time":"13:30","course":"비토","out_total":38,"in_total":36,"gross_total":74,"net":74,"award":null,"near":0.0,"long":0.0,"source":"단체 스코어.pdf p1"}'::jsonb, null),
-    (v_tournament_id, '단체 스코어', 2, '주창연', '합계', '78', '순위 2위 · OUT 39 / IN 39 · NET 78', '{"rank":2,"tee_time":"13:23","course":"비토","out_total":39,"in_total":39,"gross_total":78,"net":78,"award":null,"near":0.0,"long":0.0,"source":"단체 스코어.pdf p1"}'::jsonb, null),
+    (v_tournament_id, '단체 스코어', 2, '주창언', '합계', '78', '순위 2위 · OUT 39 / IN 39 · NET 78', '{"rank":2,"tee_time":"13:23","course":"비토","out_total":39,"in_total":39,"gross_total":78,"net":78,"award":null,"near":0.0,"long":0.0,"source":"단체 스코어.pdf p1"}'::jsonb, null),
     (v_tournament_id, '단체 스코어', 3, '박영규', '합계', '79', '순위 3위 · OUT 40 / IN 39 · NET 79', '{"rank":3,"tee_time":"13:30","course":"비토","out_total":40,"in_total":39,"gross_total":79,"net":79,"award":null,"near":1.1,"long":270.0,"source":"단체 스코어.pdf p1"}'::jsonb, null),
     (v_tournament_id, '단체 스코어', 4, '박소영', '합계', '80', '순위 4위 · OUT 39 / IN 41 · NET 80', '{"rank":4,"tee_time":"13:16","course":"비룡","out_total":39,"in_total":41,"gross_total":80,"net":80,"award":null,"near":1.7,"long":0.0,"source":"단체 스코어.pdf p1"}'::jsonb, null),
     (v_tournament_id, '단체 스코어', 5, '박순철', '합계', '81', '순위 5위 · OUT 43 / IN 38 · NET 81', '{"rank":5,"tee_time":"13:30","course":"비토","out_total":43,"in_total":38,"gross_total":81,"net":81,"award":null,"near":0.0,"long":0.0,"source":"단체 스코어.pdf p1"}'::jsonb, null),

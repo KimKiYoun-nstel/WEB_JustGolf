@@ -5,6 +5,7 @@ import {
   createServiceRoleSupabaseClient,
   requireApiUser,
 } from "../../../../../lib/apiGuard";
+import { LEGACY_TOURNAMENT_RESULT_DETAILS } from "../../../../../lib/results/legacyTournamentResultDetails";
 
 type TournamentRow = {
   id: number;
@@ -53,6 +54,16 @@ type ProfileNameRow = {
   full_name: string | null;
 };
 
+const legacyDetailMap = new Map(
+  LEGACY_TOURNAMENT_RESULT_DETAILS.map((detail) => [
+    `${detail.rowOrder}:${normalizeDisplayName(detail.displayName)}`,
+    detail,
+  ])
+);
+const legacyDetailByRowOrderMap = new Map(
+  LEGACY_TOURNAMENT_RESULT_DETAILS.map((detail) => [detail.rowOrder, detail])
+);
+
 function parseTournamentId(raw: string): number | null {
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : null;
@@ -62,7 +73,76 @@ function normalizeDisplayName(value: string | null | undefined) {
   return (value ?? "").trim();
 }
 
-async function readFallbackSummaryText() {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function findLegacyDetail(row: ResultRow) {
+  const exact = legacyDetailMap.get(
+    `${row.row_order}:${normalizeDisplayName(row.display_name)}`
+  );
+  if (exact) return exact;
+
+  if (row.section === "단체 스코어") {
+    return legacyDetailByRowOrderMap.get(row.row_order);
+  }
+
+  return undefined;
+}
+
+function mergeLegacyPayload(row: ResultRow) {
+  const payload = isRecord(row.payload) ? row.payload : {};
+  const legacy = findLegacyDetail(row);
+
+  if (!legacy) return payload;
+
+  const payloadStats = isRecord(payload.stats) ? payload.stats : {};
+
+  return {
+    ...payload,
+    tee_time: typeof payload.tee_time === "string" ? payload.tee_time : legacy.teeTime,
+    out_course:
+      typeof payload.out_course === "string" ? payload.out_course : legacy.outCourse,
+    in_course: typeof payload.in_course === "string" ? payload.in_course : legacy.inCourse,
+    out_scores:
+      Array.isArray(payload.out_scores) && payload.out_scores.length === 9
+        ? payload.out_scores
+        : legacy.outScores,
+    in_scores:
+      Array.isArray(payload.in_scores) && payload.in_scores.length === 9
+        ? payload.in_scores
+        : legacy.inScores,
+    out_total:
+      typeof payload.out_total === "number" ? payload.out_total : legacy.outTotal,
+    in_total: typeof payload.in_total === "number" ? payload.in_total : legacy.inTotal,
+    gross_total:
+      typeof payload.gross_total === "number" ? payload.gross_total : legacy.grossTotal,
+    net: typeof payload.net === "number" ? payload.net : legacy.net,
+    rank: typeof payload.rank === "number" ? payload.rank : legacy.rank,
+    handicap:
+      typeof payload.handicap === "number" ? payload.handicap : legacy.handicap,
+    award:
+      typeof payload.award === "string" || payload.award === null
+        ? payload.award
+        : legacy.award,
+    near: typeof payload.near === "number" ? payload.near : legacy.near,
+    long: typeof payload.long === "number" ? payload.long : legacy.long,
+    stats: {
+      ...legacy.stats,
+      ...payloadStats,
+    },
+    source:
+      typeof payload.source === "string"
+        ? payload.source
+        : `단체 스코어.pdf p${legacy.sourcePage}`,
+    source_page:
+      typeof payload.source_page === "number"
+        ? payload.source_page
+        : legacy.sourcePage,
+  };
+}
+
+async function readLegacySummaryText() {
   const summaryPath = path.join(process.cwd(), "DevGuide", "20260326", "summary.txt");
   try {
     return await fs.readFile(summaryPath, "utf-8");
@@ -185,7 +265,7 @@ export async function GET(
     const usedDisplayNames = Array.from(
       new Set(
         resultRows
-          .map((row) => normalizeDisplayName(row.display_name))
+          .map((row) => normalizeDisplayName(findLegacyDetail(row)?.displayName ?? row.display_name))
           .filter((name) => name.length > 0)
       )
     );
@@ -216,7 +296,9 @@ export async function GET(
     const myFullName = normalizeDisplayName(myProfileRes.data?.full_name);
 
     const resolvedRows = resultRows.map((row) => {
-      const normalized = normalizeDisplayName(row.display_name);
+      const legacy = findLegacyDetail(row);
+      const displayName = legacy?.displayName ?? row.display_name;
+      const normalized = normalizeDisplayName(displayName);
       const matchedUserIds = nameToUserIds.get(normalized) ?? [];
       const matchStatus =
         matchedUserIds.length === 1
@@ -230,11 +312,11 @@ export async function GET(
         id: row.id,
         section: row.section,
         row_order: row.row_order,
-        display_name: row.display_name,
+        display_name: displayName,
         score_label: row.score_label,
         score_value: row.score_value,
         note: row.note,
-        payload: row.payload ?? {},
+        payload: mergeLegacyPayload(row),
         match_status: matchStatus,
         matched_user_id: matchedUserId,
         is_mine:
@@ -245,7 +327,7 @@ export async function GET(
       };
     });
 
-    const fallbackSummary = await readFallbackSummaryText();
+    const fallbackSummary = await readLegacySummaryText();
 
     return NextResponse.json(
       {
