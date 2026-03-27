@@ -13,7 +13,6 @@ import {
 import { formatTournamentStatus } from "../../../lib/statusLabels";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { useToast } from "../../../components/ui/toast";
 
 type TournamentRow = {
@@ -150,9 +149,9 @@ export default function AdminTournamentsPage() {
   }, [rows]);
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] px-6 py-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
-        <section className="rounded-[30px] border border-slate-100 bg-white p-6 shadow-sm">
+    <main className="min-h-screen bg-slate-50 px-4 pt-6 pb-12 md:px-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN TOURNAMENTS</p>
@@ -198,45 +197,38 @@ export default function AdminTournamentsPage() {
         </section>
 
         {loading ? (
-          <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
-            <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩 중...</p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-slate-100 bg-white py-10 text-center shadow-sm">
+            <p className="text-sm text-slate-500">로딩 중...</p>
+          </div>
         ) : null}
 
         {!loading && rows.length === 0 ? (
-          <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
-            <CardContent className="py-10">
-              <p className="text-sm text-slate-500">
-                표시할 대회가 없습니다. 권한 부여 상태를 확인해 주세요.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-slate-100 bg-white py-10 text-center shadow-sm">
+            <p className="text-sm text-slate-500">
+              표시할 대회가 없습니다. 권한 부여 상태를 확인해 주세요.
+            </p>
+          </div>
         ) : null}
 
-        <section className="space-y-3">
+        <section className="space-y-2">
           {rows.map((row) => (
-            <Card
+            <div
               key={row.id}
-              className="rounded-[30px] border border-slate-100 bg-white shadow-sm"
+              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
             >
-              <CardHeader className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-lg text-slate-900">{row.title}</CardTitle>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_STYLE[row.status] ?? "bg-slate-100 text-slate-700"}`}
-                  >
-                    {formatTournamentStatus(row.status)}
-                  </span>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-base font-semibold text-slate-900">{row.title}</span>
+                  <span className="text-xs text-slate-500">{row.event_date}</span>
+                  <Badge variant="outline" className="text-xs">ID {row.id}</Badge>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span>{row.event_date}</span>
-                  <Badge variant="outline">ID {row.id}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_STYLE[row.status] ?? "bg-slate-100 text-slate-700"}`}
+                >
+                  {formatTournamentStatus(row.status)}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
                   {isAdmin ? (
                     <>
                       <Button asChild size="sm" variant="outline">
@@ -312,8 +304,7 @@ export default function AdminTournamentsPage() {
                     </Button>
                   ) : null}
                 </div>
-              </CardContent>
-            </Card>
+            </div>
           ))}
         </section>
       </div>

@@ -9,13 +9,6 @@ import { formatRegistrationStatus, formatTournamentStatus } from "../../../../..
 import { Badge } from "../../../../../components/ui/badge";
 import { Button } from "../../../../../components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../../../../components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -130,13 +123,11 @@ export default function TournamentDashboardPage() {
 
   if (loading_) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-            <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩중...</p>
-            </CardContent>
-          </Card>
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8 md:px-6">
+          <div className="rounded-2xl border border-slate-100 bg-white py-10 text-center shadow-sm">
+            <p className="text-sm text-slate-500">로딩중...</p>
+          </div>
         </div>
       </main>
     );
@@ -144,25 +135,23 @@ export default function TournamentDashboardPage() {
 
   if (!t) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-            <CardContent className="py-10">
-              <p className="text-sm text-slate-500">대회를 찾을 수 없습니다</p>
-            </CardContent>
-          </Card>
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8 md:px-6">
+          <div className="rounded-2xl border border-slate-100 bg-white py-10 text-center shadow-sm">
+            <p className="text-sm text-slate-500">대회를 찾을 수 없습니다</p>
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8 md:px-6">
         {/* 헤더 */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-3xl font-semibold text-slate-900">
+            <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">
               {t.title}
             </h1>
             <Badge variant="secondary" className="capitalize">
@@ -172,59 +161,25 @@ export default function TournamentDashboardPage() {
           <p className="text-sm text-slate-500">{t.event_date} · 가입 현황</p>
         </div>
 
-        {/* 통계 */}
+        {/* 통계 — flat compact 카드 */}
         {stats && (
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-slate-600">
-                  전체 신청
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-slate-900">
-                  {stats.total_count}명
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="rounded-[28px] border border-blue-200 bg-blue-50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-blue-900">
-                  신청
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-blue-900">
-                  {stats.applied_count}명
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-[28px] border border-green-200 bg-green-50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-green-900">
-                  확정
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-green-900">
-                  {stats.confirmed_count}명
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-[28px] border border-amber-200 bg-amber-50">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-amber-900">
-                  대기
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-amber-900">
-                  {stats.waitlisted_count}명
-                </p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">전체 신청</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{stats.total_count}명</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+              <p className="text-xs font-medium text-blue-700">신청</p>
+              <p className="mt-1 text-2xl font-bold text-blue-900">{stats.applied_count}명</p>
+            </div>
+            <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+              <p className="text-xs font-medium text-green-700">확정</p>
+              <p className="mt-1 text-2xl font-bold text-green-900">{stats.confirmed_count}명</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <p className="text-xs font-medium text-amber-700">대기</p>
+              <p className="mt-1 text-2xl font-bold text-amber-900">{stats.waitlisted_count}명</p>
+            </div>
           </div>
         )}
 
@@ -236,77 +191,67 @@ export default function TournamentDashboardPage() {
         )}
 
         {/* 상태 요약 */}
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>신청 상태 요약</CardTitle>
-                <CardDescription>
-                  승인 단계 없이 상태(신청/확정/대기/취소)만 관리합니다.
-                </CardDescription>
-              </div>
-              <Button asChild variant="outline">
-                <Link href={`/admin/tournaments/${tournamentId}/registrations`}>
-                  신청자 관리로 이동
-                </Link>
-              </Button>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">신청 상태 요약</p>
+              <p className="mt-0.5 text-xs text-slate-500">승인 단계 없이 상태(신청/확정/대기/취소)만 관리합니다.</p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-600">
-              상태 변경은 신청자 관리 화면에서 처리할 수 있습니다.
-            </p>
-          </CardContent>
-        </Card>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/admin/tournaments/${tournamentId}/registrations`}>
+                신청자 관리로 이동
+              </Link>
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-slate-600">
+            상태 변경은 신청자 관리 화면에서 처리할 수 있습니다.
+          </p>
+        </div>
 
         {/* 전체 신청 목록 */}
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle>전체 신청 현황</CardTitle>
-            <CardDescription>
-              모든 신청자를 확인할 수 있습니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto lg:overflow-x-visible">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>닉네임</TableHead>
-                    <TableHead>참가 상태</TableHead>
-                    <TableHead>신청일시</TableHead>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <p className="text-sm font-semibold text-slate-800">전체 신청 현황</p>
+            <p className="text-xs text-slate-500">모든 신청자를 확인할 수 있습니다.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[480px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>닉네임</TableHead>
+                  <TableHead>참가 상태</TableHead>
+                  <TableHead>신청일시</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {registrations.map((reg) => (
+                  <TableRow key={reg.id}>
+                    <TableCell className="font-medium">
+                      {reg.nickname}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="capitalize">
+                        {formatRegistrationStatus(reg.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600">
+                      {new Date(reg.created_at).toLocaleString("ko-KR")}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {registrations.map((reg) => (
-                    <TableRow key={reg.id}>
-                      <TableCell className="font-medium">
-                        {reg.nickname}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="capitalize">
-                          {formatRegistrationStatus(reg.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {new Date(reg.created_at).toLocaleString("ko-KR")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
 
         {/* 돌아가기 */}
         <div className="flex gap-2">
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" size="sm">
             <Link href={`/admin/tournaments/${tournamentId}/registrations`}>
               신청자 관리 (상태 변경)
             </Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" size="sm">
             <Link href="/admin/tournaments">대회 목록</Link>
           </Button>
         </div>

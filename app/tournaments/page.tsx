@@ -297,22 +297,22 @@ export default function TournamentsPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-14">
-        <section className="mb-10 space-y-3">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-600">Tournaments</p>
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">대회 목록</h1>
-          <p className="text-base text-slate-500">
+      <div className="mx-auto max-w-4xl px-4 py-8 md:px-6">
+        <section className="mb-5 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600">Tournaments</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">대회 목록</h1>
+          <p className="text-sm text-slate-500">
             진행 중인 대회를 확인하고 참가 상태를 확인하세요. 전체 {summaryCount}개
           </p>
         </section>
 
         <section className="space-y-4">
           {isLoading ? (
-            <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
               로딩 중...
             </div>
           ) : rows.length === 0 ? (
-            <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
               등록된 대회가 없습니다.
             </div>
           ) : (
@@ -329,100 +329,89 @@ export default function TournamentsPage() {
               return (
                 <article
                   key={t.id}
-                  className="group rounded-[30px] border border-transparent bg-white p-6 shadow-sm transition-all hover:border-green-100 hover:shadow-md md:p-8"
+                  className="group rounded-2xl border border-transparent bg-white p-4 shadow-sm transition-all hover:border-green-100 hover:shadow-md md:p-5"
                 >
-                  <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                    <div className="min-w-0 space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${badgeClass}`}>
-                          {formatTournamentStatus(t.status)}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-400">{t.event_date}</span>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      {/* 상단 뱃지 줄 */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${badgeClass}`}>
+                            {formatTournamentStatus(t.status)}
+                          </span>
+                          <span className="text-xs text-slate-400">{t.event_date}</span>
+                        </div>
+                        {user ? (
+                          <span className="text-xs font-semibold text-slate-500">
+                            내 상태: {myStatus ? formatStatus(myStatus) : "미신청"}
+                          </span>
+                        ) : null}
                       </div>
 
-                      <h2 className="truncate text-2xl font-bold text-slate-900 transition-colors group-hover:text-green-700">
+                      {/* 대회명 */}
+                      <h2 className="text-lg font-bold text-slate-900 transition-colors group-hover:text-green-700 md:text-xl">
                         {t.title}
                       </h2>
 
-                      <div className="grid gap-1 text-sm text-slate-500">
-                        <p>코스: {t.course_name ?? "-"}</p>
-                        <p>지역: {t.location ?? "-"}</p>
-                        <p>티오프: {t.tee_time ?? "-"}</p>
-                        <p>
-                          신청/확정/대기/취소: {registrationSummary.applied}/{registrationSummary.approved}/
-                          {registrationSummary.waitlisted}/{registrationSummary.canceled}명
-                        </p>
-                        <p>
-                          라운드 희망(사전/사후): {roundPreferenceSummary.prePreferred}/
-                          {roundPreferenceSummary.postPreferred}명
-                        </p>
-                        <p>메모: {t.notes ?? "-"}</p>
+                      {/* 정보 2단 그리드 */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-slate-500 md:grid-cols-3">
+                        <p>코스: <span className="text-slate-700">{t.course_name ?? "-"}</span></p>
+                        <p>지역: <span className="text-slate-700">{t.location ?? "-"}</span></p>
+                        <p>티오프: <span className="text-slate-700">{t.tee_time ?? "-"}</span></p>
+                        <p>신청/확정/대기/취소: <span className="text-slate-700">{registrationSummary.applied}/{registrationSummary.approved}/{registrationSummary.waitlisted}/{registrationSummary.canceled}명</span></p>
+                        <p>라운드 희망(사전/사후): <span className="text-slate-700">{roundPreferenceSummary.prePreferred}/{roundPreferenceSummary.postPreferred}명</span></p>
+                        {t.notes ? <p className="col-span-2 md:col-span-1">메모: <span className="text-slate-700">{t.notes}</span></p> : null}
                       </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        <p className="text-xs font-semibold text-slate-600">사전/사후 라운드 요약</p>
-                        {sideEventSummary.length === 0 ? (
-                          <p className="mt-1 text-xs text-slate-400">생성된 라운드가 없습니다.</p>
-                        ) : (
-                          <div className="mt-2 space-y-1">
-                            {sideEventSummary.map((sideEvent) => (
-                              <p key={sideEvent.id} className="text-xs text-slate-600">
-                                [{formatRoundType(sideEvent.round_type)}] {sideEvent.title} · 신청 {sideEvent.registration_count}명
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {user ? (
-                        <p className="text-xs font-semibold text-slate-500">
-                          내 참가 상태: {myStatus ? formatStatus(myStatus) : "미신청"}
-                        </p>
+                      {/* 라운드 요약 인라인 */}
+                      {sideEventSummary.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {sideEventSummary.map((sideEvent) => (
+                            <span key={sideEvent.id} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
+                              [{formatRoundType(sideEvent.round_type)}] {sideEvent.title} · {sideEvent.registration_count}명
+                            </span>
+                          ))}
+                        </div>
                       ) : null}
                     </div>
 
-                    <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:min-w-[140px]">
+                    {/* 버튼 영역 */}
+                    <div className="flex flex-row flex-wrap gap-2 md:flex-col md:items-stretch md:gap-1.5 md:min-w-[120px]">
                       <Link
                         href={`/t/${t.id}/participants`}
-                        className="inline-flex items-center justify-center rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200"
+                        className="inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200"
                       >
                         상세 보기
                       </Link>
                       {isDoneTournament ? (
                         <Link
                           href={`/t/${t.id}/results`}
-                          className="inline-flex items-center justify-center rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
+                          className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-indigo-700"
                         >
                           결과 보기
                         </Link>
                       ) : null}
                       {user ? (
                         isDoneTournament ? (
-                          <span className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-slate-200 px-5 py-3 text-sm font-bold text-slate-500">
-                            참가 신청 종료
+                          <span className="inline-flex cursor-not-allowed items-center justify-center rounded-xl bg-slate-200 px-4 py-2 text-xs font-bold text-slate-500">
+                            신청 종료
                           </span>
                         ) : (
                           <Link
                             href={`/t/${t.id}?open=apply#main-registration`}
-                            className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800"
+                            className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-slate-800"
                           >
-                            {myStatus ? "참가정보 수정" : "참가 신청"}
+                            {myStatus ? "정보 수정" : "참가 신청"}
                           </Link>
                         )
                       ) : null}
-                      {canManageSideEvents ? (
-                        isDoneTournament ? (
-                          <span className="inline-flex cursor-not-allowed items-center justify-center rounded-2xl bg-slate-200 px-5 py-3 text-sm font-bold text-slate-500">
-                            라운드 관리 종료
-                          </span>
-                        ) : (
-                          <Link
-                            href={`/admin/tournaments/${t.id}/side-events`}
-                            className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-green-700"
-                          >
-                            라운드 관리
-                          </Link>
-                        )
+                      {canManageSideEvents && !isDoneTournament ? (
+                        <Link
+                          href={`/admin/tournaments/${t.id}/side-events`}
+                          className="inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-green-700"
+                        >
+                          라운드 관리
+                        </Link>
                       ) : null}
                     </div>
                   </div>
