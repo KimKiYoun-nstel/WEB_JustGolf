@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -547,7 +547,7 @@ export default function AdminSideEventsPage() {
       const mealLabel = se.meal_option_id ? mealOptionMap.get(se.meal_option_id) ?? "선택됨" : "없음";
 
       return (
-        <Card key={se.id} className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+        <Card key={se.id} className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader className="gap-4 border-b border-slate-100">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="space-y-2">
@@ -752,8 +752,8 @@ export default function AdminSideEventsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7]">
-        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-7xl px-4 md:px-6 py-8">
           <p className="text-sm text-slate-500">로딩중...</p>
         </div>
       </main>
@@ -762,8 +762,8 @@ export default function AdminSideEventsPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7]">
-        <div className="mx-auto max-w-7xl px-3 md:px-4 lg:px-6 py-8">
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-7xl px-4 md:px-6 py-8">
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
@@ -778,7 +778,7 @@ export default function AdminSideEventsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
       <section className="border-b border-slate-100 bg-white px-3 pb-6 pt-8 md:px-4 lg:px-6">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -799,9 +799,9 @@ export default function AdminSideEventsPage() {
         </div>
       </section>
 
-      <section className="border-b border-slate-100 bg-[#F2F4F7] px-3 py-6 md:px-4 lg:px-6">
+      <section className="border-b border-slate-100 bg-slate-50 px-4 py-6 md:px-6">
         <div className="mx-auto w-full max-w-7xl">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle>라운드 요약</CardTitle>
               <p className="text-sm text-slate-500">사전/사후 라운드 구성과 신청 현황을 빠르게 확인합니다.</p>
@@ -931,7 +931,7 @@ export default function AdminSideEventsPage() {
 
       <div className="mx-auto flex max-w-7xl flex-col gap-5 px-3 py-7 md:px-4 lg:px-6">
 
-        <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader className="border-b border-slate-100">
             <CardTitle>
               {editingId ? "라운드 수정" : "새 라운드 추가"}
@@ -1117,7 +1117,7 @@ export default function AdminSideEventsPage() {
         </Card>
 
         {sideEvents.length === 0 ? (
-          <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10 text-center">
               <p className="text-sm text-slate-500">등록된 라운드가 없습니다.</p>
             </CardContent>

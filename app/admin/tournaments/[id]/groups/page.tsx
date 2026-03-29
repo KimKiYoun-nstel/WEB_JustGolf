@@ -345,9 +345,9 @@ export default function AdminTournamentGroupsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
@@ -359,9 +359,9 @@ export default function AdminTournamentGroupsPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-red-200 bg-red-50">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -375,8 +375,8 @@ export default function AdminTournamentGroupsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">조 편성 관리</h1>
@@ -406,7 +406,7 @@ export default function AdminTournamentGroupsPage() {
         </div>
 
         {groups.length === 0 ? (
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10 text-center text-sm text-slate-500">
               아직 조가 없습니다. &quot;조 추가&quot; 버튼으로 생성해 주세요.
             </CardContent>
@@ -414,7 +414,7 @@ export default function AdminTournamentGroupsPage() {
         ) : (
           <div className="space-y-4">
             {groups.map((group) => (
-              <Card key={group.id} className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+              <Card key={group.id} className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <details className="group">
                   <summary className="cursor-pointer select-none [&>*]:pointer-events-none">
                     <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -28,7 +28,7 @@ type ManagedTournament = {
 
 function QuickCard({ item }: { item: QuickCardItem }) {
   return (
-    <article className="group flex h-full flex-col justify-between rounded-[28px] border border-transparent bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md">
+    <article className="group flex h-full flex-col justify-between rounded-2xl border border-transparent bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-green-100 hover:shadow-md">
       <div className="space-y-3">
         <h2 className="text-xl font-bold text-slate-900">{item.title}</h2>
         <p className="whitespace-pre-line text-sm leading-relaxed text-slate-500">
@@ -135,7 +135,7 @@ export default function StartPage() {
 
   return (
     <main className="min-h-screen bg-[#F9FAFB]">
-      <div className="mx-auto max-w-6xl px-6 py-14">
+      <div className="mx-auto max-w-5xl px-4 py-8 md:px-6">
         <header className="mb-10 space-y-3">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-600">
             Quick Start
