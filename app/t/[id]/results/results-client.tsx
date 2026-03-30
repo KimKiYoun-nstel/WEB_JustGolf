@@ -901,15 +901,15 @@ export default function TournamentResultsClient({
       </div>
 
       {isSummaryOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
-          <div className="max-h-[82vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">{data.summary_title || "대회 갈무리"}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="max-h-[82vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-6 py-5">
+              <h2 className="text-xl font-bold text-slate-900">{data.summary_title || "대회 갈무리"}</h2>
             </div>
-            <div className="max-h-[56vh] overflow-y-auto px-5 py-4">
-              <pre className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{data.summary_text}</pre>
+            <div className="max-h-[56vh] overflow-y-auto px-6 py-5">
+              <pre className="font-sans whitespace-pre-wrap text-[15px] leading-7 text-slate-800">{data.summary_text}</pre>
             </div>
-            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-6 py-4">
               <Button variant="outline" onClick={() => closeSummary(true)}>
                 오늘 하루 보지 않기
               </Button>
