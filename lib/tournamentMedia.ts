@@ -31,11 +31,12 @@ export const TOURNAMENT_MEDIA: Record<number, TournamentMedia> = {
   },
 
   // ── 운영 서버 1회 대회 (ID: 7) ──────────────────────────────────
-  // Cloudinary에 just-golf/results/7/ 경로로 업로드 후 자동 적용됨
+  // 개발 서버에서 올린 이미지(ID:1 경로)를 그대로 재사용
+  // Cloudinary는 dev/prod 공용이므로 경로만 같으면 동일 파일이 표시됨
   7: {
-    cardBgUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/7/card-bg",
-    groupPhotoUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/7/group-photo",
-    highlightVideoUrl: "https://res.cloudinary.com/dqoqvzlt5/video/upload/just-golf/results/7/highlight.mp4",
+    cardBgUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/1/card-bg",
+    groupPhotoUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/1/group-photo",
+    highlightVideoUrl: "https://res.cloudinary.com/dqoqvzlt5/video/upload/just-golf/results/1/highlight.mp4",
   },
 };
 
