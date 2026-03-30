@@ -19,13 +19,17 @@ export function generateUploadSignature(params: {
   folder: string;
   public_id: string;
   timestamp: number;
+  /** eager transformation 문자열 (파이프 구분, 예: "w_800,f_auto,q_auto|w_400,f_auto,q_auto") */
+  eager?: string;
 }): string {
+  const sigParams: Record<string, string | number> = {
+    folder: params.folder,
+    public_id: params.public_id,
+    timestamp: params.timestamp,
+  };
+  if (params.eager) sigParams.eager = params.eager;
   return cloudinary.utils.api_sign_request(
-    {
-      folder: params.folder,
-      public_id: params.public_id,
-      timestamp: params.timestamp,
-    },
+    sigParams,
     process.env.CLOUDINARY_API_SECRET!
   );
 }

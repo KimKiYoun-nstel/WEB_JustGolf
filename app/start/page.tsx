@@ -10,6 +10,7 @@ import {
   getTournamentAdminAccess,
   listManagedTournamentIds,
 } from "../../lib/tournamentAdminAccess";
+import { CLUB_RULES, RULES_LAST_UPDATED } from "../../lib/clubRules";
 
 type QuickCardItem = {
   title: string;
@@ -53,6 +54,7 @@ export default function StartPage() {
   const { user, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [managedTournaments, setManagedTournaments] = useState<ManagedTournament[]>([]);
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) {
@@ -206,6 +208,68 @@ export default function StartPage() {
           </section>
         ) : null}
       </div>
+
+      {/* 회칙 모달 */}
+      {isRulesOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          onClick={() => setIsRulesOpen(false)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">JUST GOLF 회칙</h2>
+                <p className="mt-0.5 text-xs text-slate-400">{RULES_LAST_UPDATED}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRulesOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-y-auto px-6 py-5">
+              {CLUB_RULES.map((section) => (
+                <section key={section.id} className="mb-7">
+                  <h3 className="mb-3 text-sm font-bold tracking-wide text-green-700">
+                    {section.title}
+                  </h3>
+                  <ol className="space-y-2.5">
+                    {section.items.map((item) => (
+                      <li key={item.num} className="text-sm leading-relaxed text-slate-700">
+                        <span className="mr-1.5 font-semibold text-slate-900">{item.num}.</span>
+                        {item.text}
+                        {item.sub && item.sub.length > 0 ? (
+                          <ul className="mt-1.5 space-y-1 rounded-xl bg-slate-50 px-4 py-2">
+                            {item.sub.map((s, idx) => (
+                              <li key={idx} className="text-xs leading-relaxed text-slate-600">
+                                • {s}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              ))}
+            </div>
+            <div className="border-t border-slate-200 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setIsRulesOpen(false)}
+                className="w-full rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white hover:bg-slate-700"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

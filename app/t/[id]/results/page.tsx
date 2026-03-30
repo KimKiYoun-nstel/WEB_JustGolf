@@ -5,6 +5,7 @@ import {
   parseTournamentId,
   TournamentResultsError,
 } from "../../../../lib/results/tournamentResults";
+import { getTournamentMedia } from "../../../../lib/tournamentMedia";
 import TournamentResultsClient from "./results-client";
 
 type TournamentResultsPageProps = {
@@ -45,6 +46,7 @@ export default async function TournamentResultsPage({
     <TournamentResultsClient
       initialData={initialData}
       tournamentId={tournamentId}
+      media={getTournamentMedia(tournamentId)}
     />
   );
 }

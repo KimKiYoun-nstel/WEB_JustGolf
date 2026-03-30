@@ -346,6 +346,7 @@ function UploadModal({
         public_id: string;
         cloud_name: string;
         api_key: string;
+        eager?: string;
       };
 
       // 2) Cloudinary 직접 업로드
@@ -356,6 +357,8 @@ function UploadModal({
       formData.append("signature", sig.signature);
       formData.append("folder", sig.folder);
       formData.append("public_id", sig.public_id);
+      // eager 변환을 서명에 포함했으면 업로드 요청에도 동일하게 포함해야 함
+      if (sig.eager) formData.append("eager", sig.eager);
 
       const uploadRes = await fetch(
         `https://api.cloudinary.com/v1_1/${sig.cloud_name}/image/upload`,

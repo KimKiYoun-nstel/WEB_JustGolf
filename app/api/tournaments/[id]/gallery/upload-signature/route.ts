@@ -63,11 +63,18 @@ export async function POST(
   }
 
   // 서명 생성
+  // eager로 업로드 시 변환을 미리 처리해 첫 요청 시 지연을 없앰
+  const EAGER_TRANSFORM = "w_800,f_auto,q_auto|w_400,f_auto,q_auto";
   const timestamp = Math.round(Date.now() / 1000);
   const folder = `just-golf/gallery/${tournamentId}`;
   const publicId = `${user.id.slice(0, 8)}-${crypto.randomUUID()}`;
 
-  const signature = generateUploadSignature({ folder, public_id: publicId, timestamp });
+  const signature = generateUploadSignature({
+    folder,
+    public_id: publicId,
+    timestamp,
+    eager: EAGER_TRANSFORM,
+  });
 
   return NextResponse.json({
     signature,
@@ -76,6 +83,7 @@ export async function POST(
     public_id: publicId,
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
+    eager: EAGER_TRANSFORM,
     remaining: UPLOAD_LIMIT_PER_USER - uploadCount - 1,
   });
 }
