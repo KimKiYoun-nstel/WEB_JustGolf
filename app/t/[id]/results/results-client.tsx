@@ -693,11 +693,10 @@ export default function TournamentResultsClient({
           style={{
             height: "calc(100vh - 56px)",
             backgroundImage: `url(${groupPhotoUrl})`,
-            /* 기준 폭 1440px 고정 — 좁으면 좌우 클립, 넓으면 양옆 #0c0c0c 표시 */
-            backgroundSize: "1440px auto",
+            /* contain: 이미지 전체 보임, 빈 공간은 페이지 배경색 */
+            backgroundSize: "contain",
             backgroundPosition: "top center",
             backgroundRepeat: "no-repeat",
-            backgroundColor: "#0c0c0c",
           }}
         >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/30" />
