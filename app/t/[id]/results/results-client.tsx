@@ -638,7 +638,7 @@ export default function TournamentResultsClient({
             className={`relative overflow-hidden shadow-sm ${hasBg ? "border-0" : "border-slate-200/80 bg-white/90"}`}
             style={
               cardBgUrl
-                ? { backgroundImage: `url(${cardBgUrl})`, backgroundSize: "100% auto", backgroundPosition: "top center" }
+                ? { backgroundImage: `url(${cardBgUrl})`, backgroundSize: "cover", backgroundPosition: "center center" }
                 : undefined
             }
           >
@@ -693,7 +693,8 @@ export default function TournamentResultsClient({
           style={{
             height: "calc(100vh - 56px)",
             backgroundImage: `url(${groupPhotoUrl})`,
-            backgroundSize: "cover",
+            /* 기준 폭 1440px 고정 — 좁으면 좌우 클립, 넓으면 양옆 #0c0c0c 표시 */
+            backgroundSize: "1440px auto",
             backgroundPosition: "top center",
             backgroundRepeat: "no-repeat",
             backgroundColor: "#0c0c0c",

@@ -22,12 +22,12 @@ export type TournamentMedia = {
 };
 
 export const TOURNAMENT_MEDIA: Record<number, TournamentMedia> = {
-  // ── 개발 테스트 대회 (ID: 1) ──────────────────────────────────────
+  // ── 개발 테스트 대회 (ID: 1) ─────────────────────────────────────
   // Cloudinary 업로드 후 URL 을 여기에 붙여넣으세요.
   1: {
-    cardBgUrl: "",
-    groupPhotoUrl: "",
-    highlightVideoUrl: "",
+    cardBgUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/1/card-bg",
+    groupPhotoUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/1/group-photo",
+    highlightVideoUrl: "https://res.cloudinary.com/dqoqvzlt5/video/upload/just-golf/results/1/highlight.mp4",
   },
 
   // ── 운영 서버 대회 ────────────────────────────────────────────────
