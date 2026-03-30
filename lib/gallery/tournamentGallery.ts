@@ -61,7 +61,6 @@ export async function getGalleryItems(
       cloudinary_public_id, public_url,
       video_url, thumbnail_url, video_title,
       caption, is_hidden, created_at,
-      profiles!tournament_gallery_items_user_id_fkey (nickname),
       tournament_gallery_likes (count),
       tournament_gallery_comments (count)
     `
@@ -73,6 +72,15 @@ export async function getGalleryItems(
 
   if (error || !data) return [];
 
+  // profiles 별도 쿼리 (PostgREST가 auth.users 경유 간접 FK 인식 못함)
+  const uploaderIds = [...new Set(data.map((r) => r.user_id as string))];
+  const { data: profileRows } = uploaderIds.length > 0
+    ? await supabase.from("profiles").select("id, nickname").in("id", uploaderIds)
+    : { data: [] };
+  const profileMap = new Map<string, string>(
+    (profileRows ?? []).map((p: { id: string; nickname: string }) => [p.id, p.nickname])
+  );
+
   // 내가 좋아요한 아이템 ID 목록
   const itemIds = data.map((r) => r.id);
   const { data: myLikes } = await supabase
@@ -83,7 +91,6 @@ export async function getGalleryItems(
   const likedSet = new Set((myLikes ?? []).map((l) => l.item_id));
 
   return data.map((row) => {
-    const profiles = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     const likes = Array.isArray(row.tournament_gallery_likes)
       ? row.tournament_gallery_likes
       : [];
@@ -103,8 +110,7 @@ export async function getGalleryItems(
       caption: row.caption ?? null,
       is_hidden: row.is_hidden,
       created_at: row.created_at,
-      uploader_nickname:
-        (profiles as { nickname?: string } | null)?.nickname ?? "알 수 없음",
+      uploader_nickname: profileMap.get(row.user_id as string) ?? "알 수 없음",
       like_count: (likes[0] as { count?: number })?.count ?? 0,
       comment_count: (comments[0] as { count?: number })?.count ?? 0,
       is_liked_by_me: likedSet.has(row.id),

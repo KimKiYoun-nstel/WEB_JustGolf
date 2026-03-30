@@ -27,10 +27,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("tournament_gallery_comments")
-    .select(
-      `id, item_id, user_id, content, created_at,
-       profiles!tournament_gallery_comments_user_id_fkey(nickname)`
-    )
+    .select("id, item_id, user_id, content, created_at")
     .eq("item_id", itemIdNum)
     .eq("is_hidden", false)
     .order("created_at", { ascending: true });
@@ -39,18 +36,21 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const comments = (data ?? []).map((row: Record<string, unknown>) => {
-    const profiles = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-    return {
-      id: row.id,
-      item_id: row.item_id,
-      user_id: row.user_id,
-      content: row.content,
-      created_at: row.created_at,
-      commenter_nickname:
-        (profiles as { nickname?: string } | null)?.nickname ?? "알 수 없음",
-    };
-  });
+  // profiles 별도 쿼리
+  const commenterIds = [...new Set((data ?? []).map((r: Record<string, unknown>) => r.user_id as string))];
+  const { data: profileRows } = commenterIds.length > 0
+    ? await supabase.from("profiles").select("id, nickname").in("id", commenterIds)
+    : { data: [] };
+  const profileMap = new Map<string, string>((profileRows ?? []).map((p: { id: string; nickname: string }) => [p.id, p.nickname]));
+
+  const comments = (data ?? []).map((row: Record<string, unknown>) => ({
+    id: row.id,
+    item_id: row.item_id,
+    user_id: row.user_id,
+    content: row.content,
+    created_at: row.created_at,
+    commenter_nickname: profileMap.get(row.user_id as string) ?? "알 수 없음",
+  }));
 
   return NextResponse.json({ comments });
 }

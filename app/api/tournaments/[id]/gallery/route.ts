@@ -86,8 +86,7 @@ export async function GET(
       `id, tournament_id, user_id, media_type,
        cloudinary_public_id, public_url,
        video_url, thumbnail_url, video_title,
-       caption, is_hidden, created_at,
-       profiles!tournament_gallery_items_user_id_fkey(nickname)`,
+       caption, is_hidden, created_at`,
       { count: "exact" }
     )
     .eq("tournament_id", tournamentId)
@@ -100,6 +99,13 @@ export async function GET(
   }
 
   const itemIds = (data ?? []).map((r: Record<string, unknown>) => r.id as number);
+
+  // profiles는 별도 쿼리 (PostgREST가 auth.users 경유 간접 FK를 인식 못함)
+  const uploaderIds = [...new Set((data ?? []).map((r: Record<string, unknown>) => r.user_id as string))];
+  const { data: profileRows } = uploaderIds.length > 0
+    ? await supabase.from("profiles").select("id, nickname").in("id", uploaderIds)
+    : { data: [] };
+  const profileMap = new Map<string, string>((profileRows ?? []).map((p: { id: string; nickname: string }) => [p.id, p.nickname]));
   const [likesRes, commentsRes, myLikesRes] = await Promise.all([
     itemIds.length > 0
       ? supabase
@@ -138,7 +144,6 @@ export async function GET(
   }
 
   const items = (data ?? []).map((row: Record<string, unknown>) => {
-    const profiles = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     return {
       id: row.id,
       tournament_id: row.tournament_id,
@@ -151,8 +156,7 @@ export async function GET(
       video_title: row.video_title ?? null,
       caption: row.caption ?? null,
       created_at: row.created_at,
-      uploader_nickname:
-        (profiles as { nickname?: string } | null)?.nickname ?? "알 수 없음",
+      uploader_nickname: profileMap.get(row.user_id as string) ?? "알 수 없음",
       like_count: likeCountMap.get(row.id as number) ?? 0,
       comment_count: commentCountMap.get(row.id as number) ?? 0,
       is_liked_by_me: likedSet.has(row.id as number),
