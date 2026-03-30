@@ -154,6 +154,15 @@ export default function StartPage() {
           ))}
         </section>
 
+        <div className="mt-6">
+          <button
+            onClick={() => setIsRulesOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            📋 JUST GOLF 회칙 보기
+          </button>
+        </div>
+
         {!loading && isAdmin ? (
           <section className="mt-12 border-t border-slate-200 pt-10">
             <div className="mb-6 space-y-2">
