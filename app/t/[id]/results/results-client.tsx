@@ -2,7 +2,6 @@
 
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useDeferredValue, useMemo, useState } from "react";
 import type { TournamentMedia } from "../../../../lib/tournamentMedia";
@@ -639,7 +638,7 @@ export default function TournamentResultsClient({
             className={`relative overflow-hidden shadow-sm ${hasBg ? "border-0" : "border-slate-200/80 bg-white/90"}`}
             style={
               cardBgUrl
-                ? { backgroundImage: `url(${cardBgUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+                ? { backgroundImage: `url(${cardBgUrl})`, backgroundSize: "100% auto", backgroundPosition: "top center" }
                 : undefined
             }
           >
@@ -687,10 +686,19 @@ export default function TournamentResultsClient({
         </div>
       </div>
 
-      {/* ── 단체사진 sticky 배경 ── */}
+      {/* ── 단체사진 sticky 배경 (고정 크기: 높이=뷰포트, 폭=비율에 따라 클립) ── */}
       {groupPhotoUrl ? (
-        <div className="sticky top-14 z-0 w-full overflow-hidden" style={{ height: "calc(100vh - 56px)" }}>
-          <Image src={groupPhotoUrl} alt="단체사진" fill className="object-cover" priority />
+        <div
+          className="sticky top-14 z-0 w-full overflow-hidden"
+          style={{
+            height: "calc(100vh - 56px)",
+            backgroundImage: `url(${groupPhotoUrl})`,
+            backgroundSize: "cover",
+            backgroundPosition: "top center",
+            backgroundRepeat: "no-repeat",
+            backgroundColor: "#0c0c0c",
+          }}
+        >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/30" />
         </div>
       ) : null}
@@ -940,27 +948,29 @@ export default function TournamentResultsClient({
         </Sheet>
       </div>
 
-      {/* ── 하이라이트 영상 팝업 ── */}
+      {/* ── 하이라이트 영상 팝업 (YouTube Shorts 스타일: 세로 고정 크기 9:16) ── */}
       {isVideoOpen && highlightVideoUrl ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/92"
           onClick={() => setIsVideoOpen(false)}
         >
           <div
-            className="relative w-full max-w-4xl"
+            className="flex flex-col items-center gap-3"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setIsVideoOpen(false)}
-              className="absolute -top-10 right-0 text-sm font-semibold text-white/80 hover:text-white"
+              className="self-end rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/35"
             >
               ✕ 닫기
             </button>
+            {/* 세로 영상 고정 크기: 최대 360px 폭, 80vh 높이 제한 */}
             <video
               controls
-              autoPlay
-              className="w-full rounded-2xl shadow-2xl"
+              playsInline
+              className="rounded-2xl shadow-2xl"
+              style={{ width: "min(360px, 90vw)", maxHeight: "80vh", background: "#000" }}
               src={highlightVideoUrl}
             >
               브라우저가 video 태그를 지원하지 않습니다.
