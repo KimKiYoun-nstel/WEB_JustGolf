@@ -30,8 +30,13 @@ export const TOURNAMENT_MEDIA: Record<number, TournamentMedia> = {
     highlightVideoUrl: "https://res.cloudinary.com/dqoqvzlt5/video/upload/just-golf/results/1/highlight.mp4",
   },
 
-  // ── 운영 서버 대회 ────────────────────────────────────────────────
-  // 예) 2: { cardBgUrl: "https://res.cloudinary.com/...", ... },
+  // ── 운영 서버 1회 대회 (ID: 7) ──────────────────────────────────
+  // Cloudinary에 just-golf/results/7/ 경로로 업로드 후 자동 적용됨
+  7: {
+    cardBgUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/7/card-bg",
+    groupPhotoUrl: "https://res.cloudinary.com/dqoqvzlt5/image/upload/just-golf/results/7/group-photo",
+    highlightVideoUrl: "https://res.cloudinary.com/dqoqvzlt5/video/upload/just-golf/results/7/highlight.mp4",
+  },
 };
 
 export function getTournamentMedia(tournamentId: number): TournamentMedia {
