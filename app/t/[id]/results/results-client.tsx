@@ -655,6 +655,11 @@ export default function TournamentResultsClient({
                   갈무리 보기
                 </Button>
               ) : null}
+              {data.tournament.status === "done" ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/t/${data.tournament.id}/gallery`}>📸 사진/영상</Link>
+                </Button>
+              ) : null}
             </div>
           </CardHeader>
         </Card>
