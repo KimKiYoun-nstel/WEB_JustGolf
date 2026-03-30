@@ -234,9 +234,9 @@ export default function ManagerSetupPage() {
 
   if (!hasAccess) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">{msg || "권한 확인 중..."}</p>
             </CardContent>
@@ -248,9 +248,9 @@ export default function ManagerSetupPage() {
 
   if (!tournament) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
@@ -261,14 +261,14 @@ export default function ManagerSetupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 md:px-6">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">{tournament.title}</h1>
           <p className="text-sm text-slate-500">{tournament.event_date} · 대회 관리자 권한</p>
         </div>
 
-        <Card className="rounded-[28px] border border-blue-200 bg-blue-50 shadow-sm">
+        <Card className="rounded-2xl border border-blue-200 bg-blue-50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">권한 안내</CardTitle>
           </CardHeader>
@@ -278,7 +278,7 @@ export default function ManagerSetupPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>권한 부여</CardTitle>
             <CardDescription>이메일 또는 닉네임으로 사용자를 검색해 권한을 부여하세요.</CardDescription>
@@ -327,7 +327,7 @@ export default function ManagerSetupPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>현재 대회 관리자</CardTitle>
             <CardDescription>이 대회의 관리 권한을 가진 사용자 목록입니다.</CardDescription>

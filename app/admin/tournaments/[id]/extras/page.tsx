@@ -243,9 +243,9 @@ export default function AdminExtrasPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
@@ -257,9 +257,9 @@ export default function AdminExtrasPage() {
 
   if (!hasAccess) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">{msg || "권한 확인 중..."}</p>
             </CardContent>
@@ -270,14 +270,14 @@ export default function AdminExtrasPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 md:px-6">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">{tournament?.title}</h1>
           <p className="text-sm text-slate-500">{tournament?.event_date} · 추가 활동 관리</p>
         </div>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>추가 활동 등록</CardTitle>
             <CardDescription>대회당 최대 3개의 활동을 등록할 수 있습니다.</CardDescription>
@@ -306,7 +306,7 @@ export default function AdminExtrasPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>현재 활동 목록</CardTitle>
           </CardHeader>

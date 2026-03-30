@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* eslint-disable react-hooks/set-state-in-effect */
 
@@ -399,7 +399,7 @@ function TopRankCard({
   const style = PODIUM_STYLES[index] ?? PODIUM_STYLES[2];
 
   return (
-    <div className={`relative overflow-hidden rounded-[28px] border p-5 ${style.cardClass}`}>
+    <div className={`relative overflow-hidden rounded-2xl border p-5 ${style.cardClass}`}>
       <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/45 blur-2xl" />
       <div className="relative flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -436,7 +436,7 @@ function PlayerDetailContent({ player }: { player: PlayerResult | null }) {
 
   return (
     <div className="space-y-4">
-      <div className="relative overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_58%,#334155_100%)] px-5 py-5 text-white shadow-[0_18px_42px_rgba(15,23,42,0.2)]">
+      <div className="relative overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_58%,#334155_100%)] px-5 py-5 text-white shadow-[0_18px_42px_rgba(15,23,42,0.2)]">
         <div className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/10 blur-3xl" />
         <div className="relative space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">

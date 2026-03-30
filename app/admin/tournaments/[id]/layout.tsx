@@ -9,7 +9,6 @@ import { createClient } from "../../../../lib/supabaseClient";
 import { useAuth } from "../../../../lib/auth";
 import { getTournamentAdminAccess } from "../../../../lib/tournamentAdminAccess";
 import { Button } from "../../../../components/ui/button";
-import { Card } from "../../../../components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import {
   Sheet,
@@ -110,30 +109,30 @@ export default function AdminTournamentLayout({
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] px-3 py-6 md:px-4 lg:px-6">
-        <Card className="mx-auto max-w-7xl rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
+      <main className="min-h-screen bg-slate-50 px-4 py-6 md:px-6">
+        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <p className="text-sm text-slate-500">로딩 중...</p>
-        </Card>
+        </div>
       </main>
     );
   }
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] px-3 py-6 md:px-4 lg:px-6">
-        <Card className="mx-auto max-w-7xl rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
+      <main className="min-h-screen bg-slate-50 px-4 py-6 md:px-6">
+        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <p className="text-sm text-slate-600">해당 대회의 관리자 권한이 없습니다.</p>
           <Button asChild variant="outline" className="mt-4">
             <Link href="/admin/tournaments">대회 목록으로 이동</Link>
           </Button>
-        </Card>
+        </div>
       </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F2F4F7] text-slate-800">
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col px-3 md:px-4 lg:px-6">
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      <div className="mx-auto flex w-full max-w-5xl flex-col px-4 md:px-6">
         <header className="sticky top-16 z-40 mb-2 border-b border-slate-200/70 bg-white/95 py-1.5 backdrop-blur">
           <div className="flex items-center gap-3">
             <div className="min-w-0">

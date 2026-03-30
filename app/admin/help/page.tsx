@@ -2,13 +2,6 @@ import Link from "next/link";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../../components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -161,22 +154,20 @@ const workflowSteps = [
 
 export default function AdminHelpPage() {
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-6 px-3 py-8 md:px-4 lg:px-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold text-slate-900">관리자 기능 도움말</h1>
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 md:px-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold text-slate-900">관리자 기능 도움말</h1>
           <p className="text-sm text-slate-500">
             회원 관리, 대회 운영, 조편성, 라운드 관리 기능을
             실제 관리자 화면 기준으로 정리했습니다.
           </p>
         </header>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle>운영 기본 흐름</CardTitle>
-            <CardDescription>신규 대회 운영 시 권장 순서입니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-slate-700">
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-slate-900">운영 기본 흐름</h2>
+          <p className="mb-3 text-xs text-slate-500">신규 대회 운영 시 권장 순서입니다.</p>
+          <div className="space-y-2 text-sm text-slate-700">
             {workflowSteps.map((step) => (
               <div
                 key={step.title}
@@ -191,15 +182,12 @@ export default function AdminHelpPage() {
                 </Button>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle>관리자 상호작용 목록</CardTitle>
-            <CardDescription>메뉴별로 가능한 주요 동작입니다.</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-slate-900">관리자 상호작용 목록</h2>
+          <p className="mb-3 text-xs text-slate-500">메뉴별로 가능한 주요 동작입니다.</p>
             <div className="overflow-x-auto lg:overflow-x-visible">
               <Table>
                 <TableHeader>
@@ -227,15 +215,12 @@ export default function AdminHelpPage() {
                 </TableBody>
               </Table>
             </div>
-          </CardContent>
-        </Card>
+        </div>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle>상태값 가이드</CardTitle>
-            <CardDescription>운영 중 자주 보는 상태값 기준입니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-slate-900">상태값 가이드</h2>
+          <p className="mb-3 text-xs text-slate-500">운영 중 자주 보는 상태값 기준입니다.</p>
+          <div className="space-y-4">
             <div className="space-y-2 text-sm text-slate-700">
               <p className="font-medium">대회 상태</p>
               <div className="flex flex-wrap gap-2">
@@ -256,17 +241,13 @@ export default function AdminHelpPage() {
                 <Badge variant="secondary">undecided: 미정</Badge>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle>웹서비스 기능 요약</CardTitle>
-            <CardDescription>
-              관리자가 문의 대응 시 참고할 수 있는 사용자 기능 요약입니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-slate-700">
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-slate-900">웹서비스 기능 요약</h2>
+          <p className="mb-3 text-xs text-slate-500">관리자가 문의 대응 시 참고할 수 있는 사용자 기능 요약입니다.</p>
+          <div className="space-y-2 text-sm text-slate-700">
             <p>
               1. 사용자 공통: 대회 목록 조회, 참가자 현황 확인, 공개 조편성/첨부파일 열람, 게시판 이용
             </p>
@@ -277,8 +258,8 @@ export default function AdminHelpPage() {
             <p>
               3. 마이페이지: 닉네임/기본정보/비밀번호 관리, 카카오 계정 연동 지원
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         <div className="grid gap-3 md:grid-cols-3">
           <Button asChild variant="secondary" className="h-auto flex-col">

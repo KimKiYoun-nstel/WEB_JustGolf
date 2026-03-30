@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -801,8 +801,8 @@ export default function AdminTournamentDrawPage() {
   const stateBadgeBaseClass = "h-6 border-slate-200 bg-slate-50 text-slate-700";
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-3 px-3 py-6 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-6 md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-3xl font-semibold text-slate-900">라이브 조편성 관리</h1>
@@ -876,13 +876,13 @@ export default function AdminTournamentDrawPage() {
         </div>
 
         {msg && (
-          <Card className="rounded-[28px] border border-red-200 bg-red-50 shadow-sm">
+          <Card className="rounded-2xl border border-red-200 bg-red-50 shadow-sm">
             <CardContent className="py-1.5 text-sm text-red-700">{msg}</CardContent>
           </Card>
         )}
 
         {isTournamentLocked ? (
-          <Card className="rounded-[28px] border border-amber-200 bg-amber-50 shadow-sm">
+          <Card className="rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
             <CardContent className="py-2 text-sm text-amber-800">
               종료된 대회입니다. 라이브 추첨/조편성 데이터는 더 이상 수정할 수 없습니다.
             </CardContent>
@@ -890,13 +890,13 @@ export default function AdminTournamentDrawPage() {
         ) : null}
 
         {loading ? (
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-4 text-sm text-slate-500">로딩 중...</CardContent>
           </Card>
         ) : (
           <>
             {!session ? (
-              <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+              <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <CardHeader className="px-3 py-2">
                   <CardTitle className="text-base">라이브 세션 시작</CardTitle>
                 </CardHeader>
@@ -960,7 +960,7 @@ export default function AdminTournamentDrawPage() {
             ) : (
               <>
                 <div className="grid items-start gap-2 lg:grid-cols-[2fr_1fr]">
-                  <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+                  <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                     <CardHeader className="px-3 py-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <CardTitle className="text-sm">진행 컨트롤</CardTitle>
@@ -1143,7 +1143,7 @@ export default function AdminTournamentDrawPage() {
                     </CardContent>
                   </Card>
 
-                  <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+                  <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                     <CardHeader className="px-3 py-1">
                       <CardTitle className="text-sm">재편성(멤버 이동)</CardTitle>
                     </CardHeader>
@@ -1231,7 +1231,7 @@ export default function AdminTournamentDrawPage() {
 
                 {state && (
                   <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
-                    <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+                    <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between gap-2">
                           <CardTitle className="text-lg">조 편성 현황</CardTitle>
@@ -1298,7 +1298,7 @@ export default function AdminTournamentDrawPage() {
                       ) : null}
                     </Card>
 
-                    <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+                    <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between gap-2">
                           <CardTitle className="text-lg">남은 추첨 대상</CardTitle>

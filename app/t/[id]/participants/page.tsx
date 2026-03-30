@@ -453,9 +453,9 @@ export default function TournamentParticipantsPage() {
   const showContents = !loading && !isDeletedTournament && Boolean(tournament) && Boolean(user);
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-28 text-slate-800">
-      <section className="border-b border-slate-100 bg-white px-6 pb-7 pt-10">
-        <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <section className="border-b border-slate-100 bg-white px-4 pb-4 pt-6 md:px-6">
+        <div className="mx-auto max-w-5xl">
           {tournament ? (
             <>
               <div className="mb-3 flex items-center gap-2">
@@ -480,7 +480,7 @@ export default function TournamentParticipantsPage() {
 
       {showContents ? (
         <nav className="sticky top-16 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-6 py-2">
+          <div className="mx-auto flex w-full max-w-5xl items-center gap-1 overflow-x-auto px-4 py-2 md:px-6">
             {tocItems.map((item) => {
               const active = activeSection === item.id;
               return (
@@ -502,15 +502,15 @@ export default function TournamentParticipantsPage() {
         </nav>
       ) : null}
 
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-7">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 md:px-6">
         {(loading || authLoading) && (
-          <section className="rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
             <p className="text-sm text-slate-500">로딩 중...</p>
           </section>
         )}
 
         {!authLoading && !user && (
-          <section className="rounded-[28px] border border-rose-100 bg-rose-50 p-7">
+          <section className="rounded-2xl border border-rose-100 bg-rose-50 p-7">
             <p className="text-sm font-medium text-rose-700">
               이 페이지는 로그인 후 이용할 수 있습니다.
             </p>
@@ -524,7 +524,7 @@ export default function TournamentParticipantsPage() {
         )}
 
         {!loading && isDeletedTournament && user && (
-          <section className="rounded-[28px] border border-rose-100 bg-rose-50 p-7">
+          <section className="rounded-2xl border border-rose-100 bg-rose-50 p-7">
             <p className="text-sm font-medium text-rose-700">삭제된 대회는 접근할 수 없습니다.</p>
             <Link
               href="/tournaments"
@@ -536,7 +536,7 @@ export default function TournamentParticipantsPage() {
         )}
 
         {!loading && !isDeletedTournament && !tournament && user && (
-          <section className="rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
             <p className="text-sm text-slate-500">대회를 찾을 수 없습니다.</p>
           </section>
         )}
@@ -854,7 +854,7 @@ export default function TournamentParticipantsPage() {
 
       {showContents ? (
         <div className="fixed bottom-5 left-0 right-0 z-40 px-6">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-end gap-2">
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-end gap-2">
             <Link
               href="/tournaments"
               className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm"

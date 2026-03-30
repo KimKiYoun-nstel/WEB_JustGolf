@@ -455,7 +455,7 @@ function LoginForm() {
 
   return (
     <main className="min-h-screen bg-[#F9FAFB] px-6 py-12">
-      <div className="mx-auto w-full max-w-md rounded-[30px] border border-slate-200/70 bg-white p-8 shadow-sm md:p-10">
+      <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-8 shadow-sm md:p-10">
         <div className="mb-8 flex items-center justify-center">
           <span className="text-2xl font-bold tracking-tight text-slate-900">Just Golf</span>
         </div>
@@ -564,7 +564,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-[#F9FAFB] px-6 py-12">
-          <div className="mx-auto w-full max-w-md rounded-[30px] border border-slate-200/70 bg-white p-10 shadow-sm">
+          <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-10 shadow-sm">
             <p className="text-sm text-slate-500">로딩 중...</p>
           </div>
         </main>

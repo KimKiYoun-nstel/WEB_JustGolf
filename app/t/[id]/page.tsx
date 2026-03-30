@@ -1359,27 +1359,25 @@ export default function TournamentDetailPage() {
 
   if (isDeletedTournament) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7]">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10">
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="py-10">
-              <p className="text-sm text-red-700">해당 대회는 접근할 수 없습니다.</p>
-              <div className="mt-4">
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/tournaments">대회 목록으로</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 md:px-6">
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-8">
+            <p className="text-sm text-red-700">해당 대회는 접근할 수 없습니다.</p>
+            <div className="mt-4">
+              <Button asChild size="sm" variant="outline">
+                <Link href="/tournaments">대회 목록으로</Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <section className="border-b border-slate-100 bg-white px-6 pb-7 pt-10">
-        <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <section className="border-b border-slate-100 bg-white px-4 pb-4 pt-6 md:px-6">
+        <div className="mx-auto max-w-5xl">
           <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">
             REGISTRATION EDIT
           </p>
@@ -1399,7 +1397,7 @@ export default function TournamentDetailPage() {
 
       {t ? (
         <nav className="sticky top-16 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-6 py-2">
+          <div className="mx-auto flex w-full max-w-5xl items-center gap-1 overflow-x-auto px-4 py-2 md:px-6">
             {tocItems.map((item) => {
               const active = activeSection === item.id;
               return (
@@ -1421,53 +1419,40 @@ export default function TournamentDetailPage() {
         </nav>
       ) : null}
 
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-7">
+      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-4 md:px-6">
         {!t ? (
-          <Card>
-            <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩중...</p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-slate-100 bg-white py-10 text-center">
+            <p className="text-sm text-slate-500">로딩중...</p>
+          </div>
         ) : (
           <>
-            <Card
+            <div
               id="tournament-info"
-              className="rounded-[30px] border border-slate-100 bg-white shadow-sm"
+              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
             >
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between gap-3">
-                  <span>{t.title}</span>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-bold text-slate-900">{t.title}</h2>
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary" className="capitalize">
                     {formatTournamentStatus(t.status)}
                   </Badge>
-                </CardTitle>
-                <CardDescription>대회 정보 요약</CardDescription>
-                <div className="mt-3 flex justify-center">
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/t/${tournamentId}/participants`}>
                       참가자 현황
                     </Link>
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-1 text-sm text-slate-600">
-                  <div>일자: {t.event_date}</div>
-                  <div>코스: {t.course_name ?? "-"}</div>
-                  <div>지역: {t.location ?? "-"}</div>
-                  <div>첫 티오프: {t.tee_time ?? "-"}</div>
-                  <div>
-                    신청/확정/대기/취소: {registrationSummary.applied}/{registrationSummary.approved}/
-                    {registrationSummary.waitlisted}/{registrationSummary.canceled}명
-                  </div>
-                  <div>
-                    라운드 희망(사전/사후): {registrationSummary.prePreferred}/
-                    {registrationSummary.postPreferred}명
-                  </div>
-                  <div>메모: {t.notes ?? "-"}</div>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm text-slate-600">
+                <div>일자: {t.event_date}</div>
+                <div>코스: {t.course_name ?? "-"}</div>
+                <div>지역: {t.location ?? "-"}</div>
+                <div>첫 티오프: {t.tee_time ?? "-"}</div>
+                <div>신청/확정/대기/취소: {registrationSummary.applied}/{registrationSummary.approved}/{registrationSummary.waitlisted}/{registrationSummary.canceled}명</div>
+                <div>라운드 희망(사전/사후): {registrationSummary.prePreferred}/{registrationSummary.postPreferred}명</div>
+                {t.notes ? <div className="col-span-2">메모: {t.notes}</div> : null}
+              </div>
+            </div>
 
             <div id="main-registration" className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
               <div className="flex justify-center lg:hidden">
@@ -1489,7 +1474,7 @@ export default function TournamentDetailPage() {
               )}
 
               <Card
-                className={`rounded-[30px] border border-slate-100 bg-white shadow-sm ${
+                className={`rounded-2xl border border-slate-100 bg-white shadow-sm ${
                   isApplySheetOpen
                     ? "fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl lg:static lg:max-h-none lg:rounded-xl lg:inset-auto"
                     : "hidden lg:block"
@@ -1738,7 +1723,7 @@ export default function TournamentDetailPage() {
 
               {/* 내 참가자 목록 (등록한 참가자가 있을 때만 표시) */}
               {user && myParticipantList.length > 0 && (
-                <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+                <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                   <CardHeader>
                     <CardTitle>내 참가자 목록</CardTitle>
                     <CardDescription>
@@ -1843,7 +1828,7 @@ export default function TournamentDetailPage() {
 
               {/* 제3자 정보 수정 다이얼로그 */}
               {user && editingParticipant && (
-                <Card className="rounded-[30px] border border-blue-100 bg-white shadow-sm">
+                <Card className="rounded-2xl border border-blue-100 bg-white shadow-sm">
                   <CardHeader>
                     <CardTitle className="text-blue-900">제3자 정보 수정</CardTitle>
                     <CardDescription>
@@ -1995,7 +1980,7 @@ export default function TournamentDetailPage() {
                   )}
 
                   <Card
-                    className={`rounded-[30px] border border-slate-100 bg-white shadow-sm ${
+                    className={`rounded-2xl border border-slate-100 bg-white shadow-sm ${
                       isAddParticipantSheetOpen
                         ? "fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-hidden rounded-t-2xl lg:static lg:max-h-none lg:rounded-xl lg:inset-auto"
                         : "hidden lg:block"
@@ -2152,7 +2137,7 @@ export default function TournamentDetailPage() {
             </div>
 
             {user && (
-              <Card className="rounded-[30px] border border-slate-100 bg-white shadow-sm">
+              <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle>경품 지원하기</CardTitle>
                   <CardDescription>
@@ -2239,7 +2224,7 @@ export default function TournamentDetailPage() {
 
             <Card
               id="files-section"
-              className="rounded-[30px] border border-slate-100 bg-white shadow-sm"
+              className="rounded-2xl border border-slate-100 bg-white shadow-sm"
             >
               <CardHeader>
                 <CardTitle>첨부파일</CardTitle>
@@ -2316,7 +2301,7 @@ export default function TournamentDetailPage() {
                   return (
                     <Card
                       key={se.id}
-                      className="rounded-[30px] border border-slate-100 bg-white shadow-sm"
+                      className="rounded-2xl border border-slate-100 bg-white shadow-sm"
                     >
                       <CardHeader>
                         <CardTitle className="flex items-center justify-between gap-3">

@@ -79,13 +79,13 @@ export default function AdminTournamentNewPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto w-full max-w-screen-2xl space-y-5 px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6">
         <header className="space-y-2">
           <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN TOURNAMENTS</p>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">새 대회 생성</h1>
         </header>
-      <Card className="max-w-3xl rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <Card className="max-w-3xl rounded-2xl border border-slate-100 bg-white shadow-sm">
         <CardHeader>
           <CardTitle>새 대회 만들기</CardTitle>
         </CardHeader>

@@ -330,9 +330,9 @@ export default function AdminTournamentEditPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto w-full max-w-4xl px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
             </CardContent>
@@ -344,9 +344,9 @@ export default function AdminTournamentEditPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto w-full max-w-4xl px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border-red-200 bg-red-50">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -360,14 +360,14 @@ export default function AdminTournamentEditPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto w-full max-w-4xl space-y-5 px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-6 md:px-6">
         <header className="space-y-2">
           <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN TOURNAMENTS</p>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">대회 수정</h1>
         </header>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>대회 기본 정보</CardTitle>
             {originalStatus === "done" ? (
@@ -430,7 +430,7 @@ export default function AdminTournamentEditPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader>
             <CardTitle>결과 갈무리 / summary</CardTitle>
             <p className="text-sm text-slate-500">결과 보기 진입 시 노출되는 팝업 텍스트와 PDF 경로를 관리합니다. 종료 대회도 이 섹션은 별도로 저장할 수 있습니다.</p>

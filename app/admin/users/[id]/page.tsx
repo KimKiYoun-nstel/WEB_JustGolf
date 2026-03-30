@@ -66,9 +66,9 @@ export default function AdminUserDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩 중...</p>
             </CardContent>
@@ -80,9 +80,9 @@ export default function AdminUserDetailPage() {
 
   if (!detail) {
     return (
-      <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-        <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
-          <Card className="rounded-[28px] border-red-200 bg-red-50">
+      <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
+          <Card className="rounded-2xl border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>회원 정보를 불러오지 못했습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -118,13 +118,13 @@ export default function AdminUserDetailPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto w-full max-w-screen-2xl space-y-4 px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 md:px-6">
         <header className="space-y-2">
           <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN USER DETAIL</p>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">회원 상세</h1>
         </header>
-        <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+        <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle>회원 정보 상세</CardTitle>

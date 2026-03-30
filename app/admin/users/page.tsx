@@ -7,13 +7,6 @@ import { useAuth } from "../../../lib/auth";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../../components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -233,40 +226,29 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <div className="mx-auto w-full max-w-screen-2xl px-3 py-8 md:px-4 lg:px-6">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
         <header className="mb-5 space-y-2">
           <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">ADMIN USERS</p>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">회원 관리</h1>
         </header>
         {loading && (
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-            <CardContent className="py-10">
-              <p className="text-sm text-slate-500">로딩중...</p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-slate-100 bg-white py-10 text-center shadow-sm">
+            <p className="text-sm text-slate-500">로딩중...</p>
+          </div>
         )}
 
         {unauthorized && (
-          <Card className="rounded-[28px] border-red-200 bg-red-50">
-            <CardContent className="py-6 text-red-700">
-              <p>관리자만 접근할 수 있습니다.</p>
-              <Button asChild variant="outline" className="mt-4">
-                <Link href="/admin">관리자 대시보드로</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6">
+            <p className="text-red-700">관리자만 접근할 수 있습니다.</p>
+            <Button asChild variant="outline" className="mt-4">
+              <Link href="/admin">관리자 대시보드로</Link>
+            </Button>
+          </div>
         )}
 
         {!loading && !unauthorized && (
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
-            <CardHeader>
-              <CardTitle>회원 관리</CardTitle>
-              <CardDescription>
-                회원 승인, 권한, 비밀번호 초기화, 상세 정보 확인을 관리합니다.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-medium text-slate-500">현재 회원수</p>
@@ -401,8 +383,7 @@ export default function AdminUsersPage() {
                 </TableBody>
                 </Table>
               </div>
-            </CardContent>
-          </Card>
+          </div>
         )}
       </div>
     </main>

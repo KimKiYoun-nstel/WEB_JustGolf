@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -631,9 +631,9 @@ export default function AdminRegistrationsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#F2F4F7] pb-24 text-slate-800">
-      <section className="border-b border-slate-100 bg-white px-3 pb-6 pt-8 md:px-4 lg:px-6">
-        <div className="mx-auto w-full max-w-screen-2xl">
+    <main className="min-h-screen bg-slate-50 pb-12 text-slate-800">
+      <section className="border-b border-slate-100 bg-white px-4 pb-4 pt-6 md:px-6">
+        <div className="mx-auto w-full max-w-5xl">
           <p className="text-xs font-semibold tracking-[0.18em] text-slate-400">
             ADMIN REGISTRATIONS
           </p>
@@ -651,7 +651,7 @@ export default function AdminRegistrationsPage() {
 
       {!loading && !unauthorized && tocItems.length > 0 ? (
         <nav className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-screen-2xl items-center gap-1 overflow-x-auto px-3 py-2 md:px-4 lg:px-6">
+          <div className="mx-auto flex w-full max-w-5xl items-center gap-1 overflow-x-auto px-4 py-2 md:px-6">
             {tocItems.map((item) => {
               const active = activeSection === item.id;
               return (
@@ -673,9 +673,9 @@ export default function AdminRegistrationsPage() {
         </nav>
       ) : null}
 
-      <div className="mx-auto w-full max-w-screen-2xl px-3 py-7 md:px-4 lg:px-6">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
         {loading && (
-          <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+          <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <CardContent className="py-10">
               <p className="text-sm text-slate-500">로딩중...</p>
             </CardContent>
@@ -683,7 +683,7 @@ export default function AdminRegistrationsPage() {
         )}
 
         {unauthorized && (
-          <Card className="rounded-[28px] border-red-200 bg-red-50">
+          <Card className="rounded-2xl border-red-200 bg-red-50">
             <CardContent className="py-6 text-red-700">
               <p>관리자만 접근할 수 있습니다.</p>
               <Button asChild variant="outline" className="mt-4">
@@ -695,7 +695,7 @@ export default function AdminRegistrationsPage() {
 
         {!loading && !unauthorized && (
           <>
-            <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+            <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>신청 현황 통계</CardTitle>
                 <div className="flex flex-wrap gap-2">
@@ -848,7 +848,7 @@ export default function AdminRegistrationsPage() {
             </Card>
 
             {filteredRows.length === 0 && (
-              <Card className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+              <Card className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <CardContent className="py-10 text-center">
                   <p className="text-sm text-slate-500">필터 조건에 맞는 신청자가 없습니다.</p>
                 </CardContent>
@@ -856,7 +856,7 @@ export default function AdminRegistrationsPage() {
             )}
 
             {appliedRows.length > 0 && (
-              <Card id="applied-section" className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+              <Card id="applied-section" className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle>📋 신청 ({appliedRows.length})</CardTitle>
                 </CardHeader>
@@ -948,7 +948,7 @@ export default function AdminRegistrationsPage() {
             )}
 
             {groupedByStatus.approved.length > 0 && (
-              <Card id="approved-section" className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+              <Card id="approved-section" className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle>✅ 확정 ({groupedByStatus.approved.length})</CardTitle>
                 </CardHeader>
@@ -1040,7 +1040,7 @@ export default function AdminRegistrationsPage() {
             )}
 
             {groupedByStatus.waitlisted.length > 0 && (
-              <Card id="waitlisted-section" className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+              <Card id="waitlisted-section" className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle>⏳ 대기 ({groupedByStatus.waitlisted.length})</CardTitle>
                 </CardHeader>
@@ -1132,7 +1132,7 @@ export default function AdminRegistrationsPage() {
             )}
 
             {groupedByStatus.canceled.length > 0 && (
-              <Card id="canceled-section" className="rounded-[28px] border border-slate-100 bg-white shadow-sm">
+              <Card id="canceled-section" className="rounded-2xl border border-slate-100 bg-white shadow-sm">
                 <CardHeader>
                   <CardTitle>❌ 취소 ({groupedByStatus.canceled.length})</CardTitle>
                 </CardHeader>
