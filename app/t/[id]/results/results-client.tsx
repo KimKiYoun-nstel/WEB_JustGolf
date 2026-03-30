@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { useEffect, useDeferredValue, useMemo, useState } from "react";
+import type { TournamentMedia } from "../../../../lib/tournamentMedia";
 import { formatTournamentStatus } from "../../../../lib/statusLabels";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
@@ -65,6 +66,7 @@ type ResultItem = {
 type TournamentResultsClientProps = {
   initialData: TournamentResultsPayload;
   tournamentId: number;
+  media: TournamentMedia;
 };
 
 type PlayerResult = {
@@ -513,9 +515,14 @@ function PlayerDetailContent({ player }: { player: PlayerResult | null }) {
 export default function TournamentResultsClient({
   initialData,
   tournamentId,
+  media,
 }: TournamentResultsClientProps) {
   const data = initialData;
+  const { cardBgUrl, groupPhotoUrl, highlightVideoUrl } = media;
+  const hasBg = !!cardBgUrl;
+
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
@@ -623,42 +630,82 @@ export default function TournamentResultsClient({
   };
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f7f4ed_0%,#eef3f8_100%)] px-4 py-6 sm:px-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5">
-        <Card className="overflow-hidden border-slate-200/80 bg-white/90 shadow-sm">
-          <CardHeader className="gap-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Tournament Result
-                </p>
-                <CardTitle className="text-2xl font-bold text-slate-950 sm:text-3xl">
-                  {data.tournament.title}
-                </CardTitle>
-                <p className="text-sm text-slate-500">{data.tournament.event_date}</p>
+    <main className={`min-h-screen ${!groupPhotoUrl ? "bg-[linear-gradient(180deg,#f7f4ed_0%,#eef3f8_100%)]" : ""}`}>
+      {/* ── 상단 요약 카드 ── */}
+      <div className="px-4 pt-6 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <Card
+            className={`relative overflow-hidden shadow-sm ${hasBg ? "border-0" : "border-slate-200/80 bg-white/90"}`}
+            style={
+              cardBgUrl
+                ? { backgroundImage: `url(${cardBgUrl})`, backgroundSize: "cover", backgroundPosition: "center center" }
+                : undefined
+            }
+          >
+            {hasBg && <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-black/55" />}
+            <CardHeader className="relative gap-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${hasBg ? "text-white/70" : "text-slate-400"}`}>
+                    Tournament Result
+                  </p>
+                  <CardTitle className={`text-2xl font-bold sm:text-3xl ${hasBg ? "text-white" : "text-slate-950"}`}>
+                    {data.tournament.title}
+                  </CardTitle>
+                  <p className={`text-sm ${hasBg ? "text-white/80" : "text-slate-500"}`}>{data.tournament.event_date}</p>
+                </div>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${hasBg ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                  {formatTournamentStatus(data.tournament.status)}
+                </span>
               </div>
-              <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                {formatTournamentStatus(data.tournament.status)}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="sm">
-                <Link href={`/t/${data.tournament.id}/groups`}>조편성표 보기</Link>
-              </Button>
-              <Button asChild size="sm" variant="outline">
-                <a href={data.pdf_url} target="_blank" rel="noreferrer">
-                  원본 PDF 열기
-                </a>
-              </Button>
-              {data.summary_text.trim() ? (
-                <Button size="sm" variant="outline" onClick={() => setIsSummaryOpen(true)}>
-                  갈무리 보기
+              <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm" className={hasBg ? "bg-white text-slate-900 hover:bg-white/90" : ""}>
+                  <Link href={`/t/${data.tournament.id}/groups`}>조편성표 보기</Link>
                 </Button>
-              ) : null}
-            </div>
-          </CardHeader>
-        </Card>
+                <Button asChild size="sm" variant="outline" className={hasBg ? "border-white/50 bg-transparent text-white hover:bg-white/20 hover:text-white" : ""}>
+                  <a href={data.pdf_url} target="_blank" rel="noreferrer">원본 PDF 열기</a>
+                </Button>
+                {data.summary_text.trim() ? (
+                  <Button size="sm" variant="outline" className={hasBg ? "border-white/50 bg-transparent text-white hover:bg-white/20 hover:text-white" : ""} onClick={() => setIsSummaryOpen(true)}>
+                    갈무리 보기
+                  </Button>
+                ) : null}
+                {data.tournament.status === "done" ? (
+                  <Button asChild size="sm" variant="outline" className={hasBg ? "border-white/50 bg-transparent text-white hover:bg-white/20 hover:text-white" : ""}>
+                    <Link href={`/t/${data.tournament.id}/gallery`}>📸 사진/영상</Link>
+                  </Button>
+                ) : null}
+                {highlightVideoUrl ? (
+                  <Button size="sm" variant="outline" className={hasBg ? "border-white/50 bg-transparent text-white hover:bg-white/20 hover:text-white" : ""} onClick={() => setIsVideoOpen(true)}>
+                    🎬 하이라이트 영상
+                  </Button>
+                ) : null}
+              </div>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
 
+      {/* ── 단체사진 sticky 배경 (고정 크기: 높이=뷰포트, 폭=비율에 따라 클립) ── */}
+      {groupPhotoUrl ? (
+        <div
+          className="sticky top-14 z-0 w-full overflow-hidden"
+          style={{
+            height: "calc(100vh - 56px)",
+            backgroundImage: `url(${groupPhotoUrl})`,
+            /* contain: 이미지 전체 보임, 빈 공간은 페이지 배경색 */
+            backgroundSize: "contain",
+            backgroundPosition: "top center",
+            backgroundRepeat: "no-repeat",
+          }}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/30" />
+        </div>
+      ) : null}
+
+      {/* ── 메인 컨텐츠 (단체사진 위로 스크롤됨) ── */}
+      <div className={`relative z-10 ${groupPhotoUrl ? "px-4 pb-12 pt-4 sm:px-6" : "px-4 pb-6 pt-4 sm:px-6"}`}>
+        <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <div className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
           <Card className="border-slate-200/80 bg-white/90">
             <CardHeader className="pb-3">
@@ -886,6 +933,7 @@ export default function TournamentResultsClient({
             </Card>
           </div>
         </div>
+        </div>
       </div>
 
       <div className="lg:hidden">
@@ -899,6 +947,37 @@ export default function TournamentResultsClient({
           </SheetContent>
         </Sheet>
       </div>
+
+      {/* ── 하이라이트 영상 팝업 (YouTube Shorts 스타일: 세로 고정 크기 9:16) ── */}
+      {isVideoOpen && highlightVideoUrl ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/92"
+          onClick={() => setIsVideoOpen(false)}
+        >
+          <div
+            className="flex flex-col items-center gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIsVideoOpen(false)}
+              className="self-end rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/35"
+            >
+              ✕ 닫기
+            </button>
+            {/* 세로 영상 고정 크기: 최대 360px 폭, 80vh 높이 제한 */}
+            <video
+              controls
+              playsInline
+              className="rounded-2xl shadow-2xl"
+              style={{ width: "min(360px, 90vw)", maxHeight: "80vh", background: "#000" }}
+              src={highlightVideoUrl}
+            >
+              브라우저가 video 태그를 지원하지 않습니다.
+            </video>
+          </div>
+        </div>
+      ) : null}
 
       {isSummaryOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">

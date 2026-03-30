@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.95.3",
     "@types/matter-js": "^0.20.2",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
     "matter-js": "^0.20.0",
