@@ -1,0 +1,68 @@
+{
+  "timestamp": "2026-02-10T05:43:56.322Z",
+  "tables": [
+    {
+      "name": "profiles",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "tournaments",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "registrations",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "registration_extras",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "side_events",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "side_event_registrations",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "tournament_meal_options",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "tournament_files",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "tournament_groups",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "name": "tournament_group_members",
+      "exists": true,
+      "columns": [],
+      "rowCount": 0
+    }
+  ],
+  "functions": [],
+  "policies": [],
+  "relationships": []
+}
