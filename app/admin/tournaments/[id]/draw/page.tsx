@@ -404,6 +404,17 @@ export default function AdminTournamentDrawPage() {
     return replayDrawEvents(seed, events);
   }, [seed, events]);
 
+  // 현재 세션이 "이전 대회 참조"를 선택한 채 시작됐는지 derive.
+  // SESSION_STARTED 이벤트 payload 에 박제된 referenceTournamentId 를 기준으로 판단한다.
+  const activeReferenceTournament = useMemo(() => {
+    const started = events.find((evt) => evt.event_type === "SESSION_STARTED");
+    if (!started) return null;
+    const payload = started.payload as { referenceTournamentId?: number | null };
+    const refId = payload?.referenceTournamentId;
+    if (!refId) return null;
+    return referenceTournaments.find((ref) => ref.id === Number(refId)) ?? null;
+  }, [events, referenceTournaments]);
+
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -682,12 +693,54 @@ export default function AdminTournamentDrawPage() {
     });
   };
 
+  // 모드 변경 핸들러.
+  // ROUND_ROBIN → TARGET_GROUP 전환 시 "이전 대회 참조"가 활성화된 세션이라면,
+  // 중복 조편성 방지가 TARGET_GROUP 모드에서는 적용되지 않음을 세션 내 1회 경고한다.
+  // 사용자가 "다시 표시 안 함"을 선택하면 sessionStorage 키에 기록해 동일 세션 동안 재표시하지 않는다.
+  const handleModeChange = (nextMode: DrawMode) => {
+    const currentMode = mode;
+    if (
+      currentMode === "ROUND_ROBIN" &&
+      nextMode === "TARGET_GROUP" &&
+      activeReferenceTournament &&
+      session &&
+      typeof window !== "undefined"
+    ) {
+      const storageKey = `draw-target-warn-dismissed:${session.id}`;
+      const dismissed = window.sessionStorage.getItem(storageKey) === "1";
+      if (!dismissed) {
+        const message =
+          `현재 세션은 "${activeReferenceTournament.title}" 대회의 조편성을 참조하여 ` +
+          `중복 편성을 최소화하도록 시작되었습니다.\n\n` +
+          `TARGET_GROUP 모드는 특정 조에 지정된 참가자를 배정하는 방식이므로, ` +
+          `이전 대회와 같은 조로 편성될 수 있습니다.\n\n` +
+          `계속 진행하시겠습니까?\n\n` +
+          `(확인을 누르면 이 세션 동안 이 경고를 다시 표시하지 않습니다.)`;
+        const confirmed = window.confirm(message);
+        if (!confirmed) {
+          // 취소 시 모드 유지.
+          return;
+        }
+        window.sessionStorage.setItem(storageKey, "1");
+      }
+    }
+    setMode(nextMode);
+  };
+
   const handleResetDraw = async () => {
     if (!session) return;
 
-    const confirmed = window.confirm(
-      "조편성 전체 리셋을 진행하면 현재 라이브 추첨 기록과 배정 결과가 모두 삭제됩니다. 계속할까요?"
-    );
+    const confirmMessages = [
+      "조편성 전체 리셋을 진행하면 현재 라이브 추첨 기록과 배정 결과가 모두 삭제됩니다.",
+    ];
+    if (activeReferenceTournament) {
+      confirmMessages.push(
+        `※ 참조 대회(${activeReferenceTournament.title}) 설정은 그대로 유지됩니다.`
+      );
+    }
+    confirmMessages.push("계속할까요?");
+
+    const confirmed = window.confirm(confirmMessages.join("\n\n"));
     if (!confirmed) return;
 
     if (autoPickTimerRef.current) {
@@ -1000,7 +1053,7 @@ export default function AdminTournamentDrawPage() {
                           <label className="text-xs font-medium">모드</label>
                           <select
                             value={mode}
-                            onChange={(e) => setMode(e.target.value as DrawMode)}
+                            onChange={(e) => handleModeChange(e.target.value as DrawMode)}
                             disabled={isTournamentLocked}
                             className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
                           >

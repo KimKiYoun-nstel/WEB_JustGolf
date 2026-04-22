@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   createServiceRoleSupabaseClient,
   requireApiUser,
@@ -833,6 +833,30 @@ export async function POST(
 
       const latestSession = latestSessionRes.data as DrawSessionRow;
 
+      // 기존 세션의 SESSION_STARTED payload에서 참조 대회 ID를 추출하여
+      // reset 이후 새 세션에도 동일하게 승계한다. (참가자 명단이 바뀌었을 수 있으므로
+      // penalty map 은 새 playerIds 기준으로 재계산한다.)
+      const previousStartedEventRes = await supabaseAdmin
+        .from("draw_events")
+        .select("payload")
+        .eq("session_id", latestSession.id)
+        .eq("event_type", "SESSION_STARTED")
+        .order("id", { ascending: true })
+        .limit(1)
+        .maybeSingle<{ payload: Record<string, unknown> | null }>();
+
+      if (previousStartedEventRes.error) {
+        return NextResponse.json(
+          { error: previousStartedEventRes.error.message },
+          { status: 500 }
+        );
+      }
+
+      const inheritedReferenceTournamentId = normalizePositiveInt(
+        (previousStartedEventRes.data?.payload as { referenceTournamentId?: unknown } | undefined)
+          ?.referenceTournamentId
+      );
+
       const regRes = await supabaseAdmin
         .from("registrations")
         .select("id")
@@ -946,11 +970,38 @@ export async function POST(
         );
       }
 
+      // 이전 세션에서 승계한 참조 대회가 있다면 penalty map 을 새 참가자 명단 기준으로 재계산.
+      let inheritedRepeatPairPenalties: RepeatPairPenaltyMap = {};
+      if (inheritedReferenceTournamentId) {
+        try {
+          inheritedRepeatPairPenalties = await buildRepeatPairPenaltyMap(supabaseAdmin, {
+            tournamentId,
+            playerIds,
+            referenceTournamentId: inheritedReferenceTournamentId,
+          });
+        } catch (error) {
+          return NextResponse.json(
+            {
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "참조 대회 조편성 분석 중 오류가 발생했습니다.",
+            },
+            { status: 400 }
+          );
+        }
+      }
+
       const sessionStartEventRes = await supabaseAdmin.from("draw_events").insert({
         session_id: newSessionRes.data.id,
         step: 0,
         event_type: "SESSION_STARTED",
-        payload: { startedAt: restartedAt, playerIds },
+        payload: {
+          startedAt: restartedAt,
+          playerIds,
+          referenceTournamentId: inheritedReferenceTournamentId,
+          repeatPairPenalties: inheritedRepeatPairPenalties,
+        },
         created_by: guard.user.id,
       });
 

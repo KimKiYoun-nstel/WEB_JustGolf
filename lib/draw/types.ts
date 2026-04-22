@@ -36,6 +36,9 @@ export function isDrawEventType(value: string): value is DrawEventType {
 export interface SessionStartedPayload {
   startedAt: string;
   playerIds?: number[];
+  // 라이브 조추첨 세션 시작 시 선택한 "이전 대회 참조"의 대회 id.
+  // reset_draw로 새 세션을 만들 때도 이전 세션에서 상속되어 payload에 포함된다.
+  referenceTournamentId?: number | null;
 }
 
 export interface StepConfiguredPayload {
