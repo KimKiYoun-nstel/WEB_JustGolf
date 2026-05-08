@@ -6,6 +6,7 @@ import { publishDrawChatBroadcastMessage } from "../../../../../../lib/server/dr
 type DrawChatMessageBody = {
   chatSessionId?: number;
   message?: string;
+  clientMessageId?: string;
 };
 
 type DrawChatSessionRow = {
@@ -165,6 +166,10 @@ export async function POST(
     const chatSessionId = normalizePositiveInt(body?.chatSessionId);
     const rawMessage = typeof body?.message === "string" ? body.message : "";
     const message = rawMessage.trim();
+    const clientMessageId =
+      typeof body?.clientMessageId === "string" && body.clientMessageId.trim().length > 0
+        ? body.clientMessageId.trim().slice(0, 120)
+        : null;
 
     if (!chatSessionId) {
       return NextResponse.json({ error: "chatSessionId is required" }, { status: 400 });
@@ -239,7 +244,7 @@ export async function POST(
     }
 
     const realtimeMessage: DrawChatRealtimeMessage = {
-      id: crypto.randomUUID(),
+      id: clientMessageId ?? crypto.randomUUID(),
       chatSessionId,
       tournamentId,
       userId: guard.user.id,

@@ -19,6 +19,10 @@ type ChatSessionInfo = {
   status: "live" | "closed";
 };
 
+type ChatMessage = DrawChatRealtimeMessage & {
+  pending?: boolean;
+};
+
 export default function DrawChatPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = useMemo(() => Number(params.id), [params.id]);
@@ -28,7 +32,7 @@ export default function DrawChatPage() {
   const [nickname, setNickname] = useState("");
   const [canJoin, setCanJoin] = useState(false);
   const [chatSession, setChatSession] = useState<ChatSessionInfo | null>(null);
-  const [messages, setMessages] = useState<DrawChatRealtimeMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [msg, setMsg] = useState("");
@@ -40,15 +44,20 @@ export default function DrawChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
 
-  const appendMessage = (nextMessage: DrawChatRealtimeMessage) => {
+  const appendMessage = (nextMessage: ChatMessage) => {
     setMessages((prev) => {
-      if (prev.some((item) => item.id === nextMessage.id)) return prev;
-      return [...prev, nextMessage];
+      const existingIndex = prev.findIndex((item) => item.id === nextMessage.id);
+      if (existingIndex < 0) {
+        return [...prev, nextMessage];
+      }
+      const next = [...prev];
+      next[existingIndex] = { ...prev[existingIndex], ...nextMessage, pending: nextMessage.pending };
+      return next;
     });
-    setParticipants((prev) => {
-      if (prev.includes(nextMessage.nickname)) return prev;
-      return [...prev, nextMessage.nickname];
-    });
+  };
+
+  const removeMessage = (messageId: string) => {
+    setMessages((prev) => prev.filter((item) => item.id !== messageId));
   };
 
   const scrollToBottom = (force = false) => {
@@ -146,15 +155,28 @@ export default function DrawChatPage() {
   }, [tournamentId]);
 
   useEffect(() => {
-    if (!chatSession?.id) return;
+    if (!chatSession?.id || !canJoin || !nickname || !currentUserId) return;
     if (!Number.isFinite(tournamentId)) return;
 
     const supabase = createClient();
     const topic = buildDrawChatBroadcastTopic(tournamentId);
-    const channel = supabase
-      .channel(topic)
+    const channel = supabase.channel(topic);
+    const syncParticipants = () => {
+      const rawState = channel.presenceState() as Record<
+        string,
+        Array<{ nickname?: string; joinedAt?: string }>
+      >;
+      const names = Object.values(rawState)
+        .flat()
+        .map((entry) => String(entry.nickname ?? "").trim())
+        .filter(Boolean);
+      const uniqueNames = Array.from(new Set(names));
+      uniqueNames.sort((left, right) => left.localeCompare(right, "ko"));
+      setParticipants(uniqueNames);
+    };
+    channel
       .on("broadcast", { event: DRAW_CHAT_BROADCAST_EVENT }, ({ payload }) => {
-        const newMsg = payload as DrawChatRealtimeMessage;
+        const newMsg = payload as ChatMessage;
         if (!newMsg || newMsg.chatSessionId !== chatSession.id) return;
         const shouldStickToBottom = shouldAutoScrollRef.current;
         appendMessage(newMsg);
@@ -166,18 +188,46 @@ export default function DrawChatPage() {
           }
         }, 40);
       })
-      .subscribe();
+      .on("presence", { event: "sync" }, syncParticipants)
+      .subscribe(async (status) => {
+        if (status !== "SUBSCRIBED") return;
+        await channel.track({
+          userId: currentUserId,
+          nickname,
+          joinedAt: new Date().toISOString(),
+        });
+      });
 
     return () => {
       channel.unsubscribe();
     };
-  }, [chatSession?.id, tournamentId]);
+  }, [chatSession?.id, canJoin, currentUserId, nickname, tournamentId]);
 
   const handleSend = async () => {
     if (!chatSession?.id || !inputMessage.trim() || sending) return;
 
+    const message = inputMessage.trim();
+    const clientMessageId = crypto.randomUUID();
+    const optimisticMessage: ChatMessage = {
+      id: clientMessageId,
+      chatSessionId: chatSession.id,
+      tournamentId,
+      userId: currentUserId,
+      nickname,
+      message,
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+
     setSending(true);
     setMsg("");
+    setInputMessage("");
+    shouldAutoScrollRef.current = true;
+    appendMessage(optimisticMessage);
+    setTimeout(() => {
+      scrollToBottom(true);
+      inputRef.current?.focus();
+    }, 0);
 
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/draw-chat/messages`, {
@@ -185,28 +235,29 @@ export default function DrawChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chatSessionId: chatSession.id,
-          message: inputMessage.trim(),
+          message,
+          clientMessageId,
         }),
       });
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        removeMessage(clientMessageId);
+        setInputMessage((prev) => (prev ? prev : message));
         setMsg(data.error ?? "메시지 전송에 실패했습니다.");
         return;
       }
 
       if (data.message) {
-        appendMessage(data.message as DrawChatRealtimeMessage);
+        appendMessage(data.message as ChatMessage);
       }
-
-      setInputMessage("");
-      shouldAutoScrollRef.current = true;
-      setTimeout(() => {
-        scrollToBottom(true);
-        inputRef.current?.focus();
-      }, 0);
+    } catch {
+      removeMessage(clientMessageId);
+      setInputMessage((prev) => (prev ? prev : message));
+      setMsg("메시지 전송 중 네트워크 오류가 발생했습니다.");
     } finally {
       setSending(false);
+      inputRef.current?.focus();
     }
   };
 
