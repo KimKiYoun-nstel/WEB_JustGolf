@@ -30,6 +30,15 @@ function normalizeGroupNo(groupNo: number | null | undefined, groupCount: number
   return groupNo;
 }
 
+function circularDistance(from: number, to: number, total: number) {
+  if (total <= 0) return 0;
+  const normalizedFrom = ((from - 1 + total) % total) + 1;
+  const normalizedTo = ((to - 1 + total) % total) + 1;
+  const forward = (normalizedTo - normalizedFrom + total) % total;
+  const backward = (normalizedFrom - normalizedTo + total) % total;
+  return Math.min(forward, backward);
+}
+
 function appendUniquePlayer(groups: Record<number, number[]>, groupNo: number, playerId: number) {
   const nextGroups = { ...groups };
   const currentMembers = nextGroups[groupNo] ?? [];
@@ -82,7 +91,7 @@ function normalizeDeckOrderPayload(
   remainingPlayerIds: number[]
 ) {
   if (!Array.isArray(deckOrder) || deckOrder.length === 0) return null;
-  if (deckOrder.length !== remainingPlayerIds.length) return null;
+  if (deckOrder.length > remainingPlayerIds.length) return null;
 
   const parsed: number[] = [];
   for (const value of deckOrder) {
@@ -120,6 +129,37 @@ export function resolveTargetGroupNo({
 
   const normalizedStep = Math.max(0, step);
   return (normalizedStep % groupCount) + 1;
+}
+
+export function resolveNextRoundRobinGroupNo(params: {
+  groups: Record<number, number[]>;
+  groupCount: number;
+  groupSize: number;
+  preferredGroupNo: number;
+}) {
+  const { groups, groupCount, groupSize, preferredGroupNo } = params;
+  const normalizedPreferred = normalizeGroupNo(preferredGroupNo, groupCount) ?? 1;
+  const candidates: Array<{ groupNo: number; memberCount: number; distance: number }> = [];
+
+  for (let groupNo = 1; groupNo <= groupCount; groupNo += 1) {
+    const memberCount = groups[groupNo]?.length ?? 0;
+    if (memberCount >= groupSize) continue;
+    candidates.push({
+      groupNo,
+      memberCount,
+      distance: circularDistance(normalizedPreferred, groupNo, groupCount),
+    });
+  }
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((left, right) => {
+    if (left.memberCount !== right.memberCount) return left.memberCount - right.memberCount;
+    if (left.distance !== right.distance) return left.distance - right.distance;
+    return left.groupNo - right.groupNo;
+  });
+
+  return candidates[0].groupNo;
 }
 
 export function createInitialDrawState(seed: DrawSessionSeed): DrawState {

@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../../../lib/auth";
 import { createClient } from "../../../../../lib/supabaseClient";
 import { getTournamentAdminAccess } from "../../../../../lib/tournamentAdminAccess";
-import { replayDrawEvents } from "../../../../../lib/draw/reducer";
+import { replayDrawEvents, resolveNextRoundRobinGroupNo } from "../../../../../lib/draw/reducer";
 import type {
   DrawEventRecord,
   DrawMode,
@@ -103,11 +103,7 @@ function sortEvents(a: DrawEventRecord, b: DrawEventRecord) {
 
 function resolveStepCandidateIds(state: DrawState) {
   const deck = state.stepDeckPlayerIds;
-  if (
-    Array.isArray(deck) &&
-    deck.length === state.remainingPlayerIds.length &&
-    deck.length > 0
-  ) {
+  if (Array.isArray(deck) && deck.length > 0 && deck.length <= state.remainingPlayerIds.length) {
     return deck;
   }
   return state.remainingPlayerIds;
@@ -491,6 +487,19 @@ export default function AdminTournamentDrawPage() {
     );
   }, [state, fullGroupNos]);
 
+  const rrSuggestedTargetGroupNo = useMemo(() => {
+    if (!state) return null;
+    const preferredGroupNo = state.targetGroupNo
+      ? (state.targetGroupNo % state.groupCount) + 1
+      : ((Math.max(0, state.currentStep) % state.groupCount) + 1);
+    return resolveNextRoundRobinGroupNo({
+      groups: state.groups,
+      groupCount: state.groupCount,
+      groupSize: state.groupSize,
+      preferredGroupNo,
+    });
+  }, [state]);
+
   useEffect(() => {
     if (!state) return;
     const preferredAssignGroupNo = state.pendingGroupNo ?? state.targetGroupNo ?? 1;
@@ -502,14 +511,17 @@ export default function AdminTournamentDrawPage() {
       setAssignGroupNo(String(normalizedAssignGroupNo));
     }
 
-    const preferredTargetGroupNo = Number(targetGroupNo) || 1;
+    const preferredTargetGroupNo =
+      mode === "ROUND_ROBIN"
+        ? (rrSuggestedTargetGroupNo ?? (Number(targetGroupNo) || 1))
+        : (Number(targetGroupNo) || 1);
     const normalizedTargetGroupNo =
       availableGroupNos.find((groupNo) => groupNo === preferredTargetGroupNo) ??
       availableGroupNos[0] ??
       preferredTargetGroupNo;
-    if (String(normalizedTargetGroupNo) !== targetGroupNo) {
-      setTargetGroupNo(String(normalizedTargetGroupNo));
-    }
+    setTargetGroupNo((prev) =>
+      String(normalizedTargetGroupNo) !== prev ? String(normalizedTargetGroupNo) : prev
+    );
 
     if (assignedMembers.length > 0) {
       if (!movePlayerId || !assignedMembers.some((row) => String(row.playerId) === movePlayerId)) {
@@ -533,7 +545,8 @@ export default function AdminTournamentDrawPage() {
     session?.group_count,
     availableGroupNos,
     assignGroupNo,
-    targetGroupNo,
+    mode,
+    rrSuggestedTargetGroupNo,
   ]);
 
   const displayName = (registrationId: number) =>
@@ -631,7 +644,11 @@ export default function AdminTournamentDrawPage() {
         ? (isRepickPhase
             ? (latest?.targetGroupNo ?? fallbackTargetGroupNo)
             : fallbackTargetGroupNo)
-        : null;
+        : (isRepickPhase
+            ? (latest?.targetGroupNo ?? null)
+            : (rrSuggestedTargetGroupNo && fallbackTargetGroupNo !== rrSuggestedTargetGroupNo
+                ? fallbackTargetGroupNo
+                : null));
 
     const ok = await postAction("start_step", {
       sessionId: session.id,
@@ -657,6 +674,25 @@ export default function AdminTournamentDrawPage() {
       }
       void postAction("pick_result", payload);
     }, safeDuration);
+  };
+
+  const handleTargetGroupChange = (nextValue: string) => {
+    setTargetGroupNo(nextValue);
+
+    const nextGroupNo = Number(nextValue);
+    if (
+      mode === "ROUND_ROBIN" &&
+      rrSuggestedTargetGroupNo &&
+      Number.isInteger(nextGroupNo) &&
+      nextGroupNo !== rrSuggestedTargetGroupNo
+    ) {
+      toast({
+        variant: "default",
+        title: `이번 RR 턴 타겟 조를 ${nextGroupNo}조로 수동 지정했습니다.`,
+        description: "현재 턴에만 적용되며, 다음 추첨부터는 자동 순서 선택으로 복귀합니다.",
+        duration: 2200,
+      });
+    }
   };
 
   const handleShuffleDeck = async () => {
@@ -695,7 +731,7 @@ export default function AdminTournamentDrawPage() {
 
   // 모드 변경 핸들러.
   // ROUND_ROBIN → TARGET_GROUP 전환 시 "이전 대회 참조"가 활성화된 세션이라면,
-  // 중복 조편성 방지가 TARGET_GROUP 모드에서는 적용되지 않음을 세션 내 1회 경고한다.
+  // 대상 조 기준으로 중복이 적은 후보를 우선 추첨하지만 완전 방지는 아닐 수 있음을 세션 내 1회 경고한다.
   // 사용자가 "다시 표시 안 함"을 선택하면 sessionStorage 키에 기록해 동일 세션 동안 재표시하지 않는다.
   const handleModeChange = (nextMode: DrawMode) => {
     const currentMode = mode;
@@ -712,8 +748,9 @@ export default function AdminTournamentDrawPage() {
         const message =
           `현재 세션은 "${activeReferenceTournament.title}" 대회의 조편성을 참조하여 ` +
           `중복 편성을 최소화하도록 시작되었습니다.\n\n` +
-          `TARGET_GROUP 모드는 특정 조에 지정된 참가자를 배정하는 방식이므로, ` +
-          `이전 대회와 같은 조로 편성될 수 있습니다.\n\n` +
+          `TARGET_GROUP 모드에서는 현재 선택한 조의 기존 멤버를 기준으로 ` +
+          `중복이 적은 후보를 우선 추첨합니다. 다만 해당 조의 남은 후보 상황에 따라 ` +
+          `이전 대회와 같은 조 편성이 일부 발생할 수 있습니다.\n\n` +
           `계속 진행하시겠습니까?\n\n` +
           `(확인을 누르면 이 세션 동안 이 경고를 다시 표시하지 않습니다.)`;
         const confirmed = window.confirm(message);
@@ -1065,9 +1102,9 @@ export default function AdminTournamentDrawPage() {
                           <label className="text-xs font-medium">타겟 조</label>
                           <select
                             value={targetGroupNo}
-                            onChange={(e) => setTargetGroupNo(e.target.value)}
-                            disabled={mode !== "TARGET_GROUP" || isTournamentLocked}
-                            aria-disabled={mode !== "TARGET_GROUP" || isTournamentLocked}
+                            onChange={(e) => handleTargetGroupChange(e.target.value)}
+                            disabled={isTournamentLocked || isRepickPhase}
+                            aria-disabled={isTournamentLocked || isRepickPhase}
                             className="flex h-8 w-full rounded-md border border-input bg-white px-3 py-1 text-sm disabled:pointer-events-none disabled:bg-slate-100 disabled:text-slate-400"
                           >
                             {Array.from(
@@ -1083,6 +1120,11 @@ export default function AdminTournamentDrawPage() {
                               </option>
                             ))}
                           </select>
+                          {mode === "ROUND_ROBIN" && rrSuggestedTargetGroupNo ? (
+                            <p className="text-[11px] text-slate-500">
+                              자동 추천: {rrSuggestedTargetGroupNo}조 · 필요 시 이번 턴만 수동 조정 가능
+                            </p>
+                          ) : null}
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-medium">연출 시간(초)</label>

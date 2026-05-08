@@ -5,6 +5,7 @@ import {
 } from "../../../../../../lib/apiGuard";
 import {
   replayDrawEvents,
+  resolveNextRoundRobinGroupNo,
   resolveTargetGroupNo,
 } from "../../../../../../lib/draw/reducer";
 import type {
@@ -399,26 +400,6 @@ function isGroupFull(
   return currentSize >= groupSize;
 }
 
-function findNextAvailableGroupNo(params: {
-  groups: Record<number, number[]>;
-  groupCount: number;
-  groupSize: number;
-  preferredGroupNo: number;
-}): number | null {
-  const { groups, groupCount, groupSize, preferredGroupNo } = params;
-  const normalizedPreferred =
-    ((Math.max(1, preferredGroupNo) - 1) % groupCount) + 1;
-
-  for (let offset = 0; offset < groupCount; offset += 1) {
-    const candidate = ((normalizedPreferred - 1 + offset) % groupCount) + 1;
-    if (!isGroupFull(groups, candidate, groupSize)) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
 function createStepSeed() {
   return Math.floor(Math.random() * 0xffffffff) >>> 0;
 }
@@ -454,11 +435,7 @@ function shuffleDeckWithSeed(playerIds: number[], seed: number) {
 
 function resolveStepCandidatePool(state: { remainingPlayerIds: number[]; stepDeckPlayerIds?: number[] | null }) {
   const deck = state.stepDeckPlayerIds;
-  if (
-    Array.isArray(deck) &&
-    deck.length === state.remainingPlayerIds.length &&
-    deck.length > 0
-  ) {
+  if (Array.isArray(deck) && deck.length > 0 && deck.length <= state.remainingPlayerIds.length) {
     return deck;
   }
   return state.remainingPlayerIds;
@@ -669,6 +646,41 @@ function resolveRecommendedGroupNoForPlayer(params: {
   });
 
   return candidates[0].groupNo;
+}
+
+function resolveTargetGroupCandidatePool(params: {
+  remainingPlayerIds: number[];
+  targetGroupNo: number | null;
+  groups: Record<number, number[]>;
+  repeatPairPenaltyMap: RepeatPairPenaltyMap;
+}) {
+  const { remainingPlayerIds, targetGroupNo, groups, repeatPairPenaltyMap } = params;
+  if (!targetGroupNo) {
+    return remainingPlayerIds;
+  }
+
+  const currentMembers = groups[targetGroupNo] ?? [];
+  if (currentMembers.length === 0) {
+    return remainingPlayerIds;
+  }
+
+  const candidates = remainingPlayerIds.map((playerId) => {
+    const playerPenaltyMap = repeatPairPenaltyMap[playerId] ?? {};
+    const penalty = currentMembers.reduce(
+      (sum, memberId) => sum + (playerPenaltyMap[memberId] ?? 0),
+      0
+    );
+    return { playerId, penalty };
+  });
+
+  const minPenalty = Math.min(...candidates.map((candidate) => candidate.penalty));
+  const bestPlayerIds = new Set(
+    candidates
+    .filter((candidate) => candidate.penalty === minPenalty)
+    .map((candidate) => candidate.playerId)
+  );
+
+  return remainingPlayerIds.filter((playerId) => bestPlayerIds.has(playerId));
 }
 
 export async function GET(
@@ -1362,6 +1374,14 @@ export async function POST(
         targetGroupNo: body.targetGroupNo,
         groupCount: session.group_count,
       });
+      const roundRobinManualTargetGroupNo = normalizePositiveInt(body.targetGroupNo);
+      const roundRobinPreferredGroupNo = state.targetGroupNo
+        ? (state.targetGroupNo % session.group_count) + 1
+        : resolveTargetGroupNo({
+            step,
+            mode: "ROUND_ROBIN",
+            groupCount: session.group_count,
+          });
       let targetGroupNo: number | null = null;
       if (mode === "TARGET_GROUP") {
         if (isGroupFull(state.groups, resolvedTargetGroupNo, session.group_size)) {
@@ -1372,12 +1392,20 @@ export async function POST(
         }
         targetGroupNo = resolvedTargetGroupNo;
       } else {
-        targetGroupNo = findNextAvailableGroupNo({
-          groups: state.groups,
-          groupCount: session.group_count,
-          groupSize: session.group_size,
-          preferredGroupNo: resolvedTargetGroupNo,
-        });
+        if (
+          roundRobinManualTargetGroupNo &&
+          roundRobinManualTargetGroupNo <= session.group_count &&
+          !isGroupFull(state.groups, roundRobinManualTargetGroupNo, session.group_size)
+        ) {
+          targetGroupNo = roundRobinManualTargetGroupNo;
+        } else {
+          targetGroupNo = resolveNextRoundRobinGroupNo({
+            groups: state.groups,
+            groupCount: session.group_count,
+            groupSize: session.group_size,
+            preferredGroupNo: roundRobinPreferredGroupNo,
+          });
+        }
         if (!targetGroupNo) {
           return NextResponse.json(
             { error: "All groups are already full." },
@@ -1387,7 +1415,16 @@ export async function POST(
       }
       const startedAt = new Date().toISOString();
       const seed = createStepSeed();
-      const deckOrder = [...state.remainingPlayerIds];
+      const repeatPairPenaltyMap = parseRepeatPairPenaltyMap(events);
+      const deckOrder =
+        mode === "TARGET_GROUP"
+          ? resolveTargetGroupCandidatePool({
+              remainingPlayerIds: state.remainingPlayerIds,
+              targetGroupNo,
+              groups: state.groups,
+              repeatPairPenaltyMap,
+            })
+          : [...state.remainingPlayerIds];
       const tempo = {
         baseHz: 10,
         slowdownMs: Math.min(7500, Math.max(1300, Math.round(durationMs * 0.62))),
